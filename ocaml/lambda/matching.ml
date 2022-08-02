@@ -3526,6 +3526,7 @@ let simple_for_let ~scopes value_kind loc param pat body =
 
 let rec map_return f = function
   | Llet (str, k, id, l1, l2) -> Llet (str, k, id, l1, map_return f l2)
+  | Lmutlet (k, id, l1, l2) -> Lmutlet (k, id, l1, map_return f l2)
   | Lletrec (l1, l2) -> Lletrec (l1, map_return f l2)
   | Lifthenelse (lcond, lthen, lelse, k) ->
       Lifthenelse (lcond, map_return f lthen, map_return f lelse, k)
@@ -3553,8 +3554,8 @@ let rec map_return f = function
           Option.map (map_return f) def,
           loc, k )
   | (Lstaticraise _ | Lprim (Praise _, _, _)) as l -> l
-  | ( Lvar _ | Lconst _ | Lapply _ | Lfunction _ | Lsend _ | Lprim _ | Lwhile _
-    | Lfor _ | Lassign _ | Lifused _ ) as l ->
+  | ( Lvar _ | Lmutvar _ | Lconst _ | Lapply _ | Lfunction _ | Lsend _ | Lprim _
+    | Lwhile _ | Lfor _ | Lassign _ | Lifused _ ) as l ->
       f l
   | Lregion l -> Lregion (map_return f l)
 
@@ -3608,7 +3609,7 @@ let assign_pat ~scopes value_kind opt nraise catch_ids loc pat lam =
     simple_for_let ~scopes value_kind loc lam pat code in
   List.fold_left push_sublet exit rev_sublets
 
-let for_let ~scopes loc param pat body_kind body =
+let for_let ~scopes loc param pat mutability body_kind body =
   match pat.pat_desc with
   | Tpat_any ->
       (* This eliminates a useless variable (and stack slot in bytecode)
@@ -3617,7 +3618,10 @@ let for_let ~scopes loc param pat body_kind body =
   | Tpat_var (id, _) ->
       (* fast path, and keep track of simple bindings to unboxable numbers *)
       let k = Typeopt.value_kind pat.pat_env pat.pat_type in
-      Llet (Strict, k, id, param, body)
+      begin match mutability with
+      | Asttypes.Mutable -> Lmutlet (k, id, param, body)
+      | Asttypes.Immutable -> Llet (Strict, k, id, param, body)
+      end
   | _ ->
       let opt = ref false in
       let nraise = next_raise_count () in

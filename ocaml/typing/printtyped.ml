@@ -338,11 +338,16 @@ and expression i ppf x =
   match x.exp_desc with
   | Texp_ident (li,_,_,_) -> line i ppf "Texp_ident %a\n" fmt_path li;
   | Texp_instvar (_, li,_) -> line i ppf "Texp_instvar %a\n" fmt_path li;
+  | Texp_mutvar id -> line i ppf "Texp_mutvar %a\n" fmt_ident id.txt;
   | Texp_constant (c) -> line i ppf "Texp_constant %a\n" fmt_constant c;
   | Texp_let (rf, l, e) ->
       line i ppf "Texp_let %a\n" fmt_rec_flag rf;
       list i value_binding ppf l;
       expression i ppf e;
+  | Texp_letmutable (vb, e) ->
+      line i ppf "Texp_letmutable\n";
+      value_binding i ppf vb;
+      expression i ppf e
   | Texp_function { arg_label = p; param = _; cases; partial = _; region } ->
       line i ppf "Texp_function\n";
       line i ppf "region %b\n" region;
@@ -404,10 +409,12 @@ and expression i ppf x =
       line i ppf "Texp_sequence\n";
       expression i ppf e1;
       expression i ppf e2;
-  | Texp_while (e1, e2) ->
+  | Texp_while {wh_cond; wh_cond_region; wh_body; wh_body_region} ->
       line i ppf "Texp_while\n";
-      expression i ppf e1;
-      expression i ppf e2;
+      line i ppf "cond_region %b\n" wh_cond_region;
+      expression i ppf wh_cond;
+      line i ppf "body_region %b\n" wh_body_region;
+      expression i ppf wh_body;
   | Texp_list_comprehension(e1, type_comp) ->
     line i ppf "Texp_list_comprehension\n";
     expression i ppf e1;
@@ -416,11 +423,13 @@ and expression i ppf x =
     line i ppf "Texp_arr_comprehension\n";
     expression i ppf e1;
     comprehension i ppf type_comp
-  | Texp_for (s, _, e1, e2, df, e3) ->
-      line i ppf "Texp_for \"%a\" %a\n" fmt_ident s fmt_direction_flag df;
-      expression i ppf e1;
-      expression i ppf e2;
-      expression i ppf e3;
+  | Texp_for {for_id; for_from; for_to; for_dir; for_body; for_region} ->
+      line i ppf "Texp_for \"%a\" %a\n"
+        fmt_ident for_id fmt_direction_flag for_dir;
+      expression i ppf for_from;
+      expression i ppf for_to;
+      line i ppf "region %b\n" for_region;
+      expression i ppf for_body
   | Texp_send (e, Tmeth_name s, eo, _) ->
       line i ppf "Texp_send \"%s\"\n" s;
       expression i ppf e;
@@ -432,6 +441,9 @@ and expression i ppf x =
   | Texp_new (li, _, _, _) -> line i ppf "Texp_new %a\n" fmt_path li;
   | Texp_setinstvar (_, s, _, e) ->
       line i ppf "Texp_setinstvar \"%a\"\n" fmt_path s;
+      expression i ppf e;
+  | Texp_setmutvar (lid, e) ->
+      line i ppf "Texp_setmutvar \"%a\"\n" fmt_ident lid.txt;
       expression i ppf e;
   | Texp_override (_, l) ->
       line i ppf "Texp_override\n";
