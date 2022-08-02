@@ -102,6 +102,7 @@ and expression_desc =
       Path.t * Longident.t loc * Types.value_description * ident_kind
   | Texp_constant of constant
   | Texp_let of rec_flag * value_binding list * expression
+  | Texp_letmutable of value_binding * expression
   | Texp_function of { arg_label : arg_label; param : Ident.t;
       cases : value case list; partial : partial;
       region : bool; warnings : Warnings.state; }
@@ -123,19 +124,32 @@ and expression_desc =
   | Texp_array of expression list
   | Texp_ifthenelse of expression * expression * expression option
   | Texp_sequence of expression * expression
-  | Texp_while of expression * expression
+  | Texp_while of {
+      wh_cond : expression;
+      wh_cond_region : bool;
+      wh_body : expression;
+      wh_body_region : bool
+    }
   | Texp_list_comprehension of
       expression * comprehension list
   | Texp_arr_comprehension of
       expression * comprehension list
-  | Texp_for of
-      Ident.t * Parsetree.pattern * expression * expression * direction_flag *
-        expression
+  | Texp_for of {
+      for_id  : Ident.t;
+      for_pat : Parsetree.pattern;
+      for_from : expression;
+      for_to   : expression;
+      for_dir  : direction_flag;
+      for_body : expression;
+      for_region : bool;
+    }
   | Texp_send of expression * meth * expression option * apply_position
   | Texp_new of
       Path.t * Longident.t loc * Types.class_declaration * apply_position
   | Texp_instvar of Path.t * Path.t * string loc
+  | Texp_mutvar of Ident.t loc
   | Texp_setinstvar of Path.t * Path.t * string loc * expression
+  | Texp_setmutvar of Ident.t loc * expression
   | Texp_override of Path.t * (Path.t * string loc * expression) list
   | Texp_letmodule of
       Ident.t option * string option loc * Types.module_presence * module_expr *

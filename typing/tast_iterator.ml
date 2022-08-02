@@ -193,6 +193,9 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
   | Texp_let (rec_flag, list, exp) ->
       sub.value_bindings sub (rec_flag, list);
       sub.expr sub exp
+  | Texp_letmutable (vb, exp) ->
+      sub.value_binding sub vb;
+      sub.expr sub exp
   | Texp_function {cases; _} ->
      List.iter (sub.case sub) cases
   | Texp_apply (exp, list, _) ->
@@ -228,9 +231,9 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
   | Texp_sequence (exp1, exp2) ->
       sub.expr sub exp1;
       sub.expr sub exp2
-  | Texp_while (exp1, exp2) ->
-      sub.expr sub exp1;
-      sub.expr sub exp2
+  | Texp_while { wh_cond; wh_body } ->
+      sub.expr sub wh_cond;
+      sub.expr sub wh_body
   | Texp_list_comprehension (exp1, type_comps)
   | Texp_arr_comprehension (exp1, type_comps) ->
     sub.expr sub exp1;
@@ -242,16 +245,18 @@ let expr sub {exp_extra; exp_desc; exp_env; _} =
           ) clauses;
         Option.iter (fun g -> sub.expr sub g) guard)
       type_comps
-  | Texp_for (_, _, exp1, exp2, _, exp3) ->
-      sub.expr sub exp1;
-      sub.expr sub exp2;
-      sub.expr sub exp3
+  | Texp_for {for_from; for_to; for_body} ->
+      sub.expr sub for_from;
+      sub.expr sub for_to;
+      sub.expr sub for_body
   | Texp_send (exp, _, expo, _) ->
       sub.expr sub exp;
       Option.iter (sub.expr sub) expo
   | Texp_new _ -> ()
   | Texp_instvar _ -> ()
+  | Texp_mutvar _ -> ()
   | Texp_setinstvar (_, _, _, exp) ->sub.expr sub exp
+  | Texp_setmutvar (_, exp) -> sub.expr sub exp
   | Texp_override (_, list) ->
       List.iter (fun (_, _, e) -> sub.expr sub e) list
   | Texp_letmodule (_, _, _, mexpr, exp) ->

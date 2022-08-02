@@ -409,6 +409,8 @@ let expression sub exp =
         Pexp_let (rec_flag,
           List.map (sub.value_binding sub) list,
           sub.expr sub exp)
+    | Texp_letmutable (vb, exp) ->
+        Pexp_let (Nonrecursive, [sub.value_binding sub vb], sub.expr sub exp)
 
     (* Pexp_function can't have a label, so we split in 3 cases. *)
     (* One case, no guard: It's a fun. *)
@@ -469,8 +471,8 @@ let expression sub exp =
           Option.map (sub.expr sub) expo)
     | Texp_sequence (exp1, exp2) ->
         Pexp_sequence (sub.expr sub exp1, sub.expr sub exp2)
-    | Texp_while (exp1, exp2) ->
-        Pexp_while (sub.expr sub exp1, sub.expr sub exp2)
+    | Texp_while {wh_cond; wh_body} ->
+        Pexp_while (sub.expr sub wh_cond, sub.expr sub wh_body)
     | Texp_list_comprehension(exp1, type_comp) ->
       Pexp_extension
       (Extensions.payload_of_extension_expr ~loc
@@ -481,10 +483,10 @@ let expression sub exp =
         (Extensions.payload_of_extension_expr ~loc
           (Extensions.Eexp_arr_comprehension(
             sub.expr sub exp1, map_comprehension type_comp)))
-    | Texp_for (_id, name, exp1, exp2, dir, exp3) ->
-        Pexp_for (name,
-          sub.expr sub exp1, sub.expr sub exp2,
-          dir, sub.expr sub exp3)
+    | Texp_for {for_pat; for_from; for_to; for_dir; for_body} ->
+        Pexp_for (for_pat,
+          sub.expr sub for_from, sub.expr sub for_to,
+          for_dir, sub.expr sub for_body)
     | Texp_send (exp, meth, _, _) ->
         Pexp_send (sub.expr sub exp, match meth with
             Tmeth_name name -> mkloc name loc
@@ -492,8 +494,15 @@ let expression sub exp =
     | Texp_new (_path, lid, _, _) -> Pexp_new (map_loc sub lid)
     | Texp_instvar (_, path, name) ->
       Pexp_ident ({loc = sub.location sub name.loc ; txt = lident_of_path path})
+    | Texp_mutvar id ->
+      Pexp_ident ({loc = sub.location sub id.loc;
+                   txt = lident_of_path (Pident id.txt)})
     | Texp_setinstvar (_, _path, lid, exp) ->
         Pexp_setinstvar (map_loc sub lid, sub.expr sub exp)
+    | Texp_setmutvar(lid, exp) ->
+        let lid = {loc = sub.location sub lid.loc;
+                   txt = Ident.name lid.txt} in
+        Pexp_setinstvar (lid, sub.expr sub exp)
     | Texp_override (_, list) ->
         Pexp_override (List.map (fun (_path, lid, exp) ->
               (map_loc sub lid, sub.expr sub exp)
