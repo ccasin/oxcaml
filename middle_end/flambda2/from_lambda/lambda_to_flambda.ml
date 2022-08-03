@@ -814,10 +814,13 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
       (k : Acc.t -> Env.t -> CCenv.t -> Ident.t -> Expr_with_acc.t)
     (k_exn : Continuation.t) : Expr_with_acc.t =
   match lam with
-  | Lvar id ->
+  | Lvar id -> (* CJC XXX todo take out this is_mutable check? *)
     let return_id =
       if Env.is_mutable env id then Env.get_mutable_variable env id else id
     in
+    k acc env ccenv return_id
+  | Lmutvar id ->
+    let return_id = Env.get_mutable_variable env id in
     k acc env ccenv return_id
   | Lconst const ->
     name_then_cps_non_tail acc env ccenv "const" (IR.Simple (Const const)) k
@@ -849,7 +852,7 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     in
     let body acc ccenv = k acc env ccenv id in
     CC.close_let_rec acc ccenv ~function_declarations:[func] ~body
-  | Llet (Variable, value_kind, id, defining_expr, body) ->
+  | Lmutlet (value_kind, id, defining_expr, body) ->
     let temp_id = Ident.create_local "let_mutable" in
     let_cont_nonrecursive_with_extra_params acc env ccenv ~is_exn_handler:false
       ~params:[temp_id, IR.Not_user_visible, value_kind]
@@ -1077,10 +1080,11 @@ let rec cps_non_tail acc env ccenv (lam : L.lambda)
     cps_non_tail acc env ccenv
       (L.Llet (Strict, Pgenval, ident, lam1, lam2))
       k k_exn
-  | Lwhile (cond, body) ->
+  (* CJC XXX todo - what is cps_non_tail doing?  Do I need to be worried about the case where there is no region? *)
+  | Lwhile {wh_cond=cond; wh_body=body; _} ->
     let env, loop = rec_catch_for_while_loop env cond body in
     cps_non_tail acc env ccenv loop k k_exn
-  | Lfor (ident, start, stop, dir, body) ->
+  | Lfor {for_id=ident; for_from=start; for_to=stop; for_dir=dir; for_body=body; _} ->
     let env, loop = rec_catch_for_for_loop env ident start stop dir body in
     cps_non_tail acc env ccenv loop k k_exn
   | Lassign (being_assigned, new_value) ->
@@ -1138,8 +1142,8 @@ and cps_non_tail_simple acc env ccenv (lam : L.lambda)
   match lam with
   | Lvar id when not (Env.is_mutable env id) -> k acc env ccenv (IR.Var id)
   | Lconst const -> k acc env ccenv (IR.Const const)
-  | Lvar _ (* mutable read *)
-  | Lapply _ | Lfunction _ | Llet _ | Lletrec _ | Lprim _ | Lswitch _
+  | Lvar _ | Lmutvar _ (* mutable read *)
+  | Lapply _ | Lfunction _ | Lmutlet _ | Llet _ | Lletrec _ | Lprim _ | Lswitch _
   | Lstringswitch _ | Lstaticraise _ | Lstaticcatch _ | Ltrywith _
   | Lifthenelse _ | Lsequence _ | Lwhile _ | Lfor _ | Lassign _ | Lsend _
   | Levent _ | Lifused _ | Lregion _ ->
@@ -1179,11 +1183,15 @@ and cps_tail_apply acc env ccenv ap_func ap_args ap_region_close ap_mode ap_loc
 and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
     (k_exn : Continuation.t) : Expr_with_acc.t =
   match lam with
-  | Lvar id ->
+  | Lvar id -> (* CJC XXX if? *)
     let dbg = Debuginfo.none in
     let var =
       if Env.is_mutable env id then Env.get_mutable_variable env id else id
     in
+    apply_cont_with_extra_args acc env ccenv ~dbg k None [IR.Var var]
+  | Lmutvar id ->
+    let dbg = Debuginfo.none in
+    let var =Env.get_mutable_variable env id in
     apply_cont_with_extra_args acc env ccenv ~dbg k None [IR.Var var]
   | Lconst const ->
     let dbg = Debuginfo.none in
@@ -1213,7 +1221,7 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
       apply_cont_with_extra_args acc env ccenv ~dbg k None [IR.Var id]
     in
     CC.close_let_rec acc ccenv ~function_declarations:[func] ~body
-  | Llet (Variable, value_kind, id, defining_expr, body) ->
+  | Lmutlet (value_kind, id, defining_expr, body) ->
     let temp_id = Ident.create_local "let_mutable" in
     let_cont_nonrecursive_with_extra_params acc env ccenv ~is_exn_handler:false
       ~params:[temp_id, Not_user_visible, value_kind]
@@ -1450,10 +1458,10 @@ and cps_tail acc env ccenv (lam : L.lambda) (k : Continuation.t)
   | Lsequence (lam1, lam2) ->
     let ident = Ident.create_local "sequence" in
     cps_tail acc env ccenv (L.Llet (Strict, Pgenval, ident, lam1, lam2)) k k_exn
-  | Lwhile (cond, body) ->
+  | Lwhile {wh_cond=cond; wh_body=body; _} ->
     let env, loop = rec_catch_for_while_loop env cond body in
     cps_tail acc env ccenv loop k k_exn
-  | Lfor (ident, start, stop, dir, body) ->
+  | Lfor {for_id=ident; for_from=start; for_to=stop; for_dir=dir; for_body=body; _} ->
     let env, loop = rec_catch_for_for_loop env ident start stop dir body in
     cps_tail acc env ccenv loop k k_exn
   | Levent (body, _event) -> cps_tail acc env ccenv body k k_exn
@@ -1692,8 +1700,8 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~condition_dbg
             (arm, k, None, IR.Const cst :: extra_args) :: consts_rev
           in
           consts_rev, wrappers
-        | Lvar _ (* mutable *)
-        | Lapply _ | Lfunction _ | Llet _ | Lletrec _ | Lprim _ | Lswitch _
+        | Lvar _ | Lmutvar _ (* mutable *)
+        | Lapply _ | Lfunction _ | Llet _ | Lmutlet _ | Lletrec _ | Lprim _ | Lswitch _
         | Lstringswitch _ | Lstaticraise _ | Lstaticcatch _ | Ltrywith _
         | Lifthenelse _ | Lsequence _ | Lwhile _ | Lfor _ | Lassign _ | Lsend _
         | Levent _ | Lifused _ | Lregion _ ->

@@ -279,7 +279,7 @@ let rec prepare_letrec (recursive_set : Ident.Set.t)
     | Some current_let ->
       { letrec with consts = (current_let.ident, const) :: letrec.consts }
     | None -> dead_code lam letrec)
-  | Llet (Variable, k, id, def, body) ->
+  | Lmutlet (k, id, def, body) ->
     let letrec = prepare_letrec recursive_set current_let body letrec in
 
     (* Variable let comes from mutable values, and reading from it is considered
@@ -296,7 +296,7 @@ let rec prepare_letrec (recursive_set : Ident.Set.t)
     if Ident.Set.disjoint free_vars_def recursive_set
     then
       let pre ~tail : Lambda.lambda =
-        Llet (Variable, k, id, def, letrec.pre ~tail)
+        Lmutlet (k, id, def, letrec.pre ~tail)
       in
       { letrec with pre }
     else
@@ -470,7 +470,7 @@ let rec prepare_letrec (recursive_set : Ident.Set.t)
       { letrec with substitution; letbound }
     | None -> dead_code lam letrec)
   | Lifused (_v, lam) -> prepare_letrec recursive_set current_let lam letrec
-  | Lwhile (_, _) | Lfor (_, _, _, _, _) | Lassign (_, _) ->
+  | Lwhile _ | Lfor _ | Lassign (_, _) ->
     (* Effect expressions returning unit. The result can be pre-declared. *)
     let consts =
       match current_let with
@@ -485,7 +485,7 @@ let rec prepare_letrec (recursive_set : Ident.Set.t)
   | Lstaticcatch (_, _, _, _)
   | Ltrywith (_, _, _, _)
   | Lifthenelse (_, _, _, _)
-  | Lsend _ | Lvar _
+  | Lsend _ | Lvar _ | Lmutvar _ (* CJC XXX maybe wrong *)
   | Lprim (_, _, _) ->
     (* This cannot be recursive, otherwise it should have been caught by the
        well formedness check. Hence it is ok to evaluate it before anything
