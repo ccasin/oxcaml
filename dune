@@ -74,14 +74,14 @@
 
    ;; TYPING
    ident path primitive shape types btype oprint subst predef datarepr
-   cmi_format persistent_env env type_immediacy errortrace
+   cmi_format persistent_env env type_layout errortrace
    typedtree printtyped ctype printtyp includeclass mtype envaux includecore
    tast_iterator tast_mapper signature_group cmt_format untypeast
    includemod includemod_errorprinter
    typetexp patterns printpat parmatch stypes typedecl typeopt rec_check
    typecore
-   typeclass typemod typedecl_variance typedecl_properties typedecl_immediacy
-   typedecl_unboxed typedecl_separability cmt2annot
+   typeclass typemod typedecl_variance typedecl_properties
+   typedecl_separability cmt2annot
    ; manual update: mli only files
    annot outcometree
 
@@ -278,7 +278,7 @@
     (cmi_format.mli as compiler-libs/cmi_format.mli)
     (persistent_env.mli as compiler-libs/persistent_env.mli)
     (env.mli as compiler-libs/env.mli)
-    (type_immediacy.mli as compiler-libs/type_immediacy.mli)
+    (type_layout.mli as compiler-libs/type_layout.mli)
     (typedtree.mli as compiler-libs/typedtree.mli)
     (printtyped.mli as compiler-libs/printtyped.mli)
     (ctype.mli as compiler-libs/ctype.mli)
@@ -304,8 +304,6 @@
     (typemod.mli as compiler-libs/typemod.mli)
     (typedecl_variance.mli as compiler-libs/typedecl_variance.mli)
     (typedecl_properties.mli as compiler-libs/typedecl_properties.mli)
-    (typedecl_immediacy.mli as compiler-libs/typedecl_immediacy.mli)
-    (typedecl_unboxed.mli as compiler-libs/typedecl_unboxed.mli)
     (typedecl_separability.mli as compiler-libs/typedecl_separability.mli)
     (annot.mli as compiler-libs/annot.mli)
     (outcometree.mli as compiler-libs/outcometree.mli)
