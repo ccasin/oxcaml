@@ -137,7 +137,7 @@ let match_printer_type ppf desc typename =
         raise Exit
   in
   Ctype.begin_def();
-  let ty_arg = Ctype.newvar() in
+  let ty_arg = Ctype.newvar Type_layout.value in
   Ctype.unify !toplevel_env
     (Ctype.newconstr printer_type [ty_arg])
     (Ctype.instance desc.val_type);
