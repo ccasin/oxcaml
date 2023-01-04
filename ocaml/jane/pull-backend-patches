@@ -36,8 +36,8 @@ configure_remote ocaml 'git@github.com:ocaml/ocaml.git'
 git fetch -q origin
 git fetch -q flambda-backend
 
-git checkout -q flambda-backend/main
-rev=$(git subtree split -P ocaml --annotate='flambda-backend: ' flambda-backend/main)
+git checkout -q flambda-backend/unboxed-clean-rebase-for-jane
+rev=$(git subtree split -P ocaml --annotate='flambda-backend: ' flambda-backend/unboxed-clean-rebase-for-jane)
 git push -q origin $rev:refs/heads/flambda-patches-layouts |& sed '/^remote: /d'
 git checkout -q -
 
