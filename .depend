@@ -1558,6 +1558,7 @@ typing/typecore.cmx : \
 typing/typecore.cmi : \
     typing/types.cmi \
     typing/typedtree.cmi \
+    typing/type_layout.cmi \
     typing/shape.cmi \
     typing/path.cmi \
     parsing/parsetree.cmi \
@@ -1866,12 +1867,12 @@ typing/typeopt.cmo : \
     typing/predef.cmi \
     typing/path.cmi \
     utils/numbers.cmi \
-    utils/misc.cmi \
     lambda/lambda.cmi \
     typing/ident.cmi \
     typing/env.cmi \
     typing/ctype.cmi \
     utils/config.cmi \
+    utils/clflags.cmi \
     parsing/asttypes.cmi \
     typing/typeopt.cmi
 typing/typeopt.cmx : \
@@ -1881,12 +1882,12 @@ typing/typeopt.cmx : \
     typing/predef.cmx \
     typing/path.cmx \
     utils/numbers.cmx \
-    utils/misc.cmx \
     lambda/lambda.cmx \
     typing/ident.cmx \
     typing/env.cmx \
     typing/ctype.cmx \
     utils/config.cmx \
+    utils/clflags.cmx \
     parsing/asttypes.cmi \
     typing/typeopt.cmi
 typing/typeopt.cmi : \
