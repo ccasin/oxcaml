@@ -202,9 +202,10 @@ let update_type temp_env env id loc =
   let decl = Env.find_type path temp_env in
   match decl.type_manifest with None -> assert false
   | Some ty ->
-      try
-        Ctype.(unify_delaying_layout_checks env
-                 (newconstr path decl.type_params) ty)
+      let params =
+        List.map (fun _ -> Ctype.newvar Type_layout.any) decl.type_params
+      in
+      try Ctype.(unify_delaying_layout_checks env (newconstr path params) ty)
       with Ctype.Unify err ->
         raise (Error(loc, Type_clash (env, err)))
 
