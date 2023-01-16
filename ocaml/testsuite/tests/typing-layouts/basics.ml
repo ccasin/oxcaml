@@ -981,7 +981,16 @@ type 'a t_void_15 [@@void]
 type t_15 = T_15 : 'a t_void_15 -> t_15 [@@unboxed]
 |}];;
 
+(* Test 16: incremental layout checking of @@unboxed types - see comment on
+   [constrain_type_layout]. *)
 
+type 'a t16 = 'a list
+type s16 = { lbl : s16 t16 } [@@unboxed];;
+
+[%%expect{|
+type 'a t16 = 'a list
+type s16 = { lbl : s16 t16; } [@@unboxed]
+|}];;
 
 (* CR ccasinghino: Once we allow non-value top-level module definitions, add
    tests showing that things get defaulted to value.

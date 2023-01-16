@@ -1700,16 +1700,7 @@ let expand_abbrev_gen kind find_type_expansion env ty =
               ("add a "^string_of_kind kind^" expansion for "^Path.name path);*)
             let ty' =
               try
-                (* CJC XXX is it safe to skip layout checks in this call to
-                   subst?  I'm not totally convinced.  It eliminates a stack
-                   overflow in this program, so I'm just going with it
-                   temporarily to make progress:
-
-                     type 'a t = 'a list
-                     type s = { lbl : s t } [@@unboxed]
-                *)
-                skip_layout_checks_in (fun () ->
-                  subst env level kind abbrev (Some ty) params args body)
+                subst env level kind abbrev (Some ty) params args body
               with Cannot_subst -> raise_escape_exn Constraint
             in
             (* For gadts, remember type as non exportable *)
@@ -1847,31 +1838,40 @@ let try_expand_safe_opt env ty =
 let expand_head_opt env ty =
   try try_expand_head try_expand_safe_opt env ty with Cannot_expand -> ty
 
-(* We use expand_head_opt version of expand_head to get access
-   to the manifest type of private abbreviations.
 
-   We use ty_prev to track the last type for which we found a definition,
-   allowing us to return a type for which a definition was found even if
-   we eventually bottom out at a missing cmi file, or otherwise.
-*)
-let rec get_unboxed_type_representation env ty_prev ty fuel =
-  if fuel < 0 then ty else
+type unbox_result =
+  | Unboxed of type_expr
+  | Not_unboxed of type_expr
+  | Missing
+
+(* We use expand_head_opt version of expand_head to get access
+   to the manifest type of private abbreviations. *)
+let unbox_once env ty =
   let ty = expand_head_opt env ty in
   match get_desc ty with
   | Tconstr (p, args, _) ->
     begin match Env.find_type p env with
-    | exception Not_found -> ty_prev
+    | exception Not_found -> Missing
     | decl ->
       begin match decl_is_unboxed decl with
-      | None -> ty
+      | None -> Not_unboxed ty
       | Some ty2 ->
         let ty2 = match get_desc ty2 with Tpoly (t, _) -> t | _ -> ty2 in
-        get_unboxed_type_representation env ty
-          (apply env decl.type_params ty2 args) (fuel - 1)
+        Unboxed (apply env decl.type_params ty2 args)
       end
     end
-  | _ -> ty
+  | _ -> Not_unboxed ty
 
+(* We use ty_prev to track the last type for which we found a definition,
+   allowing us to return a type for which a definition was found even if
+   we eventually bottom out at a missing cmi file, or otherwise. *)
+let rec get_unboxed_type_representation env ty_prev ty fuel =
+  if fuel < 0 then ty else
+    match unbox_once env ty with
+    | Unboxed ty2 ->
+      get_unboxed_type_representation env ty ty2 (fuel - 1)
+    | Not_unboxed ty2 -> ty2
+    | Missing -> ty_prev
 
 let get_unboxed_type_representation env ty =
   (* Do not give too much fuel: PR#7424 *)
@@ -1928,9 +1928,24 @@ let rec estimate_type_layout env ty =
   | Tpoly (ty, _) -> estimate_type_layout env ty
   | Tpackage _ -> Layout value
 
-(* For convenience, returns the most precise layout we computed for the type
-   (which may still be an upper bound). *)
-let rec constrain_type_layout ~fixed env ty1 layout2 =
+(* For convenience, this returns the most precise layout we computed for the
+   type (which may still be an upper bound).
+
+   The "fuel" argument here is used because we're duplicating the loop of
+   `get_unboxed_type_representation`, but performing layout checking of each
+   step.  This allows to check examples like:
+
+     type 'a t = 'a list
+     type s = { lbl : s t } [@@unboxed]
+
+   Here, we want to see [s t] is value, and this only requires expanding once to
+   see [t] is list and [s] is irrelvant.  But calling
+   [get_unboxed_type_representation] itself would otherwise get into a nasty
+   loop trying to also expand [s], and then performing layout checking to ensure
+   it's a valid argument to [t].  (We believe there are still loops like this
+   that can occur, though, and may need a more principled solution later).
+*)
+let rec constrain_type_layout ~fixed env ty1 layout2 fuel =
   let constrain_unboxed ty1 =
     match estimate_type_layout env ty1 with
     | Layout layout1 -> Type_layout.sublayout layout1 layout2
@@ -1940,8 +1955,8 @@ let rec constrain_type_layout ~fixed env ty1 layout2 =
         Result.map (fun layout1 -> set_var_layout ty layout1; layout1)
           (Type_layout.intersection layout1 layout2)
   in
-  (* This is an optimization to avoid calling [get_unboxed_type_representation]
-     if we can tell the constraint is satisfied from the type_kind *)
+  (* This is an optimization to avoid unboxing if we can tell the constraint is
+     satisfied from the type_kind *)
   match get_desc ty1 with
   | Tconstr(p, _args, _abbrev) -> begin
       let layout_bound =
@@ -1952,21 +1967,23 @@ let rec constrain_type_layout ~fixed env ty1 layout2 =
       in
       match Type_layout.sublayout layout_bound layout2 with
       | Ok _ as ok -> ok
-      | Error _ ->
-        (* CR ccasinghino: Can we improve performance by reimplementing
-           get_unboxed_type_representation and adding a layout check at each
-           iteration, rather than fully expanding? *)
-        let ty1 = get_unboxed_type_representation env ty1 in
-        constrain_unboxed ty1
+      | Error _ as err when fuel < 0 -> err
+      | Error _ as err ->
+        begin match unbox_once env ty1 with
+        | Not_unboxed ty -> constrain_unboxed ty
+        | Unboxed ty1 ->
+          constrain_type_layout ~fixed env ty1 layout2 (fuel - 1)
+        | Missing -> err
+        end
     end
-  | Tpoly (ty, _) -> constrain_type_layout ~fixed env ty layout2
+  | Tpoly (ty, _) -> constrain_type_layout ~fixed env ty layout2 fuel
   | _ -> constrain_unboxed ty1
 
 let check_type_layout env ty layout =
-  constrain_type_layout ~fixed:true env ty layout
+  constrain_type_layout ~fixed:true env ty layout 100
 
 let constrain_type_layout env ty layout =
-  constrain_type_layout ~fixed:false env ty layout
+  constrain_type_layout ~fixed:false env ty layout 100
 
 let check_decl_layout env decl layout =
   match decl_is_unboxed decl with
