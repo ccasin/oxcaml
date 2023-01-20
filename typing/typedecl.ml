@@ -493,7 +493,9 @@ let transl_declaration env sdecl (id, uid) =
                something from the uses of the type (particularly in a group of
                mutually recursive types).
              - If there is a manifest, we put in a better bound for the layout
-               after translating the manifest below.
+               in update_decl_layout.  It's useful to do it there, rather than
+               later in this function, because we'll then have access to the
+               translated definitions of mutually defined types.
           *)
           let default =
             if Option.is_some sdecl.ptype_manifest
@@ -593,19 +595,6 @@ let transl_declaration env sdecl (id, uid) =
         let no_row = not (is_fixed_type sdecl) in
         let cty = transl_simple_type env no_row Global sty in
         Some cty, Some cty.ctyp_type
-    in
-    let kind =
-      (* For abstract types with a manifest, we can avoid unnecessary expansion
-         and save time later by providing an upper bound here.  We do a quick
-         estimate, (in particular not bothering to expand unboxed types), but it
-         would be sound to leave in "any". *)
-      match kind, man with
-      | Type_abstract _, Some typ -> begin
-          match layout_annotation with
-          | Some _ -> kind
-          | None -> Type_abstract {layout = Ctype.estimate_type_layout env typ}
-        end
-      | (((Type_record _ | Type_variant _ | Type_open), _) | (_, None)) -> kind
     in
     let arity = List.length params in
     let decl =
@@ -987,7 +976,21 @@ let update_decl_layout env decl =
   in
 
   match decl.type_kind with
-  | Type_abstract _ | Type_open -> decl
+  | Type_open -> decl
+  | Type_abstract {layout} -> begin
+      (* For abstract types with a manifest, we can avoid unnecessary expansion
+         and save time later by providing an upper bound here.  We do a quick
+         estimate, (in particular not bothering to expand unboxed types), but it
+         would be sound to leave in "any". *)
+      match decl.type_manifest with
+      | None -> decl
+      | Some ty -> begin
+        let layout' = Ctype.estimate_type_layout env ty in
+        match Type_layout.sublayout layout' layout with
+        | Ok _ -> { decl with type_kind = Type_abstract {layout=layout'} }
+        | Error _ -> decl
+      end
+    end
   | Type_record (lbls, rep) ->
     let lbls, rep = update_record_kind decl.type_loc lbls rep in
     { decl with type_kind = Type_record (lbls, rep) }
