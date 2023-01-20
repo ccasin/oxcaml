@@ -1970,9 +1970,8 @@ let rec constrain_type_layout ~fixed env ty1 layout2 fuel =
       | Error _ as err when fuel < 0 -> err
       | Error _ as err ->
         begin match unbox_once env ty1 with
-        | Not_unboxed ty -> constrain_unboxed ty
-        | Unboxed ty1 ->
-          constrain_type_layout ~fixed env ty1 layout2 (fuel - 1)
+        | Not_unboxed ty1 -> constrain_unboxed ty1
+        | Unboxed ty1 -> constrain_type_layout ~fixed env ty1 layout2 (fuel - 1)
         | Missing -> err
         end
     end
@@ -3638,7 +3637,7 @@ let unify_gadt ~equations_level:lev ~allow_recursive_equations
     TypePairs.clear unify_eq_set;
     raise e
 
-let unify_var env t1 t2 =
+let unify_var ~from_subst env t1 t2 =
   if eq_type t1 t2 then () else
   match get_desc t1, get_desc t2 with
     Tvar _, Tconstr _ when deep_occur t1 t2 ->
@@ -3649,7 +3648,7 @@ let unify_var env t1 t2 =
         occur_for Unify env t1 t2;
         update_level_for Unify env (get_level t1) t2;
         update_scope_for Unify (get_scope t1) t2;
-        unification_layout_check env t2 layout;
+        if not from_subst then unification_layout_check env t2 layout;
         link_type t1 t2;
         reset_trace_gadt_instances reset_tracing;
       with Unify_trace trace ->
@@ -3661,7 +3660,10 @@ let unify_var env t1 t2 =
   | _ ->
       unify (ref env) t1 t2
 
-let _ = unify_var' := unify_var
+(* CJC XXX comment here explaining why it's safe to skip layout checks in this
+   case when called from subst. *)
+let _ = unify_var' := unify_var ~from_subst:true
+let unify_var = unify_var ~from_subst:false
 
 let unify_pairs env ty1 ty2 pairs =
   univar_pairs := pairs;
