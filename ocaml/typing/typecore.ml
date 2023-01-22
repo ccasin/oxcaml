@@ -3311,7 +3311,28 @@ let check_univars env kind exp ty_expected vars =
         List.iter2 (fun uvar var ->
           (* This checks that the term doesn't require more specific layouts
              than allowed by the univars. *)
-          match get_desc var with
+          (* This checks that the term doesn't require more specific layouts
+             than allowed by the univars. *)
+          (* CJC XXX expand_head here is needed for examples like:
+
+             type 'a t = 'a
+             let id (x : 'a t) = x
+             let foo : 'a . 'a -> 'a = fun x -> id x
+
+             Here, while checking foo, ['a] gets unified with ['a t], this isn't
+             illegal because ['a t] is actually just ['a], but it does mean we
+             need to expand the var to find the variable with the layout we want
+             to check.
+
+             However, I should come back and think about his more carefully:
+             1) [polyfy], which is called below, also does this expansion.
+                It would be nice to just move the layout check there,
+                but there was some reason I didn't do this originally (something
+                about unifications statefully changing things between now and
+                then).  Revisit.
+             2) [polyfy] actually calls [expand_head] twice!  why?!
+          *)
+          match get_desc (expand_head env var) with
           | Tvar { layout = layout2; _ } -> begin
               match check_type_layout env uvar layout2 with
               | Ok _ -> ()
