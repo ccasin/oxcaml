@@ -992,6 +992,22 @@ type 'a t16 = 'a list
 type s16 = { lbl : s16 t16; } [@@unboxed]
 |}];;
 
+(* Test 17: expansion in [check_univars] *)
+(* This test isn't really layouts-specific, but it checks that the layout checks
+   we've added in [Typecore.check_univars] don't choke when expansion is needed
+   to see a variable *)
+type 'a t17 = 'a
+
+let id17 (x : 'a t17) = x
+
+let f17 : 'a . 'a -> 'a = fun x -> id17 x;;
+
+[%%expect{|
+type 'a t17 = 'a
+val id17 : 'a t17 -> 'a t17 = <fun>
+val f17 : 'a -> 'a = <fun>
+|}];;
+
 (* CR ccasinghino: Once we allow non-value top-level module definitions, add
    tests showing that things get defaulted to value.
 
