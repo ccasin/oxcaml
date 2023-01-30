@@ -999,7 +999,7 @@ let solve_Ppat_construct ~refine env loc constr no_existentials
         let ty_args, ty_res, ty_ex =
           instance_constructor ?in_pattern constr in
         let equated_types = unify_res ty_res in
-        let ty_args_ty, ty_args_gf = List.split ty_args in 
+        let ty_args_ty, ty_args_gf = List.split ty_args in
         let ty_args_ty, existential_ctyp =
           solve_constructor_annotation env name_list sty ty_args_ty ty_ex in
         ty_args_ty, ty_args_gf, ty_res, equated_types, existential_ctyp
@@ -2020,7 +2020,7 @@ and type_pat_aux
       assert construction_not_used_in_counterexamples;
       type_pat Value sq expected_ty (fun q ->
         let ty_var, mode = solve_Ppat_alias ~refine env q in
-        let mode = mode_cross !env expected_ty mode in 
+        let mode = mode_cross !env expected_ty mode in
         let id =
           enter_variable ~is_as_variable:true loc name mode
             ty_var sp.ppat_attributes
@@ -3147,7 +3147,7 @@ let rec approx_type env sty =
           (* Polymorphic types will only unify with types that match all of their
            polymorphic parts, so we need to fully translate the type here
            unlike in the monomorphic case *)
-          Typetexp.transl_simple_type env false arg_mode arg_sty
+          Typetexp.transl_simple_type env ~fixed:false arg_mode arg_sty
         in
         let ret = approx_type env sty in
         let marg = Alloc_mode.of_const arg_mode in
@@ -3182,7 +3182,7 @@ let type_pattern_approx env spat ty_expected =
         else Alloc_mode.Global
       in
       let ty_pat =
-        Typetexp.transl_simple_type env false arg_type_mode sty
+        Typetexp.transl_simple_type env ~fixed:false arg_type_mode sty
       in
       begin try unify env ty_pat.ctyp_type ty_expected with Unify trace ->
         raise(Error(spat.ppat_loc, env, Pattern_type_clash(trace, None)))
@@ -3872,13 +3872,13 @@ and type_expect_
               (try unify_var env (newvar()) ty_arg
                with Unify _ -> assert false);
               ret_tvar (TypeSet.add ty seen) ty_fun
-          | Tvar _ -> 
-              let v = newvar () in 
-              let rt = get_level ty > get_level v in 
+          | Tvar _ ->
+              let v = newvar () in
+              let rt = get_level ty > get_level v in
               unify_var env v ty;
               rt
-          | _ -> 
-            let v = newvar () in 
+          | _ ->
+            let v = newvar () in
             unify_var env v ty;
             false
       in
@@ -3892,7 +3892,7 @@ and type_expect_
         end;
         let ty = instance funct.exp_type in
         end_def ();
-        let rt = wrap_trace_gadt_instances env (ret_tvar TypeSet.empty) ty in 
+        let rt = wrap_trace_gadt_instances env (ret_tvar TypeSet.empty) ty in
         rt, funct
       in
       let type_sfunct_args sfunct extra_args =
@@ -4263,7 +4263,7 @@ and type_expect_
       let to_unify = Predef.type_array ty in
       with_explanation (fun () ->
         unify_exp_types loc env to_unify (generic_instance ty_expected));
-      let argument_mode = expect_mode_cross env ty mode_global in 
+      let argument_mode = expect_mode_cross env ty mode_global in
       let argl =
         List.map
           (fun sarg -> type_expect env argument_mode sarg (mk_expected ty))
@@ -4379,7 +4379,7 @@ and type_expect_
         if has_local_attr_exp sexp then Alloc_mode.Local
         else Alloc_mode.Global
       in
-      let cty = Typetexp.transl_simple_type env false type_mode sty in
+      let cty = Typetexp.transl_simple_type env ~fixed:false type_mode sty in
       let ty = cty.ctyp_type in
       end_def ();
       generalize_structure ty;
@@ -4674,29 +4674,30 @@ and type_expect_
       let ty = newvar() in
       (* remember original level *)
       begin_def ();
-      let context = Typetexp.narrow () in
-      let modl, md_shape = !type_module env smodl in
-      Mtype.lower_nongen (get_level ty) modl.mod_type;
-      let pres =
-        match modl.mod_type with
-        | Mty_alias _ -> Mp_absent
-        | _ -> Mp_present
-      in
-      let scope = create_scope () in
-      let md =
-        { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
-          md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
-      in
-      let (id, new_env) =
-        match name.txt with
-        | None -> None, env
-        | Some name ->
-          let id, env =
-            Env.enter_module_declaration ~scope ~shape:md_shape name pres md env
-          in
-          Some id, env
-      in
-      Typetexp.widen context;
+      let modl, pres, id, new_env = Typetexp.TyVarEnv.narrow_in begin fun () ->
+        let modl, md_shape = !type_module env smodl in
+        Mtype.lower_nongen (get_level ty) modl.mod_type;
+        let pres =
+          match modl.mod_type with
+          | Mty_alias _ -> Mp_absent
+          | _ -> Mp_present
+        in
+        let scope = create_scope () in
+        let md =
+          { md_type = modl.mod_type; md_attributes = []; md_loc = name.loc;
+            md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()); }
+        in
+        let (id, new_env) =
+          match name.txt with
+          | None -> None, env
+          | Some name ->
+            let id, env =
+              Env.enter_module_declaration ~scope ~shape:md_shape name pres md env
+            in
+            Some id, env
+        in
+        modl, pres, id, new_env
+      end in
       (* ideally, we should catch Expr_type_clash errors
          in type_expect triggered by escaping identifiers from the local module
          and refine them into Scoping_let_module errors
@@ -4778,7 +4779,7 @@ and type_expect_
         match sty with None -> ty_expected, None
         | Some sty ->
             let sty = Ast_helper.Typ.force_poly sty in
-            let cty = Typetexp.transl_simple_type env false Global sty in
+            let cty = Typetexp.transl_simple_type env ~fixed:false Global sty in
             cty.ctyp_type, Some cty
       in
       if !Clflags.principal then begin
@@ -5224,8 +5225,8 @@ and type_function ?in_function loc attrs env (expected_mode : expected_mode)
       let ret_value_mode =
         if region_locked then Value_mode.local_to_regional ret_value_mode
         else ret_value_mode
-      in  
-      let ret_value_mode = mode_cross env ty_res ret_value_mode in 
+      in
+      let ret_value_mode = mode_cross env ty_res ret_value_mode in
       mode_return ret_value_mode,
       Final_arg { partial_mode = Alloc_mode.join [arg_mode; alloc_mode] }
     end
@@ -5881,9 +5882,9 @@ and type_application env app_loc expected_mode position funct funct_mode sargs r
         filter_arrow_mono env (instance funct.exp_type) Nolabel
       in
       if !Clflags.principal then begin
-        end_def (); 
+        end_def ();
         generalize_structure ty_res
-      end; 
+      end;
       let mode = mode_cross env ty_res (Value_mode.of_alloc mres) in
       submode ~loc:app_loc ~env
         mode expected_mode;
@@ -6075,33 +6076,33 @@ and type_unpacks ?(in_function : (Location.t * type_expr * bool) option)
   let extended_env, tunpacks =
     List.fold_left (fun (env, tunpacks) unpack ->
       begin_def ();
-      let context = Typetexp.narrow () in
-      let modl, md_shape =
-        !type_module env
-          Ast_helper.(
-            Mod.unpack ~loc:unpack.tu_loc
-              (Exp.ident ~loc:unpack.tu_name.loc
-                 (mkloc (Longident.Lident unpack.tu_name.txt)
-                    unpack.tu_name.loc)))
-      in
-      Mtype.lower_nongen (get_level ty) modl.mod_type;
-      let pres =
-        match modl.mod_type with
-        | Mty_alias _ -> Mp_absent
-        | _ -> Mp_present
-      in
-      let scope = create_scope () in
-      let md =
-        { md_type = modl.mod_type; md_attributes = [];
-          md_loc = unpack.tu_name.loc;
-          md_uid = unpack.tu_uid; }
-      in
-      let (id, env) =
-        Env.enter_module_declaration ~scope ~shape:md_shape
-          unpack.tu_name.txt pres md env
-      in
-      Typetexp.widen context;
-      env, (id, unpack.tu_name, pres, modl) :: tunpacks
+      Typetexp.TyVarEnv.narrow_in begin fun () ->
+        let modl, md_shape =
+          !type_module env
+            Ast_helper.(
+              Mod.unpack ~loc:unpack.tu_loc
+                (Exp.ident ~loc:unpack.tu_name.loc
+                   (mkloc (Longident.Lident unpack.tu_name.txt)
+                      unpack.tu_name.loc)))
+        in
+        Mtype.lower_nongen (get_level ty) modl.mod_type;
+        let pres =
+          match modl.mod_type with
+          | Mty_alias _ -> Mp_absent
+          | _ -> Mp_present
+        in
+        let scope = create_scope () in
+        let md =
+          { md_type = modl.mod_type; md_attributes = [];
+            md_loc = unpack.tu_name.loc;
+            md_uid = unpack.tu_uid; }
+        in
+        let (id, env) =
+          Env.enter_module_declaration ~scope ~shape:md_shape
+            unpack.tu_name.txt pres md env
+        in
+        env, (id, unpack.tu_name, pres, modl) :: tunpacks
+      end
     ) (env, []) unpacks
   in
   (* ideally, we should catch Expr_type_clash errors
@@ -6340,6 +6341,7 @@ and type_cases
 and type_let
     ?(check = fun s -> Warnings.Unused_var s)
     ?(check_strict = fun s -> Warnings.Unused_var_strict s)
+    ?(force_global = false)
     existential_context
     env rec_flag spat_sexp_list allow =
   let open Ast_helper in
@@ -6391,7 +6393,9 @@ and type_let
            | _ -> spat
          in
          let pat_mode, exp_mode =
-           match rec_mode_var with
+           if force_global
+           then simple_pat_mode Value_mode.global, mode_global
+           else match rec_mode_var with
            | None -> begin
                match pat_tuple_arity spat with
                | Not_local_tuple | Maybe_local_tuple ->
@@ -6812,12 +6816,13 @@ and type_andops env sarg sands expected_ty =
 
 (* Typing of toplevel bindings *)
 
-let type_binding env rec_flag spat_sexp_list =
-  Typetexp.reset_type_variables();
+let type_binding env rec_flag ?force_global spat_sexp_list =
+  Typetexp.TyVarEnv.reset ();
   let (pat_exp_list, new_env, _unpacks) =
     type_let
       ~check:(fun s -> Warnings.Unused_value_declaration s)
       ~check_strict:(fun s -> Warnings.Unused_value_declaration s)
+      ?force_global
       At_toplevel
       env rec_flag spat_sexp_list false
   in
@@ -6831,7 +6836,7 @@ let type_let existential_ctx env rec_flag spat_sexp_list =
 (* Typing of toplevel expressions *)
 
 let type_expression env sexp =
-  Typetexp.reset_type_variables();
+  Typetexp.TyVarEnv.reset ();
   begin_def();
   let exp = type_exp env mode_global sexp in
   end_def();
