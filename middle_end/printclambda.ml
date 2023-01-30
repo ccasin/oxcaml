@@ -136,12 +136,13 @@ and lam ppf = function
       let lams ppf largs =
         List.iter (fun l -> fprintf ppf "@ %a" lam l) largs in
       fprintf ppf "@[<2>(%a@ %a%a)@]" apply_kind kind lam lfun lams largs
-  | Uclosure(clos, fv) ->
+  | Uclosure { functions ; not_scanned_slots ; scanned_slots } ->
       let funs ppf =
         List.iter (fprintf ppf "@ @[<2>%a@]" one_fun) in
       let lams ppf =
         List.iter (fprintf ppf "@ %a" lam) in
-      fprintf ppf "@[<2>(closure@ %a %a)@]" funs clos lams fv
+      fprintf ppf "@[<2>(closure@ %a (%a) %a)@]" funs functions
+        lams not_scanned_slots lams scanned_slots
   | Uoffset(l,i) -> fprintf ppf "@[<2>(offset %a %d)@]" lam l i
   | Ulet(mut, kind, id, arg, body) ->
       let rec letbody ul = match ul with
@@ -186,7 +187,7 @@ and lam ppf = function
         List.iter (fun l -> fprintf ppf "@ %a" lam l) largs in
       fprintf ppf "@[<2>(%a%a)@]"
         Printclambda_primitives.primitive prim lams largs
-  | Uswitch(larg, sw, _dbg) ->
+  | Uswitch(larg, sw, _dbg, _kind) ->
       let print_case tag index i ppf =
         for j = 0 to Array.length index - 1 do
           if index.(j) = i then fprintf ppf "case %s %i:" tag j
@@ -202,7 +203,7 @@ and lam ppf = function
       fprintf ppf
        "@[<v 0>@[<2>(switch@ %a@ @]%a)@]"
         lam larg switch sw
-  | Ustringswitch(larg,sw,d) ->
+  | Ustringswitch(larg,sw,d, _kind) ->
       let switch ppf sw =
         let spc = ref false in
         List.iter
@@ -218,12 +219,13 @@ and lam ppf = function
         | None -> ()
         end in
       fprintf ppf
-        "@[<1>(switch %a@ @[<v 0>%a@])@]" lam larg switch sw
+        "@[<1>(switch %a@ @[<v 0>%a@])@]"
+        lam larg switch sw
   | Ustaticfail (i, ls)  ->
       let lams ppf largs =
         List.iter (fun l -> fprintf ppf "@ %a" lam l) largs in
       fprintf ppf "@[<2>(exit@ %d%a)@]" i lams ls;
-  | Ucatch(i, vars, lbody, lhandler) ->
+  | Ucatch(i, vars, lbody, lhandler, _kind) ->
       fprintf ppf "@[<2>(catch@ %a@;<1 -1>with (%d%a)@ %a)@]"
         lam lbody i
         (fun ppf vars ->
@@ -237,10 +239,10 @@ and lam ppf = function
         )
         vars
         lam lhandler
-  | Utrywith(lbody, param, lhandler) ->
+  | Utrywith(lbody, param, lhandler, _kind) ->
       fprintf ppf "@[<2>(try@ %a@;<1 -1>with %a@ %a)@]"
         lam lbody VP.print param lam lhandler
-  | Uifthenelse(lcond, lif, lelse) ->
+  | Uifthenelse(lcond, lif, lelse, _kind) ->
       fprintf ppf "@[<2>(if@ %a@ %a@ %a)@]" lam lcond lam lif lam lelse
   | Usequence(l1, l2) ->
       fprintf ppf "@[<2>(seq@ %a@ %a)@]" lam l1 sequence l2
