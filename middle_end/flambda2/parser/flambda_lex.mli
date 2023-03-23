@@ -6,6 +6,10 @@ type error =
   | Illegal_character of char
   | Invalid_literal of string
   | No_such_primitive of string
+  | Unterminated_string
+  | Unterminated_string_in_comment
+  | Unterminated_comment
+  | Illegal_escape of string * string option
 
 exception Error of error * location
 

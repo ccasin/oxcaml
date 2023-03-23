@@ -1,6 +1,7 @@
 
 {
 open Flambda_parser
+open Lexing
 
 type location = Lexing.position * Lexing.position
 
@@ -8,12 +9,26 @@ type error =
   | Illegal_character of char
   | Invalid_literal of string
   | No_such_primitive of string
+  | Unterminated_string
+  | Unterminated_string_in_comment
+  | Unterminated_comment
+  | Illegal_escape of string * string option
 ;;
 
 let pp_error ppf = function
   | Illegal_character c -> Format.fprintf ppf "Illegal character %c" c
   | Invalid_literal s -> Format.fprintf ppf "Invalid literal %s" s
   | No_such_primitive s -> Format.fprintf ppf "No such primitive %%%s" s
+  | Unterminated_string -> Format.fprintf ppf "Unterminated string"
+  | Unterminated_string_in_comment ->
+     Format.fprintf ppf "Unterminated string in comment"
+  | Unterminated_comment -> Format.fprintf ppf "Unterminated comment"
+  | Illegal_escape (s, explanation) ->
+     Format.fprintf ppf
+        "Illegal backslash escape in string or character (%s)%t" s
+        (fun ppf -> match explanation with
+           | None -> ()
+           | Some expl -> Format.fprintf ppf ": %s" expl)
 
 exception Error of error * location;;
 
@@ -185,6 +200,127 @@ let symbol cunit_ident cunit_linkage_name ident =
   in
   SYMBOL (cunit, unquote_ident ident)
 
+(**** Begin comment and string code adapted from the ocaml lexer ****)
+let update_loc lexbuf file line absolute chars =
+  let pos = lexbuf.lex_curr_p in
+  let new_file = match file with
+                 | None -> pos.pos_fname
+                 | Some s -> s
+  in
+  lexbuf.lex_curr_p <- { pos with
+    pos_fname = new_file;
+    pos_lnum = if absolute then line else pos.pos_lnum + line;
+    pos_bol = pos.pos_cnum - chars;
+  }
+;;
+
+let string_buffer = Buffer.create 256
+let reset_string_buffer () = Buffer.reset string_buffer
+let get_stored_string () = Buffer.contents string_buffer
+
+let store_string_char c = Buffer.add_char string_buffer c
+let store_string_utf_8_uchar u = Buffer.add_utf_8_uchar string_buffer u
+let store_string s = Buffer.add_string string_buffer s
+let store_lexeme lexbuf = store_string (Lexing.lexeme lexbuf)
+
+(* To store the position of the beginning of a string and comment *)
+let comment_depth = ref 0;;
+let in_comment () = !comment_depth <> 0;;
+let is_in_string = ref false
+
+(* Escaped chars are interpreted in strings unless they are in comments. *)
+let store_escaped_char lexbuf c =
+  if in_comment () then store_lexeme lexbuf else store_string_char c
+
+let store_escaped_uchar lexbuf u =
+  if in_comment () then store_lexeme lexbuf else store_string_utf_8_uchar u
+
+let wrap_string_lexer f lexbuf =
+  reset_string_buffer();
+  is_in_string := true;
+  let string_start = lexbuf.lex_start_p in
+  let _ = f lexbuf in
+  is_in_string := false;
+  lexbuf.lex_start_p <- string_start;
+  get_stored_string ()
+
+let wrap_comment_lexer comment lexbuf =
+  comment_depth := 1;
+  reset_string_buffer ();
+  let _ = comment lexbuf in
+  let s = get_stored_string () in
+  reset_string_buffer ();
+  s
+
+(* to translate escape sequences *)
+let digit_value c =
+  match c with
+  | 'a' .. 'f' -> 10 + Char.code c - Char.code 'a'
+  | 'A' .. 'F' -> 10 + Char.code c - Char.code 'A'
+  | '0' .. '9' -> Char.code c - Char.code '0'
+  | _ -> assert false
+
+let num_value lexbuf ~base ~first ~last =
+  let c = ref 0 in
+  for i = first to last do
+    let v = digit_value (Lexing.lexeme_char lexbuf i) in
+    assert(v < base);
+    c := (base * !c) + v
+  done;
+  !c
+
+let char_for_backslash = function
+  | 'n' -> '\010'
+  | 'r' -> '\013'
+  | 'b' -> '\008'
+  | 't' -> '\009'
+  | c   -> c
+
+let illegal_escape lexbuf reason =
+  let e = Illegal_escape (Lexing.lexeme lexbuf, Some reason) in
+  error ~lexbuf e
+
+let char_for_decimal_code lexbuf i =
+  let c = num_value lexbuf ~base:10 ~first:i ~last:(i+2) in
+  if (c < 0 || c > 255) then
+    if in_comment ()
+    then 'x'
+    else
+      illegal_escape lexbuf
+        (Printf.sprintf
+          "%d is outside the range of legal characters (0-255)." c)
+  else Char.chr c
+
+let char_for_octal_code lexbuf i =
+  let c = num_value lexbuf ~base:8 ~first:i ~last:(i+2) in
+  if (c < 0 || c > 255) then
+    if in_comment ()
+    then 'x'
+    else
+      illegal_escape lexbuf
+        (Printf.sprintf
+          "o%o (=%d) is outside the range of legal characters (0-255)." c c)
+  else Char.chr c
+
+let char_for_hexadecimal_code lexbuf i =
+  Char.chr (num_value lexbuf ~base:16 ~first:i ~last:(i+1))
+
+let uchar_for_uchar_escape lexbuf =
+  let len = Lexing.lexeme_end lexbuf - Lexing.lexeme_start lexbuf in
+  let first = 3 (* skip opening \u{ *) in
+  let last = len - 2 (* skip closing } *) in
+  let digit_count = last - first + 1 in
+  match digit_count > 6 with
+  | true ->
+      illegal_escape lexbuf
+        "too many digits, expected 1 to 6 hexadecimal digits"
+  | false ->
+      let cp = num_value lexbuf ~base:16 ~first ~last in
+      if Uchar.is_valid cp then Uchar.unsafe_of_int cp else
+      illegal_escape lexbuf
+        (Printf.sprintf "%X is not a Unicode scalar value" cp)
+(**** End comment and string code taken from the ocaml lexer ****)
+
 }
 
 let blank = [' ' '\009' '\012']
@@ -192,6 +328,7 @@ let lowercase = ['a'-'z' '_']
 let uppercase = ['A'-'Z']
 let identstart = lowercase | uppercase
 let identchar = ['A'-'Z' 'a'-'z' '_' '\'' '0'-'9']
+let ident = identstart identchar*
 let quoted_ident = '`' [^ '`' '\n']* '`'
 let decimal_literal =
   ['0'-'9'] ['0'-'9' '_']*
@@ -216,15 +353,13 @@ let hex_float_literal =
   ('.' ['0'-'9' 'A'-'F' 'a'-'f' '_']* )?
   (['p' 'P'] ['+' '-']? ['0'-'9'] ['0'-'9' '_']* )?
 let int_modifier = ['G'-'Z' 'g'-'z']
+let newline = ('\013'* '\010')
 
 rule token = parse
   | "\n"
       { Lexing.new_line lexbuf; token lexbuf }
   | blank +
       { token lexbuf }
-  | "(*"
-      { comment 1 lexbuf;
-        token lexbuf }
   | ":"
       { COLON }
   | ","
@@ -282,7 +417,7 @@ rule token = parse
   | "&"  { AMP }
   | "^"  { CARET }
   | "===>" { BIGARROW }
-  | identstart identchar* as ident
+  | ident as ident
          { ident_or_keyword ident }
   | quoted_ident as ident
          { IDENT (unquote_ident ident) }
@@ -300,20 +435,120 @@ rule token = parse
          { FLOAT (lit |> Float.of_string) }
   | (float_literal | hex_float_literal | int_literal) identchar+ as lit
          { error ~lexbuf (Invalid_literal lit) }
-  | '"' (([^ '"'] | '\\' '"')* as s) '"'
-         (* CR-someday lmaurer: Escape sequences, multiline strings *)
-         { STRING s }
+
+  (* Comment and string code taken from the ocaml lexer *)
+  | "\""
+      { let s = wrap_string_lexer string lexbuf in
+        STRING s }
+  | "(*"
+      { let _ = wrap_comment_lexer comment lexbuf in
+        token lexbuf }
+
   | eof  { EOF }
   | _ as ch
          { error ~lexbuf (Illegal_character ch) }
 
-and comment n = parse
-  | "\n"
-         { Lexing.new_line lexbuf; comment n lexbuf }
+(* Comment and string code taken from the ocaml lexer *)
+and comment = parse
+    "(*"
+      { comment_depth := 1 + !comment_depth;
+        store_lexeme lexbuf;
+        comment lexbuf
+      }
   | "*)"
-         { if n = 1 then ()
-           else comment (n-1) lexbuf }
-  | "(*"
-         { comment (n+1) lexbuf }
+      { match !comment_depth with
+        | 0 -> assert false
+        | 1 -> comment_depth := 0; ()
+        | n -> comment_depth := n-1;
+               store_lexeme lexbuf;
+               comment lexbuf
+       }
+  | "\""
+      {
+        store_string_char '\"';
+        is_in_string := true;
+        let _ = try string lexbuf
+        with Error (Unterminated_string, _) ->
+          match !comment_depth with
+          | 0 -> assert false
+          | _ ->
+            comment_depth := 0;
+            error ~lexbuf Unterminated_string_in_comment
+        in
+        is_in_string := false;
+        store_string_char '\"';
+        comment lexbuf }
+  | "\'\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | "\'" newline "\'"
+      { update_loc lexbuf None 1 false 1;
+        store_lexeme lexbuf;
+        comment lexbuf
+      }
+  | "\'" [^ '\\' '\'' '\010' '\013' ] "\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | "\'\\" ['\\' '\"' '\'' 'n' 't' 'b' 'r' ' '] "\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | "\'\\" ['0'-'9'] ['0'-'9'] ['0'-'9'] "\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | "\'\\" 'o' ['0'-'3'] ['0'-'7'] ['0'-'7'] "\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | "\'\\" 'x' ['0'-'9' 'a'-'f' 'A'-'F'] ['0'-'9' 'a'-'f' 'A'-'F'] "\'"
+      { store_lexeme lexbuf; comment lexbuf }
+  | eof
+      { match !comment_depth with
+        | 0 -> assert false
+        | _ ->
+          comment_depth := 0;
+          error ~lexbuf Unterminated_comment
+      }
+  | newline
+      { update_loc lexbuf None 1 false 0;
+        store_lexeme lexbuf;
+        comment lexbuf
+      }
+  | ident
+      { store_lexeme lexbuf; comment lexbuf }
   | _
-         { comment n lexbuf }
+      { store_lexeme lexbuf; comment lexbuf }
+
+(* Comment and string code taken from the ocaml lexer *)
+and string = parse
+    '\"'
+      { lexbuf.lex_start_p }
+  | '\\' newline ([' ' '\t'] * as space)
+      { update_loc lexbuf None 1 false (String.length space);
+        if in_comment () then store_lexeme lexbuf;
+        string lexbuf
+      }
+  | '\\' (['\\' '\'' '\"' 'n' 't' 'b' 'r' ' '] as c)
+      { store_escaped_char lexbuf (char_for_backslash c);
+        string lexbuf }
+  | '\\' ['0'-'9'] ['0'-'9'] ['0'-'9']
+      { store_escaped_char lexbuf (char_for_decimal_code lexbuf 1);
+         string lexbuf }
+  | '\\' 'o' ['0'-'7'] ['0'-'7'] ['0'-'7']
+      { store_escaped_char lexbuf (char_for_octal_code lexbuf 2);
+         string lexbuf }
+  | '\\' 'x' ['0'-'9' 'a'-'f' 'A'-'F'] ['0'-'9' 'a'-'f' 'A'-'F']
+      { store_escaped_char lexbuf (char_for_hexadecimal_code lexbuf 2);
+         string lexbuf }
+  | '\\' 'u' '{' hex_digit+ '}'
+        { store_escaped_uchar lexbuf (uchar_for_uchar_escape lexbuf);
+          string lexbuf }
+  | '\\' _
+      { 
+        store_lexeme lexbuf;
+        string lexbuf
+      }
+  | newline
+      { update_loc lexbuf None 1 false 0;
+        store_lexeme lexbuf;
+        string lexbuf
+      }
+  | eof
+      { is_in_string := false;
+        error ~lexbuf Unterminated_string }
+  | (_ as c)
+      { store_string_char c;
+        string lexbuf }
