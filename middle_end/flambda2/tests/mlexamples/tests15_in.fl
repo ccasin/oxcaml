@@ -1,9 +1,12 @@
 let $camlTests15__empty_array13 = Empty_array in
 let $camlTests15__immstring17 = "tests15.ml" in
-let $camlTests15__const_block19 = Block 0 ($camlTests15__immstring17, 4, 14)
+let $camlTests15__const_block19 = Block 0 ($camlTests15__immstring17, 2, 52)
 in
-let $camlTests15__immstring67 = " \\ \n " in
-let code size(25)
+let $camlTests15__Pmakeblock21 =
+  Block 0 ($`*predef*`.caml_exn_Assert_failure, $camlTests15__const_block19)
+in
+let $camlTests15__immstring69 = " \\ \n " in
+let code size(18)
       list_to_array_0 (param : [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
         my_closure my_region my_depth
         -> k * k1
@@ -17,11 +20,7 @@ let code size(25)
     where k3 =
       cont k ($camlTests15__empty_array13)
     where k2 =
-      let Pmakeblock =
-        %Block 0
-          ($`*predef*`.caml_exn_Assert_failure, $camlTests15__const_block19)
-      in
-      cont k1 pop(regular k1) (Pmakeblock)
+      cont k1 pop(regular k1) ($camlTests15__Pmakeblock21)
 in
 let code size(5)
       set_to_x_2 (b, i : imm tagged)
@@ -101,7 +100,7 @@ in
       classical_id,
       swapped,
       negate,
-      $camlTests15__immstring67,
+      $camlTests15__immstring69,
       foo)
  in
  cont k (Pmakeblock))
@@ -112,7 +111,7 @@ in
     let field_3 = %block_load tag(0) size(8) (module_block, 3) in
     let field_4 = %block_load tag(0) size(8) (module_block, 4) in
     let field_5 = %block_load tag(0) size(8) (module_block, 5) in
-    let field_6 = %block_load tag(0) size(8) (module_block, 6) in
+    let field_6 = $camlTests15__immstring69 in
     let field_7 = %block_load tag(0) size(8) (module_block, 7) in
     let $camlTests15 =
       Block 0 (field_0,
