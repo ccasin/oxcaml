@@ -901,19 +901,39 @@ let check_coherence env loc dpath decl =
       end
   | { type_kind = Type_abstract {layout};
       type_manifest = Some ty } ->
-      begin match
-        Ctype.check_type_layout ~reason:(Annotated (Type_declaration dpath))
-          env ty layout
+    (* XXX layouts: testing computing a most-accurate layout and ignoring scope
+       changes (which seems safe?) *)
+    let layout' =
+      if !Clflags.principal || Env.has_local_constraints env then
+        (* We snapshot to keep this pure; see the mode crossing test that
+           mentions snapshotting for an example. *)
+        let snap = Btype.snapshot () in
+        let layout' = Ctype.type_layout env ty in
+        Btype.backtrack snap;
+        layout'
+      else
+        Ctype.type_layout env ty
+    in
+    begin
+      match
+        Layout.sub ~reason:(Annotated (Type_declaration dpath)) layout' layout
       with
-      | Ok layout' ->
-        let layout =
-          if Result.is_ok
-               (Layout.sub ~reason:Dummy_reason_result_ignored layout' layout)
-          then layout' else layout
-        in
-        { decl with type_kind = Type_abstract {layout} }
-      | Error v -> raise(Error(loc, Layout v))
-      end
+      | Ok _ -> { decl with type_kind = Type_abstract {layout = layout'} }
+      | Error v -> raise (Error (loc, Layout v))
+    end
+      (* begin match
+       *   Ctype.check_type_layout ~reason:(Annotated (Type_declaration dpath))
+       *     env ty layout
+       * with
+       * | Ok layout' ->
+       *   let layout =
+       *     if Result.is_ok
+       *          (Layout.sub ~reason:Dummy_reason_result_ignored layout' layout)
+       *     then layout' else layout
+       *   in
+       *   { decl with type_kind = Type_abstract {layout} }
+       * | Error v -> raise(Error(loc, Layout v))
+       * end *)
   | { type_manifest = None } -> decl
 
 let check_abbrev env sdecl (id, decl) =
