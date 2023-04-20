@@ -6386,8 +6386,10 @@ and type_construct env (expected_mode : expected_mode) loc lid sarg
       end
   in
   let (argument_mode, alloc_mode) =
+    if constr.cstr_constant then expected_mode, None else
     match constr.cstr_repr with
     | Variant_unboxed _ -> expected_mode, None
+    | Variant_boxed _ when constr.cstr_constant -> expected_mode, None
     | Variant_boxed _ | Variant_extensible ->
       (* XXX layouts: have I broken some mode crossing thing by getting rid of
          the constant case here.  revisit, can easily add it back (check
