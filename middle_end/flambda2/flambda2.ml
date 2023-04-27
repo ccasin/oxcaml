@@ -56,7 +56,7 @@ let dump_to_target_if_any main_dump_ppf target ~header ~f a =
   | File filename ->
     Misc.protect_writing_to_file ~filename ~f:(fun out ->
         let ppf = Format.formatter_of_out_channel out in
-        f ppf a;
+        (try f ppf a with _ -> ());
         Format.pp_print_flush ppf ())
 
 let dump_if_enabled ppf enabled ~header ~f a =
@@ -68,12 +68,71 @@ let dump_if_enabled ppf enabled ~header ~f a =
 let pp_flambda_as_fexpr ppf unit =
   Print_fexpr.flambda_unit ppf (unit |> Flambda_to_fexpr.conv)
 
-let print_rawflambda ppf unit =
+let dump_file prefixname =
+
+  let suffix_after_dir path dir =
+    let rec split_suffix path_parts =
+      match path_parts with
+      | [] -> Error "+share+ not found in path"
+      | p::rest ->
+        if String.equal p dir then
+          Ok (String.concat "/" rest)
+        else
+          split_suffix rest
+    in
+    let path_parts = String.split_on_char '/' path in
+    split_suffix path_parts
+  in
+
+  let create_directory_if_missing file_path =
+    let dir_path = Filename.dirname file_path in
+    if Sys.file_exists dir_path && Sys.is_directory dir_path then
+      Ok ()
+    else
+      try
+        let rec mkdir_p path =
+          let parent = Filename.dirname path in
+          if not (Sys.file_exists parent) then mkdir_p parent;
+          Sys.mkdir path 0o755
+        in
+        mkdir_p dir_path;
+        Ok ()
+      with
+      | e ->
+        Error (Printf.sprintf "Failed to create directory: %s\n  Reason: %s\n"
+                 dir_path (Printexc.to_string e))
+  in
+  let cwd = Sys.getcwd () in
+  let suffix =
+    match suffix_after_dir (cwd ^ "/" ^ prefixname) "+share+" with
+      Ok suffix -> suffix
+    | Error msg -> failwith ("suffix_after_dir: " ^ prefixname ^ "\n" ^ msg)
+  in
+
+  let path = "/usr/local/home/ccasinghino/tmp/flambda-dump/" ^ suffix ^ ".layouts.fl" in
+  begin match create_directory_if_missing path with
+  | Ok () -> ()
+  | Error _ -> ()
+    (* I think this can fail because of a race condition if the build system is
+       running two copies of the compiler that both try to create the dir. But
+       that's fine, just ignore it. *)
+    (* failwith ("create_directory_if_missing: " ^ path ^ "\n" ^ msg) *)
+  end;
+  path
+
+let print_rawflambda ppf unit prefixname =
   dump_if_enabled ppf
     (Flambda_features.dump_rawflambda ())
     ~header:"After CPS conversion" ~f:Flambda_unit.print unit;
   dump_to_target_if_any ppf
-    (Flambda_features.dump_rawfexpr ())
+    (* (Flambda_features.dump_rawfexpr ()) *)
+    ((* hack to interpret `-dfexpr as -dfexpr-to with a filename related to the
+        source file *)
+      match Flambda_features.dump_rawfexpr () with
+      | Main_dump_stream ->
+        let path = dump_file prefixname in
+        File path
+      | (Nowhere | File _) as d -> d)
     ~header:"After CPS conversion" ~f:pp_flambda_as_fexpr unit
 
 let print_flambda name ppf unit =
@@ -135,7 +194,7 @@ let lambda_to_cmm ~ppf_dump:ppf ~prefixname ~filename:_ ~keep_symbol_tables
             module_initializer)
     in
     Compiler_hooks.execute Raw_flambda2 raw_flambda;
-    print_rawflambda ppf raw_flambda;
+    print_rawflambda ppf raw_flambda prefixname;
     let flambda, offsets, cmx, all_code =
       match mode, close_program_metadata with
       | Classic, Classic (code, cmx, offsets) ->
