@@ -18,9 +18,10 @@
 exception Fatal_error
 
 let fatal_errorf fmt =
+  let null_formatter = open_out "/dev/null" in
   Format.kfprintf
-    (fun _ -> raise Fatal_error)
-    Format.err_formatter
+    (fun _ -> close_out null_formatter; raise Fatal_error)
+    (* Format.err_formatter *) (Format.formatter_of_out_channel null_formatter)
     ("@?>> Fatal error: " ^^ fmt ^^ "@.")
 
 let fatal_error msg = fatal_errorf "%s" msg
