@@ -3755,7 +3755,8 @@ type filtered_arrow =
     arg_mode : alloc_mode;
     arg_sort : sort;
     ty_ret : type_expr;
-    ret_mode : alloc_mode
+    ret_mode : alloc_mode;
+    ret_sort : sort
   }
 
 let filter_arrow env t l ~force_tpoly =
@@ -3770,7 +3771,8 @@ let filter_arrow env t l ~force_tpoly =
        types. *)
     let arg_sort = Sort.new_var () in
     let l_arg = Layout.of_sort ~why:Function_argument arg_sort in
-    let l_res = Layout.of_new_sort_var ~why:Function_result in
+    let ret_sort = Sort.new_var () in
+    let l_res = Layout.of_sort ~why:Function_result ret_sort in
     let ty_arg =
       if not force_tpoly then begin
         assert (not (is_optional l));
@@ -3796,7 +3798,7 @@ let filter_arrow env t l ~force_tpoly =
     let t' =
       newty2 ~level (Tarrow ((l, arg_mode, ret_mode), ty_arg, ty_ret, commu_ok))
     in
-    t', { ty_arg; arg_mode; arg_sort; ty_ret; ret_mode }
+    t', { ty_arg; arg_mode; arg_sort; ty_ret; ret_mode; ret_sort }
   in
   let t =
     try expand_head_trace env t
@@ -3823,7 +3825,8 @@ let filter_arrow env t l ~force_tpoly =
            sorts on [TArrow], but that seems incompatible with the future plan
            to shift the layout requirements from the types to the terms. *)
         let arg_sort = type_sort_exn ~why:Function_argument env ty_arg in
-        { ty_arg; arg_mode; arg_sort; ty_ret; ret_mode }
+        let ret_sort = type_sort_exn ~why:Function_argument env ty_ret in
+        { ty_arg; arg_mode; arg_sort; ty_ret; ret_mode; ret_sort }
       else raise (Filter_arrow_failed
                     (Label_mismatch
                        { got = l; expected = l'; expected_type = t }))
