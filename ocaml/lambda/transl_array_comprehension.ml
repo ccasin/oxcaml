@@ -500,6 +500,7 @@ let iterator ~transl_exp ~scopes ~loc
                           [iter_arr.var; Lvar iter_ix],
                           loc))
                    pattern
+                   Sort.sort_predef_param
                    (Pvalue Pintval)
                    body
              }

@@ -28,9 +28,12 @@ val for_trywith:
         scopes:scopes -> layout -> Location.t ->
         lambda -> (pattern * lambda) list ->
         lambda
+
+(* The sort argument is the sort of the pattern/parameter.  The layout argument
+   is the layout of the body. *)
 val for_let:
         scopes:scopes -> Location.t ->
-        lambda -> pattern -> layout -> lambda ->
+        lambda -> pattern -> Layouts.sort -> layout -> lambda ->
         lambda
 val for_multiple_match:
         scopes:scopes -> layout -> Location.t ->

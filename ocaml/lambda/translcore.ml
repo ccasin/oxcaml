@@ -1377,9 +1377,6 @@ and transl_let ~scopes ?(add_regions=false) ?(in_structure=false)
           fun body -> body
       | {vb_pat=pat; vb_expr=expr; vb_sort=sort; vb_attributes=attr; vb_loc}
         :: rem ->
-          (* CR layouts v2: allow non-values.  Either remove this or replace
-             with void-specific sanity check. *)
-          sort_must_be_value ~why:Let_binding expr.exp_loc sort;
           let lam = transl_bound_exp ~scopes ~in_structure pat sort expr in
           let lam = Translattribute.add_function_attributes lam vb_loc attr in
           let lam =
@@ -1387,7 +1384,8 @@ and transl_let ~scopes ?(add_regions=false) ?(in_structure=false)
           in
           let mk_body = transl rem in
           fun body ->
-            Matching.for_let ~scopes pat.pat_loc lam pat body_kind (mk_body body)
+            Matching.for_let ~scopes pat.pat_loc lam pat sort body_kind
+              (mk_body body)
       in
       transl pat_expr_list
   | Recursive ->
