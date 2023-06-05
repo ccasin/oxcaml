@@ -28,9 +28,10 @@ val omega_list : 'a list -> pattern list
 (** [List.map (fun _ -> omega)] *)
 
 module Non_empty_row : sig
-  type 'a t = 'a * Typedtree.pattern list
+  type 'a t = 'a * Layouts.sort * (Typedtree.pattern * Layouts.sort) list
 
-  val of_initial : Typedtree.pattern list -> Typedtree.pattern t
+  val of_initial :
+    (Typedtree.pattern * Layouts.sort) list -> Typedtree.pattern t
   (** 'assert false' on empty rows *)
 
   val map_first : ('a -> 'b) -> 'a t -> 'b t

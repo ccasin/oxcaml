@@ -35,13 +35,13 @@ let rec omegas i =
 let omega_list l = List.map (fun _ -> omega) l
 
 module Non_empty_row = struct
-  type 'a t = 'a * Typedtree.pattern list
+  type 'a t = 'a * Layouts.sort * (Typedtree.pattern * Layouts.sort) list
 
   let of_initial = function
     | [] -> assert false
-    | pat :: patl -> (pat, patl)
+    | (pat,s) :: patl -> (pat, s, patl)
 
-  let map_first f (p, patl) = (f p, patl)
+  let map_first f (p, s, patl) = (f p, s, patl)
 end
 
 (* "views" on patterns are polymorphic variants

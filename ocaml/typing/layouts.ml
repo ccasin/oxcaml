@@ -177,7 +177,6 @@ module Sort = struct
   end
 
   let sort_function = value
-  let sort_pattern_var = value
   let sort_prim_arg = value
   let sort_prim_return = value
   let sort_statement = value
@@ -186,10 +185,10 @@ module Sort = struct
   let sort_block_element = value
   let sort_probe_body = value
   let sort_poly_variant = value
+  let sort_poly_variant_arg = value
   let sort_record = value
   let sort_record_field = value
   let sort_object = value
-  let sort_lazy_body = value
   let sort_tuple_element = value
   let sort_instance_var = value
   let sort_bop_exp = value
@@ -197,6 +196,7 @@ module Sort = struct
   let sort_method = value
   let sort_initializer = value
   let sort_module = value
+  let sort_tuple = value
 end
 
 type sort = Sort.t

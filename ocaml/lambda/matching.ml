@@ -163,8 +163,8 @@ let expand_record_head h =
       { h with pat_desc = Record (Array.to_list lbl_all) }
   | _ -> h
 
-let bind_alias p id ~arg ~action =
-  let k = Typeopt.layout p.pat_env p.pat_loc Sort.sort_pattern_var p.pat_type in
+let bind_alias p pat_sort id ~arg ~action =
+  let k = Typeopt.layout p.pat_env p.pat_loc pat_sort p.pat_type in
   bind_with_layout Alias (id, k) arg action
 
 let head_loc ~scopes head =
@@ -235,20 +235,20 @@ end = struct
 
   (* Explode or-patterns and turn aliases into bindings in actions *)
   let of_clause ~arg cl =
-    let rec aux (((p, patl), action) : General.clause) : clause =
+    let rec aux (((p, sort, patl), action) : General.clause) : clause =
       let continue p (view : General.view) : clause =
-        aux (({ p with pat_desc = view }, patl), action)
+        aux (({ p with pat_desc = view }, sort, patl), action)
       in
       let stop p (view : view) : clause =
-        (({ p with pat_desc = view }, patl), action)
+        (({ p with pat_desc = view }, sort, patl), action)
       in
       match p.pat_desc with
       | `Any -> stop p `Any
       | `Var (id, s, mode) -> continue p (`Alias (Patterns.omega, id, s, mode))
       | `Alias (p, id, _, _) ->
           aux
-            ( (General.view p, patl),
-              bind_alias p id ~arg ~action )
+            ( (General.view p, sort, patl),
+              bind_alias p sort id ~arg ~action )
       | `Record ([], _) as view -> stop p view
       | `Record (lbls, closed) ->
           let full_view = `Record (all_record_args lbls, closed) in
@@ -279,8 +279,11 @@ module Simple : sig
     arg:lambda ->
     Half_simple.pattern ->
     mk_action:(vars:Ident.t list -> lambda) ->
-    patbound_action_vars:Ident.t list ->
+    patbound_action_vars:(Ident.t*sort) list ->
     (pattern * lambda) list
+    (* Layouts XXX: taking a list of (Ident.t*sort)s is unnecessary because when
+       we use the sort it is always the sort of [arg] - we should just take
+       that. *)
 end = struct
   include Patterns.Simple
 
@@ -365,7 +368,7 @@ end = struct
                 let fresh_pat = alpha renaming_env { p with pat_desc = view } in
                 let fresh_action = mk_action ~vars:(List.rev action_vars) in
                 (fresh_pat, fresh_action)
-            | pat_id :: rem_vars ->
+            | (pat_id, sort) :: rem_vars ->
               if not (List.mem pat_id aliases) then begin
                 let fresh_id = Ident.rename pat_id in
                 let action_vars = fresh_id :: action_vars in
@@ -384,7 +387,7 @@ end = struct
                   let pat, action =
                     fresh_clause (Some id) action_vars renaming_env rem_vars
                   in
-                  pat, bind_alias pat id ~arg ~action
+                  pat, bind_alias pat sort id ~arg ~action
               end
           in
           fresh_clause None [] [] patbound_action_vars :: rem
@@ -398,7 +401,7 @@ let expand_record_simple : Simple.pattern -> Simple.pattern =
   | `Record (l, _) -> { p with pat_desc = `Record (all_record_args l, Closed) }
   | _ -> p
 
-type initial_clause = pattern list clause
+type initial_clause = (pattern * sort) list clause
 
 type matrix = pattern list list
 
@@ -981,7 +984,7 @@ type pm_half_compiled_info = {
 }
 
 let erase_cases f cases =
-  List.map (fun ((p, ps), act) -> (f p :: ps, act)) cases
+  List.map (fun ((p, sort, ps), act) -> ((f p, sort) :: ps, act)) cases
 
 let erase_pm pm =
   { pm with cases = erase_cases General.erase pm.cases }
@@ -989,7 +992,7 @@ let erase_pm pm =
 let pretty_cases cases =
   List.iter
     (fun (ps, _l) ->
-      List.iter (fun p -> Format.eprintf " %a%!" top_pretty p) ps;
+      List.iter (fun (p,_) -> Format.eprintf " %a%!" top_pretty p) ps;
       Format.eprintf "\n")
     cases
 
@@ -1098,7 +1101,8 @@ let same_actions = function
             None
     )
 
-let safe_before ((p, ps), act_p) l =
+let safe_before ((p, _sort, ps), act_p) l =
+  let ps = List.map fst ps in
   (* Test for swapping two clauses *)
   let same_actions act1 act2 =
     match (make_key act1, make_key act2) with
@@ -1108,9 +1112,10 @@ let safe_before ((p, ps), act_p) l =
         false
   in
   List.for_all
-    (fun ((q, qs), act_q) ->
+    (fun ((q, _sort, qs), act_q) ->
       same_actions act_p act_q
-      || not (may_compats (General.erase p :: ps) (General.erase q :: qs)))
+      || not (may_compats (General.erase p :: ps)
+                (General.erase q :: (List.map fst qs))))
     l
 
 let half_simplify_nonempty ~arg (cls : Typedtree.pattern Non_empty_row.t clause)
@@ -1119,7 +1124,7 @@ let half_simplify_nonempty ~arg (cls : Typedtree.pattern Non_empty_row.t clause)
   |> map_on_row (Non_empty_row.map_first General.view)
   |> Half_simple.of_clause ~arg
 
-let half_simplify_clause ~arg (cls : Typedtree.pattern list clause) =
+let half_simplify_clause ~arg (cls : (Typedtree.pattern * sort) list clause) =
   cls
   |> map_on_row Non_empty_row.of_initial
   |> half_simplify_nonempty ~arg
@@ -1130,7 +1135,7 @@ let half_simplify_clause ~arg (cls : Typedtree.pattern list clause) =
 let rec what_is_cases ~skip_any cases =
   match cases with
   | [] -> Patterns.Head.omega
-  | ((p, _), _) :: rem -> (
+  | ((p, _, _), _) :: rem -> (
       let head = Simple.head p in
       match head.pat_desc with
       | Patterns.Head.Any when skip_any -> what_is_cases ~skip_any rem
@@ -1206,7 +1211,7 @@ let equiv_pat p q = le_pat p q && le_pat q p
 
 let rec extract_equiv_head p l =
   match l with
-  | (((q, _), _) as cl) :: rem ->
+  | (((q, _, _), _) as cl) :: rem ->
       if equiv_pat p (General.erase q) then
         let others, rem = extract_equiv_head p rem in
         (cl :: others, rem)
@@ -1239,10 +1244,10 @@ module Or_matrix = struct
 
   let safe_below_or_matrix l (q, qs) =
     List.for_all
-      (fun ((p, ps), act_p) ->
+      (fun ((p, _, ps), act_p) ->
         let p = General.erase p in
         match p.pat_desc with
-        | Tpat_or _ -> disjoint p q || safe_below (ps, act_p) qs
+        | Tpat_or _ -> disjoint p q || safe_below (List.map fst ps, act_p) qs
         | _ -> true)
       l
 
@@ -1252,19 +1257,20 @@ module Or_matrix = struct
 
      If neither are possible we add to the bottom of the No matrix.
    *)
-  let insert_or_append (head, ps, act) rev_ors rev_no =
+  let insert_or_append (head, head_sort, ps, act) rev_ors rev_no =
+    let ps_pats = List.map fst ps in
     let safe_to_insert rem (p, ps) seen =
       let _, not_e = extract_equiv_head p rem in
       (* check append condition for head of O *)
       safe_below_or_matrix not_e (p, ps)
       && (* check insert condition for tail of O *)
-         List.for_all (fun ((q, _), _) -> disjoint p (General.erase q)) seen
+         List.for_all (fun ((q, _, _), _) -> disjoint p (General.erase q)) seen
     in
     let rec attempt seen = function
       (* invariant: the new clause is safe to append at the end of
          [seen] (but maybe not [rem] yet) *)
-      | [] -> (((head, ps), act) :: rev_ors, rev_no)
-      | (((q, qs), act_q) as cl) :: rem ->
+      | [] -> (((head, head_sort, ps), act) :: rev_ors, rev_no)
+      | (((q, _, qs), act_q) as cl) :: rem ->
           let p = General.erase head in
           let q = General.erase q in
           if (not (is_or q)) || disjoint p q then
@@ -1275,23 +1281,34 @@ module Or_matrix = struct
             && equiv_pat p q
           then
             (* attempt insertion, for equivalent orpats with no variables *)
-            if safe_to_insert rem (p, ps) seen then
-              (List.rev_append seen (((head, ps), act) :: cl :: rem), rev_no)
+            if safe_to_insert rem (p, ps_pats) seen then
+              (List.rev_append seen (((head, head_sort, ps), act) :: cl :: rem),
+               rev_no)
             else
               (* fail to insert or append *)
-              (rev_ors, ((head, ps), act) :: rev_no)
-          else if safe_below (qs, act_q) ps then
+              (rev_ors, ((head, head_sort, ps), act) :: rev_no)
+          else if safe_below (List.map fst qs, act_q) ps_pats then
             attempt (cl :: seen) rem
           else
-            (rev_ors, ((head, ps), act) :: rev_no)
+            (rev_ors, ((head, head_sort, ps), act) :: rev_no)
     in
     attempt [] rev_ors
 end
 
 (* Reconstruct default information from half_compiled  pm list *)
 
+(* let rec le_pats_with_sorts ps qs =
+ *   match ps, qs with
+ *   | (p, _) :: ps, (q, _) :: qs -> le_pat p q && le_pats_with_sorts ps qs
+ *   | _, _ -> true
+ *
+ * let as_matrix cases =
+ *   get_mins le_pats_with_sorts
+ *     (List.map (fun ((p, sort, ps), _) -> (General.erase p, sort) :: ps) cases) *)
+
 let as_matrix cases =
-  get_mins le_pats (List.map (fun ((p, ps), _) -> General.erase p :: ps) cases)
+  get_mins le_pats
+    (List.map (fun ((p, _, ps), _) -> General.erase p :: List.map fst ps) cases)
 
 (*
   Split a matching along the first column.
@@ -1344,15 +1361,15 @@ let rec split_or ~arg (cls : Half_simple.clause list) args def =
         cons_next (List.rev rev_before) (List.rev rev_ors) (List.rev rev_no)
     | cl :: rem when not (safe_before cl rev_no) ->
         do_split rev_before rev_ors (cl :: rev_no) rem
-    | (((p, ps), act) as cl) :: rem -> (
+    | (((p, sort, ps), act) as cl) :: rem -> (
         match p.pat_desc with
         | #Simple.view as view when safe_before cl rev_ors ->
             do_split
-              ((({ p with pat_desc = view }, ps), act) :: rev_before)
+              ((({ p with pat_desc = view }, sort, ps), act) :: rev_before)
               rev_ors rev_no rem
         | _ ->
             let rev_ors, rev_no =
-              Or_matrix.insert_or_append (p, ps, act) rev_ors rev_no
+              Or_matrix.insert_or_append (p, sort, ps, act) rev_ors rev_no
             in
             do_split rev_before rev_ors rev_no rem
       )
@@ -1391,8 +1408,9 @@ and split_no_or cls args def k =
     let discr = what_is_first_case cls in
     collect discr [] [] cls
   and collect group_discr rev_yes rev_no = function
-    | [ (((p, ps), _) as cl) ]
-      when rev_yes <> [] && simple_omega_like p && List.for_all omega_like ps ->
+    | [ (((p, _, ps), _) as cl) ]
+      when rev_yes <> [] && simple_omega_like p
+           && List.for_all (fun (p, _) -> omega_like p) ps ->
         (* This enables an extra division in some frequent cases:
                last row is made of variables only
 
@@ -1404,7 +1422,7 @@ and split_no_or cls args def k =
            This optimisation is tested in the first part of
            testsuite/tests/basic/patmatch_split_no_or.ml *)
         collect group_discr rev_yes (cl :: rev_no) []
-    | (((p, _), _) as cl) :: rem ->
+    | (((p, _, _), _) as cl) :: rem ->
         if can_group group_discr p && safe_before cl rev_no then
           collect group_discr (cl :: rev_yes) rev_no rem
         else if should_split group_discr then (
@@ -1458,7 +1476,7 @@ and precompile_var args cls def k =
           let var_args = arg :: rargs in
           let var_cls =
             List.map
-              (fun ((p, ps), act) ->
+              (fun ((p, _, ps), act) ->
                 assert (simple_omega_like p);
 
                 (* we learned by pattern-matching on [args]
@@ -1561,11 +1579,11 @@ and precompile_or ~arg (cls : Simple.clause list) ors args def k =
   *)
   let rec do_cases = function
     | [] -> ([], [])
-    | ((p, patl), action) :: rem -> (
+    | ((p, sort, patl), action) :: rem -> (
         match p.pat_desc with
         | #Simple.view as view ->
             let new_ord, new_to_catch = do_cases rem in
-            ( (({ p with pat_desc = view }, patl), action) :: new_ord,
+            ( (({ p with pat_desc = view }, sort, patl), action) :: new_ord,
               new_to_catch )
         | `Or _ ->
             let orp = General.erase p in
@@ -1573,7 +1591,7 @@ and precompile_or ~arg (cls : Simple.clause list) ors args def k =
             let orpm =
               { cases =
                   (patl, action)
-                  :: List.map (fun ((_, ps), action) -> (ps, action)) others;
+                  :: List.map (fun ((_, _, ps), action) -> (ps, action)) others;
                 args =
                   ( match args with
                   | _ :: r -> r
@@ -1583,29 +1601,32 @@ and precompile_or ~arg (cls : Simple.clause list) ors args def k =
               }
             in
             let pm_fv = pm_free_variables orpm in
-            let patbound_action_vars =
+            let (patbound_action_vars, handler_vars) =
               (* variables bound in the or-pattern
                  that are used in the orpm actions *)
-              Typedtree.pat_bound_idents_with_types orp
-              |> List.filter (fun (id, _) -> Ident.Set.mem id pm_fv)
-              |> List.map (fun (id, ty) ->
-                     (id, Typeopt.layout orp.pat_env orp.pat_loc
-                            Sort.sort_pattern_var ty))
+              Typedtree.pat_bound_idents_full sort orp
+              |> List.filter (fun (id, _, _, _) -> Ident.Set.mem id pm_fv)
+              |> List.map (fun (id, _, ty, sort) ->
+                     ((id, sort),
+                      (id, Typeopt.layout orp.pat_env orp.pat_loc sort ty)))
+              |> List.split
             in
             let or_num = next_raise_count () in
-            let new_patl = Patterns.omega_list patl in
+            let new_patl = List.map (fun (_, sort) -> (Patterns.omega, sort)) patl in
             let mk_new_action ~vars =
               Lstaticraise (or_num, List.map (fun v -> Lvar v) vars)
             in
             let new_cases =
+              (* Layouts: Note that [explode_or_pat] creates a list of patterns
+                 that have the same sort as the original pattern. *)
               Simple.explode_or_pat ~arg p
                 ~mk_action:mk_new_action
-                ~patbound_action_vars:(List.map fst patbound_action_vars)
-              |> List.map (fun (p, act) -> ((p, new_patl), act)) in
+                ~patbound_action_vars
+              |> List.map (fun (p, act) -> ((p, sort, new_patl), act)) in
             let handler =
               { provenance = [ [ orp ] ];
                 exit = or_num;
-                vars = patbound_action_vars;
+                vars = handler_vars;
                 pm = orpm
               }
             in
@@ -1697,7 +1718,7 @@ let add_in_div make_matching_fun eq_key key patl_action division =
 
 let divide get_expr_args eq_key get_key get_pat_args ctx
     (pm : Simple.clause pattern_matching) =
-  let add ((p, patl), action) division =
+  let add ((p, _, patl), action) division =
     let ph = Simple.head p in
     let p = General.erase p in
     add_in_div
@@ -1714,7 +1735,7 @@ let add_line patl_action pm =
 
 let divide_line make_ctx get_expr_args get_pat_args discr ctx
     (pm : Simple.clause pattern_matching) =
-  let add ((p, patl), action) submatrix =
+  let add ((p, _, patl), action) submatrix =
     let p = General.erase p in
     add_line (get_pat_args p patl, action) submatrix
   in
@@ -1766,11 +1787,16 @@ let get_key_constr = function
 let get_pat_args_constr p rem =
   match p with
   | { pat_desc = Tpat_construct (_, {cstr_arg_layouts}, args, _) } ->
-    List.iteri
-      (fun i arg -> layout_must_be_value arg.pat_loc cstr_arg_layouts.(i))
-      args;
-      (* CR layouts v2: This sanity check will have to go (or be replaced with a
-         void-specific check) when we have other non-value sorts *)
+    let args =
+      List.mapi
+        (fun i arg ->
+           (* CR layouts v5: This sanity check will have to go (or be replaced
+              with a void-specific check) when we have other non-value sorts in
+              blocks *)
+           layout_must_be_value arg.pat_loc cstr_arg_layouts.(i);
+           (arg, Sort.sort_block_element))
+        args
+    in
     args @ rem
   | _ -> assert false
 
@@ -1828,7 +1854,7 @@ let get_expr_args_variant_nonconst ~scopes head (arg, _mut, _layout) rem =
 let divide_variant ~scopes row ctx { cases = cl; args; default = def } =
   let rec divide = function
     | [] -> { args; cells = [] }
-    | ((p, patl), action) :: rem
+    | ((p, _, patl), action) :: rem
       -> (
         let lab, pato = match p.pat_desc with
           | `Variant (lab, pato, _) -> lab, pato
@@ -1851,7 +1877,7 @@ let divide_variant ~scopes row ctx { cases = cl; args; default = def } =
                    (get_expr_args_variant_nonconst ~scopes)
                    head def ctx)
                 ( = ) (tag, false)
-                (pat :: patl, action)
+                ((pat, Sort.sort_poly_variant_arg) :: patl, action)
                 variants
       )
   in
@@ -1876,8 +1902,8 @@ let divide_var ctx pm =
 
 let get_pat_args_lazy p rem =
   match p with
-  | { pat_desc = Tpat_any } -> Patterns.omega :: rem
-  | { pat_desc = Tpat_lazy arg } -> arg :: rem
+  | { pat_desc = Tpat_any } -> (Patterns.omega, Sort.sort_predef_param) :: rem
+  | { pat_desc = Tpat_lazy arg } -> (arg, Sort.sort_predef_param) :: rem
   | _ -> assert false
 
 (* Inlining the tag tests before calling the primitive that works on
@@ -2044,8 +2070,10 @@ let divide_lazy ~scopes head ctx pm =
 
 let get_pat_args_tuple arity p rem =
   match p with
-  | { pat_desc = Tpat_any } -> Patterns.omegas arity @ rem
-  | { pat_desc = Tpat_tuple args } -> args @ rem
+  | { pat_desc = Tpat_any } ->
+    (List.init arity (fun _ -> Patterns.omega, Sort.sort_tuple_element)) @ rem
+  | { pat_desc = Tpat_tuple args } ->
+    (List.map (fun a -> a, Sort.sort_tuple_element) args) @ rem
   | _ -> assert false
 
 let get_expr_args_tuple ~scopes head (arg, _mut, _layout) rem =
@@ -2070,12 +2098,12 @@ let divide_tuple ~scopes head ctx pm =
 (* Matching against a record pattern *)
 
 let record_matching_line num_fields lbl_pat_list =
-  let patv = Array.make num_fields Patterns.omega in
+  let patv = Array.make num_fields (Patterns.omega, Sort.sort_record_field) in
   List.iter (fun (_, lbl, pat) ->
     (* CR layouts v5: This void sanity check can be removed when we add proper
        void support (or whenever we remove `lbl_pos_void`) *)
     layout_must_be_value lbl.lbl_loc lbl.lbl_layout;
-    patv.(lbl.lbl_pos) <- pat)
+    patv.(lbl.lbl_pos) <- (pat, Sort.sort_record_field))
     lbl_pat_list;
   Array.to_list patv
 
@@ -2158,7 +2186,8 @@ let get_key_array = function
 
 let get_pat_args_array p rem =
   match p with
-  | { pat_desc = Tpat_array (_, patl) } -> patl @ rem
+  | { pat_desc = Tpat_array (_, patl) } ->
+    (List.map (fun p -> p, Sort.sort_predef_param) patl) @ rem
   | _ -> assert false
 
 let get_expr_args_array ~scopes kind head (arg, _mut, _layout) rem =
@@ -3170,7 +3199,7 @@ let compile_orhandlers value_kind compile_fun lambda1 total1 ctx to_catch =
   in
   do_rec lambda1 total1 to_catch
 
-let compile_test compile_fun partial divide combine ctx to_match =
+let compile_test compile_fun partial divide combine ctx (to_match : Simple.clause pattern_matching) =
   let division = divide ctx to_match in
   let c_div = compile_list compile_fun division.cells in
   match c_div with
@@ -3281,7 +3310,7 @@ let rec comp_match_handlers value_kind comp_fun partial ctx first_match next_mat
 (* To find reasonable names for variables *)
 
 let rec name_pattern default = function
-  | ((pat, _), _) :: rem -> (
+  | ((pat, _, _), _) :: rem -> (
       match pat.pat_desc with
       | Tpat_var (id, _, _) -> id
       | Tpat_alias (_, id, _, _) -> id
@@ -3606,19 +3635,24 @@ let toplevel_handler ~scopes value_kind loc ~failer partial args cases compile_f
           check_total ~scopes value_kind loc ~failer total lam raise_num
       end
 
-let compile_matching ~scopes value_kind loc ~failer repr (arg, arg_layout) pat_act_list partial =
+let compile_matching ~scopes ~arg_layout ~arg_sort ~result_layout loc
+      ~failer repr arg pat_act_list partial =
   let partial = check_partial pat_act_list partial in
   let args = [ (arg, Strict, arg_layout) ] in
-  let rows = map_on_rows (fun pat -> (pat, [])) pat_act_list in
-  toplevel_handler ~scopes value_kind loc ~failer partial args rows (fun partial pm ->
-    compile_match_nonempty ~scopes value_kind repr partial (Context.start 1) pm)
+  let rows = map_on_rows (fun pat -> (pat, arg_sort, [])) pat_act_list in
+  toplevel_handler ~scopes result_layout loc ~failer partial args rows (fun partial pm ->
+    compile_match_nonempty ~scopes result_layout repr partial (Context.start 1) pm)
 
-let for_function ~scopes kind loc repr param pat_act_list partial =
-  compile_matching ~scopes kind loc ~failer:Raise_match_failure
-    repr param pat_act_list partial
+let for_function ~scopes ~arg_layout ~arg_sort ~result_layout loc repr
+      param pat_act_list partial =
+  compile_matching ~scopes ~arg_layout ~arg_sort ~result_layout loc
+    ~failer:Raise_match_failure repr param pat_act_list partial
 
 (* In the following two cases, exhaustiveness info is not available! *)
-let for_trywith ~scopes value_kind loc param pat_act_list =
+let for_trywith ~scopes ~result_layout loc param pat_act_list =
+  (* In this case the "argument" of the match is an exception. *)
+  let arg_sort = Sort.sort_predef_value in
+  let arg_layout = Pvalue Pgenval in
   (* Note: the failure action of [for_trywith] corresponds
      to an exception that is not matched by a try..with handler,
      and is thus reraised for the next handler in the stack.
@@ -3626,13 +3660,13 @@ let for_trywith ~scopes value_kind loc param pat_act_list =
      It is important to *not* include location information in
      the reraise (hence the [_noloc]) to avoid seeing this
      silent reraise in exception backtraces. *)
-  compile_matching ~scopes value_kind loc ~failer:(Reraise_noloc param)
-    None (param, layout_block) pat_act_list Partial
+  compile_matching ~scopes ~arg_layout ~arg_sort ~result_layout loc
+    ~failer:(Reraise_noloc param) None param pat_act_list Partial
 
-let simple_for_let ~scopes body_layout loc param pat param_sort body =
-  compile_matching ~scopes body_layout loc ~failer:Raise_match_failure
-    None (param, Typeopt.layout pat.pat_env pat.pat_loc param_sort pat.pat_type)
-    [ (pat, body) ] Partial
+let simple_for_let ~scopes ~arg_layout ~arg_sort ~result_layout loc param pat
+      body =
+  compile_matching ~scopes ~arg_layout ~arg_sort ~result_layout loc
+    ~failer:Raise_match_failure None param [ (pat, body) ] Partial
 
 (* Optimize binding of immediate tuples
 
@@ -3733,18 +3767,26 @@ let rec map_return f = function
    can be costly (one unnecessary tuple allocation).
 *)
 
-let assign_pat ~scopes body_layout opt nraise catch_ids loc pat pat_sort lam =
-  let rec collect pat_sort acc pat lam =
+let assign_pat ~scopes ~arg_layout ~arg_sort ~result_layout opt nraise catch_ids
+      loc pat lam =
+  let tuple_el_layout pat =
+    Typeopt.layout pat.pat_env pat.pat_loc Sort.sort_tuple_element pat.pat_type
+  in
+  let rec collect arg_sort arg_layout acc pat lam =
     (* CR layouts v5: In the first two cases here we're using the fixed value
-       layout for elements of tuples.  That will need to change. *)
+       sort for elements of tuples.  That will need to change. *)
     match (pat.pat_desc, lam) with
     | Tpat_tuple patl, Lprim (Pmakeblock _, lams, _) ->
         opt := true;
-        List.fold_left2 (collect Sort.sort_tuple_element) acc patl lams
+        List.fold_left2
+          (fun acc pat lam ->
+             collect Sort.sort_tuple_element (tuple_el_layout pat) acc pat lam)
+          acc patl lams
     | Tpat_tuple patl, Lconst (Const_block (_, scl)) ->
         opt := true;
         let collect_const acc pat sc =
-          collect Sort.sort_tuple_element acc pat (Lconst sc)
+          collect Sort.sort_tuple_element (tuple_el_layout pat) acc pat
+            (Lconst sc)
         in
         List.fold_left2 collect_const acc patl scl
     | _ ->
@@ -3752,27 +3794,28 @@ let assign_pat ~scopes body_layout opt nraise catch_ids loc pat pat_sort lam =
            refresh them here to guarantee binders uniqueness *)
         let pat_ids = pat_bound_idents pat in
         let fresh_ids = List.map (fun id -> (id, Ident.rename id)) pat_ids in
-        (fresh_ids, alpha_pat fresh_ids pat, lam, pat_sort) :: acc
+        (fresh_ids, alpha_pat fresh_ids pat, lam, arg_sort, arg_layout) :: acc
   in
   (* sublets were accumulated by 'collect' with the leftmost tuple
      pattern at the bottom of the list; to respect right-to-left
      evaluation order for tuples, we must evaluate sublets
      top-to-bottom. To preserve tail-rec, we will fold_left the
      reversed list. *)
-  let rev_sublets = List.rev (collect pat_sort [] pat lam) in
+  let rev_sublets = List.rev (collect arg_sort arg_layout [] pat lam) in
   let exit =
     (* build an Ident.tbl to avoid quadratic refreshing costs *)
     let add t (id, fresh_id) = Ident.add id fresh_id t in
-    let add_ids acc (ids, _pat, _lam, _sort) = List.fold_left add acc ids in
+    let add_ids acc (ids, _pat, _lam, _sort, _layout) = List.fold_left add acc ids in
     let tbl = List.fold_left add_ids Ident.empty rev_sublets in
     let fresh_var id = Lvar (Ident.find_same id tbl) in
     Lstaticraise (nraise, List.map fresh_var catch_ids)
   in
-  let push_sublet code (_ids, pat, lam, pat_sort ) =
-    simple_for_let ~scopes body_layout loc lam pat pat_sort code in
+  let push_sublet code (_ids, pat, lam, arg_sort, arg_layout) =
+    simple_for_let ~scopes ~arg_layout ~arg_sort ~result_layout loc lam pat code
+  in
   List.fold_left push_sublet exit rev_sublets
 
-let for_let ~scopes loc param pat param_sort body_layout body =
+let for_let ~scopes ~arg_layout ~arg_sort ~result_layout loc param pat body =
   match pat.pat_desc with
   | Tpat_any ->
       (* This eliminates a useless variable (and stack slot in bytecode)
@@ -3780,45 +3823,45 @@ let for_let ~scopes loc param pat param_sort body_layout body =
       Lsequence (param, body)
   | Tpat_var (id, _, _) ->
       (* fast path, and keep track of simple bindings to unboxable numbers *)
-      let k =
-        Typeopt.layout pat.pat_env pat.pat_loc Sort.sort_pattern_var
-          pat.pat_type
-      in
-      Llet (Strict, k, id, param, body)
+      Llet (Strict, arg_layout, id, param, body)
   | _ ->
       let opt = ref false in
       let nraise = next_raise_count () in
-      let catch_ids = pat_bound_idents_with_types pat in
+      let catch_ids = pat_bound_idents_full arg_sort pat in
       let ids_with_kinds =
         List.map
-          (fun (id, typ) ->
-             (id, Typeopt.layout pat.pat_env pat.pat_loc
-                    Sort.sort_pattern_var typ))
+          (fun (id, _, typ, sort) ->
+             (id, Typeopt.layout pat.pat_env pat.pat_loc sort typ))
           catch_ids
       in
-      let ids = List.map (fun (id, _) -> id) catch_ids in
+      let ids = List.map (fun (id, _, _, _) -> id) catch_ids in
       let bind =
-        map_return (assign_pat ~scopes body_layout opt nraise ids loc pat
-                      param_sort)
+        map_return (assign_pat ~scopes ~arg_layout ~arg_sort ~result_layout opt
+                      nraise ids loc pat)
           param
       in
       if !opt then
-        Lstaticcatch (bind, (nraise, ids_with_kinds), body, body_layout)
+        Lstaticcatch (bind, (nraise, ids_with_kinds), body, result_layout)
       else
-        simple_for_let ~scopes body_layout loc param pat param_sort body
+        simple_for_let ~scopes ~arg_layout ~arg_sort ~result_layout loc param
+          pat body
 
 (* Handling of tupled functions and matchings *)
 
 (* Easy case since variables are available *)
-let for_tupled_function ~scopes loc kind paraml pats_act_list partial =
+let for_tupled_function ~scopes ~result_layout loc paraml
+      pats_act_list partial =
   let partial = check_partial_list pats_act_list partial in
   (* The arguments of a tupled function are always values since they must be fields *)
+  let pats_act_list =
+    map_on_rows (List.map (fun p -> p, Sort.sort_tuple_element)) pats_act_list
+  in
   let args = List.map (fun id -> (Lvar id, Strict, layout_field)) paraml in
   let handler =
-    toplevel_handler ~scopes kind loc ~failer:Raise_match_failure
+    toplevel_handler ~scopes result_layout loc ~failer:Raise_match_failure
       partial args pats_act_list in
   handler (fun partial pm ->
-    compile_match ~scopes kind None partial
+    compile_match ~scopes result_layout None partial
       (Context.start (List.length paraml)) pm
   )
 
@@ -3830,8 +3873,8 @@ let flatten_pattern size p =
 
 let flatten_simple_pattern size (p : Simple.pattern) =
   match p.pat_desc with
-  | `Tuple args -> args
-  | `Any -> Patterns.omegas size
+  | `Tuple args -> List.map (fun a -> a, Sort.sort_tuple_element) args
+  | `Any -> List.init size (fun _ -> Patterns.omega, Sort.sort_tuple_element)
   | `Array _
   | `Variant _
   | `Record _
@@ -3852,9 +3895,9 @@ let flatten_simple_pattern size (p : Simple.pattern) =
 let flatten_cases size cases =
   List.map
     (function
-      | (p, []), action -> (
+      | (p, _, []), action -> (
           match flatten_simple_pattern size p with
-          | p :: ps -> ((p, ps), action)
+          | (p, sort) :: ps -> ((p, sort, ps), action)
           | [] -> assert false
         )
       | _ -> fatal_error "Matching.flatten_hc_cases")
@@ -3900,18 +3943,23 @@ let compile_flattened ~scopes value_kind repr partial ctx pmh =
         (compile_match ~scopes value_kind repr partial)
         lam total ctx hs
 
-let do_for_multiple_match ~scopes value_kind loc paraml mode pat_act_list partial =
+let do_for_multiple_match ~scopes ~result_layout loc paraml mode pat_act_list partial =
   let repr = None in
   let arg =
     let sloc = Scoped_location.of_location ~scopes loc in
-    (* CR ncourant: this can build a mixed block, but it should never actually be
-       created except if the pattern-matching binds it, in which case it should be
-       rejected by the typing. Do we really trust this case will not happen? *)
+    (* CR layouts v5: This function is called in cases where a literal tuple is
+       written in a pattern (e.g., [match e1, e2, e3 with ...].  The typechecker
+       treats the scrutinee here like any other tuple, so it's fine to assume
+       the whole thing and the elements have sort value.  That will change
+       when we allow non-values in structures.
+    *)
     Lprim (Pmakeblock (0, Immutable, None, mode), List.map fst paraml, sloc) in
   let handler =
     let partial = check_partial pat_act_list partial in
-    let rows = map_on_rows (fun p -> (p, [])) pat_act_list in
-    toplevel_handler ~scopes value_kind loc ~failer:Raise_match_failure
+    let rows =
+      map_on_rows (fun p -> (p, Sort.sort_tuple, [])) pat_act_list
+    in
+    toplevel_handler ~scopes result_layout loc ~failer:Raise_match_failure
       partial [ (arg, Strict, layout_block) ] rows in
   handler (fun partial pm1 ->
     let pm1_half =
@@ -3928,7 +3976,7 @@ let do_for_multiple_match ~scopes value_kind loc paraml mode pat_act_list partia
       List.map (fun (e, pm) -> (e, flatten_precompiled size args pm)) nexts
     in
     let lam, total =
-      comp_match_handlers value_kind (compile_flattened ~scopes value_kind repr) partial
+      comp_match_handlers result_layout (compile_flattened ~scopes result_layout repr) partial
         (Context.start size) flat_next flat_nexts
     in
     List.fold_right2 (bind_with_layout Strict) idl_with_layouts (List.map fst paraml) lam, total
@@ -3947,11 +3995,12 @@ let bind_opt (v, layout, eo) k =
   | None -> k
   | Some e -> Lambda.bind_with_layout Strict (v, layout) e k
 
-let for_multiple_match ~scopes value_kind loc paraml mode pat_act_list partial =
+let for_multiple_match ~scopes ~result_layout loc paraml mode
+      pat_act_list partial =
   let v_paraml = List.map param_to_var paraml in
   let paraml = List.map (fun (v, layout, _) -> (Lvar v, layout)) v_paraml in
   List.fold_right bind_opt v_paraml
-    (do_for_multiple_match ~scopes value_kind loc paraml mode pat_act_list partial)
+    (do_for_multiple_match ~scopes ~result_layout loc paraml mode pat_act_list partial)
 
 (* Error report *)
 (* CR layouts v2: This file didn't use to have the report_error infrastructure -

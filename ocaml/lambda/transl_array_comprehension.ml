@@ -484,6 +484,11 @@ let iterator ~transl_exp ~scopes ~loc
           (Lprim(Parraylength iter_arr_kind, [iter_arr.var], loc))
       in
       let iter_ix = Ident.create_local "iter_ix" in
+      (* CR layouts v5: to change when we allow non-values in sequences *)
+      let arg_sort = Sort.sort_predef_param in
+      let arg_layout =
+        Typeopt.layout pattern.pat_env pattern.pat_loc arg_sort pattern.pat_type
+      in
       let mk_iterator body =
         let open (val Lambda_utils.int_ops ~loc) in
         (* for iter_ix = 0 to Array.length iter_arr - 1 ... *)
@@ -495,13 +500,14 @@ let iterator ~transl_exp ~scopes ~loc
              ; for_body   =
                  Matching.for_let
                    ~scopes
+                   ~arg_layout
+                   ~arg_sort
+                   ~result_layout:(Pvalue Pintval)
                    pattern.pat_loc
                    (Lprim(Parrayrefu iter_arr_kind,
                           [iter_arr.var; Lvar iter_ix],
                           loc))
                    pattern
-                   Sort.sort_predef_param
-                   (Pvalue Pintval)
                    body
              }
       in

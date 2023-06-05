@@ -65,7 +65,6 @@ module Sort : sig
 
   (* XXX layouts: These are temporary definitions.  They will be removed in
       subsequent commits in this PR. *)
-  val sort_pattern_var : t
   val sort_prim_arg : t
   val sort_prim_return : t
   val sort_statement : t
@@ -81,12 +80,12 @@ module Sort : sig
   val sort_class_arg : t
   val sort_instance_var : t
   val sort_bop_exp : t
-  val sort_lazy_body : t
   val sort_tuple_element : t
   val sort_record : t
   val sort_record_field : t
   val sort_block_element : t
   val sort_predef_param : t
+  val sort_poly_variant_arg : t
 
   (** These are sorts for the types of ocaml expressions that we expect will
       always be "value".  These names are used in the translation to lambda to
@@ -98,6 +97,7 @@ module Sort : sig
   val sort_initializer : t
   val sort_method : t
   val sort_module : t
+  val sort_tuple : t
 end
 
 type sort = Sort.t

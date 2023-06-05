@@ -190,19 +190,21 @@ let iterator ~transl_exp ~scopes = function
         Let_binding.make (Immutable Strict) (Pvalue Pgenval)
           "iter_list" (transl_exp ~scopes Sort.sort_predef_value sequence)
       in
+      (* CR layouts v5: to change when we allow non-values in sequences *)
+      let arg_sort = Sort.sort_predef_param in
+      let arg_layout =
+        Typeopt.layout pattern.pat_env pattern.pat_loc arg_sort pattern.pat_type
+      in
       (* Create a fresh variable to use as the function argument *)
       let element = Ident.create_local "element" in
       { builder      = rev_dlist_concat_map
       ; arg_lets     = [iter_list]
       ; element
-      ; element_kind =
-          Typeopt.layout pattern.pat_env pattern.pat_loc
-            Layouts.Sort.sort_predef_param pattern.pat_type
+      ; element_kind = arg_layout
       ; add_bindings =
-          (* CR layouts: to change when we allow non-values in sequences *)
           Matching.for_let
-            ~scopes pattern.pat_loc (Lvar element) pattern
-            Sort.sort_predef_param (Pvalue Pgenval)
+            ~scopes ~arg_layout ~arg_sort ~result_layout:(Pvalue Pgenval)
+            pattern.pat_loc (Lvar element) pattern
       }
 
 (** Translates a list comprehension binding

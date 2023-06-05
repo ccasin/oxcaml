@@ -19,30 +19,32 @@ open Typedtree
 open Lambda
 open Debuginfo.Scoped_location
 
-(* Entry points to match compiler *)
+(* Entry points to match compiler.
+
+   Why do some of these functions take both an ~arg_layout and an ~arg_sort?
+   Because sometimes, within a match, we can calculate a more precise layout
+   based on the pattern (and that calculation requires the sort).  *)
 val for_function:
-        scopes:scopes -> layout -> Location.t ->
-        int ref option -> (lambda * layout) -> (pattern * lambda) list -> partial ->
+        scopes:scopes ->
+        arg_layout:layout -> arg_sort:Layouts.sort -> result_layout:layout ->
+        Location.t -> int ref option -> lambda -> (pattern * lambda) list -> partial ->
         lambda
 val for_trywith:
-        scopes:scopes -> layout -> Location.t ->
-        lambda -> (pattern * lambda) list ->
+        scopes:scopes -> result_layout:layout ->
+        Location.t -> lambda -> (pattern * lambda) list ->
         lambda
-
-(* The sort argument is the sort of the pattern/parameter.  The layout argument
-   is the layout of the body. *)
 val for_let:
-        scopes:scopes -> Location.t ->
-        lambda -> pattern -> Layouts.sort -> layout -> lambda ->
+        scopes:scopes ->
+        arg_layout:layout -> arg_sort:Layouts.sort -> result_layout:layout ->
+        Location.t -> lambda -> pattern -> lambda ->
         lambda
 val for_multiple_match:
-        scopes:scopes -> layout -> Location.t ->
+        scopes:scopes -> result_layout:layout -> Location.t ->
         (lambda * layout) list -> alloc_mode -> (pattern * lambda) list -> partial ->
         lambda
-
 val for_tupled_function:
-        scopes:scopes -> Location.t -> layout ->
-        Ident.t list -> (pattern list * lambda) list -> partial ->
+        scopes:scopes -> result_layout:layout ->
+        Location.t -> Ident.t list -> (pattern list * lambda) list -> partial ->
         lambda
 
 exception Cannot_flatten
