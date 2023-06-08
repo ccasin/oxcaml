@@ -478,7 +478,7 @@ let layout ~legacy_immediate attrs =
      | Immediate | Immediate64 ->
         check  (legacy_immediate
              || Language_extension.(is_at_least Layouts Beta))
-     | Any | Void ->
+     | Any | Void | Float64 ->
         check Language_extension.(is_at_least Layouts Alpha)
 
 (* The "ocaml.boxed (default)" and "ocaml.unboxed (default)"

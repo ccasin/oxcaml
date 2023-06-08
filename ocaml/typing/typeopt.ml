@@ -27,8 +27,8 @@ open Lambda
    stuff. *)
 type error =
     Non_value_layout of type_expr * Layout.Violation.t
-  | Non_value_sort of type_expr
-  | Non_value_sort_unknown_ty
+  | Non_value_sort of Sort.t * type_expr
+  | Non_value_sort_unknown_ty of Sort.t
 
 exception Error of Location.t * error
 
@@ -196,7 +196,7 @@ let value_kind_of_value_layout layout =
   | Immediate -> Pintval
   | Immediate64 ->
     if !Clflags.native_code && Sys.word_size = 64 then Pintval else Pgenval
-  | Any | Void -> assert false
+  | Any | Void | Float64 -> assert false
 
 (* Invariant: [value_kind] functions may only be called on types with layout
    value. *)
@@ -486,12 +486,12 @@ let value_kind env loc ty =
   in
   value_kind
 
-(* CR layouts v2: We are planning to put a sanity check here that you don't get
-   passed float# as the sort unless layouts_alpha is on.  This violates our
-   previous rule that extensions only control syntax, but seems like a nice
-   implementation of a sanity check, since the availability of the Float_u
-   module will result in ways to get at unboxed floats that aren't just writing
-   #float in your program.
+(* CR layouts v2: We are planning to adjust the sanity check here to allow
+   #float only if layouts_alpha is on.  This violates our previous rule that
+   extensions only control syntax, but seems like a nice implementation of a
+   sanity check, since the availability of the Float_u module will result in
+   ways to get at unboxed floats that aren't just writing #float in your
+   program.
 
    We also do the void sanity check here.  We do it in value_kind as well,
    because the sort argument here is sometimes not computed from the type or
@@ -499,12 +499,14 @@ let value_kind env loc ty =
 *)
 let layout env loc sort ty =
   match Layouts.Sort.get_default_value sort with
-  | Void -> raise (Error (loc, Non_value_sort ty))
+  | Void -> raise (Error (loc, Non_value_sort (Sort.void,ty)))
+  | Float64 -> raise (Error (loc, Non_value_sort (Sort.float64,ty)))
   | Value -> Lambda.Pvalue (value_kind env loc ty)
 
 let layout_of_sort loc sort =
   match Layouts.Sort.get_default_value sort with
-  | Void -> raise (Error (loc, Non_value_sort_unknown_ty))
+  | Void -> raise (Error (loc, Non_value_sort_unknown_ty Sort.void))
+  | Float64 -> raise (Error (loc, Non_value_sort_unknown_ty Sort.float64))
   | Value -> Lambda.Pvalue Pgenval
 
 let function_return_layout env loc sort ty =
@@ -582,15 +584,16 @@ let report_error ppf = function
          the Jane Street compilers team.@ %a"
         (Layout.Violation.report_with_offender
            ~offender:(fun ppf -> Printtyp.type_expr ppf ty)) err
-  | Non_value_sort ty ->
+  | Non_value_sort (sort, ty) ->
       fprintf ppf
-        "Non-value detected in [Typeopt.layout] as sort for type@ %a.@ \
+        "Non-value layout %a detected in [Typeopt.layout] as sort for type@ %a.@ \
          Please report this error to the Jane Street compilers team."
-        Printtyp.type_expr ty
-  | Non_value_sort_unknown_ty ->
+        Sort.format sort Printtyp.type_expr ty
+  | Non_value_sort_unknown_ty sort ->
       fprintf ppf
-        "Non-value detected in [layout_of_sort]@ Please report this \
+        "Non-value layout %a detected in [layout_of_sort]@ Please report this \
          error to the Jane Street compilers team."
+        Sort.format sort
 
 let () =
   Location.register_error_of_exn

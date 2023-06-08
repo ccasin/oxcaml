@@ -833,6 +833,7 @@ and transl_ccall env prim args dbg =
     | Same_as_ocaml_repr Value ->
         (XInt, transl env arg)
     | Same_as_ocaml_repr Void -> assert false
+    | Same_as_ocaml_repr Float64 -> assert false
     | Unboxed_float ->
         (XFloat, transl_unbox_float dbg env arg)
     | Unboxed_integer bi ->
@@ -865,6 +866,7 @@ and transl_ccall env prim args dbg =
        in the PR that adds Float64 *)
     | _, Same_as_ocaml_repr Value -> (typ_val, fun x -> x)
     | _, Same_as_ocaml_repr Void -> assert false
+    | _, Same_as_ocaml_repr Float64 -> assert false
     (* TODO: Allow Alloc_local on suitably typed C stubs *)
     | _, Unboxed_float -> (typ_float, box_float dbg alloc_heap)
     | _, Unboxed_integer Pint64 when size_int = 4 ->
