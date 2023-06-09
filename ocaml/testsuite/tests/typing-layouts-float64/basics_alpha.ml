@@ -1,0 +1,95 @@
+(* TEST
+   flags = "-extension layouts_alpha"
+   * expect
+*)
+
+(* CR layouts v2: To the extent possible, there should be copies of every test
+   working on float# that work instead on an abstract float64 type and/or type
+   variables of that layout. *)
+
+(*********************************)
+(* Test 1: The identity function *)
+
+let f1 (x : float#) = x;;
+[%%expect{|
+Line 1, characters 7-23:
+1 | let f1 (x : float#) = x;;
+           ^^^^^^^^^^^^^^^^
+Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
+       float#. Please report this error to the Jane Street compilers team.
+|}];;
+
+(*****************************************)
+(* Test 2: You can let-bind them locally *)
+let f2 (x : float#) =
+  let y = x in
+  y;;
+[%%expect{|
+Lines 1-3, characters 7-3:
+1 | .......(x : float#) =
+2 |   let y = x in
+3 |   y..
+Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
+       float#. Please report this error to the Jane Street compilers team.
+|}];;
+
+(**************************************)
+(* Test 3: No top-level bindings yet. *)
+
+let x3 : float# = assert false;;
+[%%expect{|
+Line 1, characters 4-6:
+1 | let x3 : float# = assert false;;
+        ^^
+Error: Top-level module bindings must have layout value, but x3 has layout
+       float64.
+|}];;
+
+(*************************************)
+(* Test 4: No putting them in tuples *)
+
+let f4 (x : float#) = x, false;;
+[%%expect{|
+Line 1, characters 22-23:
+1 | let f4 (x : float#) = x, false;;
+                          ^
+Error: This expression has type float# but an expression was expected of type
+         ('a : value)
+       float# has layout float64, which is not a sublayout of value.
+|}];;
+
+(****************************************************)
+(* Test 5: Can't be put in structures in typedecls. *)
+
+(* XXX layouts: implement this check *)
+
+type t5_1 = { x : float# };;
+[%%expect{|
+type t5_1 = { x : float#; }
+|}];;
+
+type t5_2 = { y : int; x : float# };;
+[%%expect{|
+type t5_2 = { y : int; x : float#; }
+|}];;
+
+type t5_3 = { x : float# } [@@unboxed];;
+[%%expect{|
+type t5_3 = { x : float#; } [@@unboxed]
+|}];;
+
+type t5_4 = A of float#;;
+[%%expect{|
+type t5_4 = A of float#
+|}];;
+
+type t5_5 = A of int * float#;;
+[%%expect{|
+type t5_5 = A of int * float#
+|}];;
+
+type t5_6 = A of float# [@@unboxed];;
+[%%expect{|
+type t5_6 = A of float# [@@unboxed]
+|}];;
+

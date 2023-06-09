@@ -310,7 +310,8 @@ module Layout = struct
     | Dummy_layout
     | Type_expression_call
 
-  type float64_creation_reason = |
+  type float64_creation_reason =
+    | Primitive of Ident.t
 
   type annotation_context =
     | Type_declaration of Path.t
@@ -735,6 +736,10 @@ module Layout = struct
       | V1_safety_check -> fprintf ppf "check to make sure there are no voids"
         (* CR layouts: remove this when we remove its uses *)
 
+    let format_float64_creation_reason ppf : float64_creation_reason -> _ = function
+      | Primitive id ->
+        fprintf ppf "it equals the primitive value type %s" (Ident.name id)
+
     let format_creation_reason ppf : creation_reason -> unit = function
       | Annotated (ctx, _) ->
           fprintf ppf "of the annotation on %a" format_annotation_context ctx
@@ -748,7 +753,8 @@ module Layout = struct
         format_void_creation_reason ppf void
       | Value_creation value ->
          format_value_creation_reason ppf value
-      | Float64_creation _ -> .
+      | Float64_creation float ->
+         format_float64_creation_reason ppf float
       | Concrete_creation concrete ->
          format_concrete_layout_reason ppf concrete
       | Imported ->
@@ -1137,6 +1143,9 @@ module Layout = struct
     let void_creation_reason ppf : void_creation_reason -> _ = function
       | V1_safety_check -> fprintf ppf "V1_safety_check"
 
+    let float64_creation_reason ppf : float64_creation_reason -> _ = function
+      | Primitive id -> fprintf ppf "Primitive %s" (Ident.unique_name id)
+
     let creation_reason ppf : creation_reason -> unit = function
       | Annotated (ctx, loc) ->
         fprintf ppf "Annotated (%a,%a)"
@@ -1152,7 +1161,8 @@ module Layout = struct
          fprintf ppf "Value_creation %a" value_creation_reason value
       | Void_creation void ->
          fprintf ppf "Void_creation %a" void_creation_reason void
-      | Float64_creation _ -> .
+      | Float64_creation float ->
+         fprintf ppf "Float64_creation %a" float64_creation_reason float
       | Concrete_creation concrete ->
          fprintf ppf "Concrete_creation %a" concrete_layout_reason concrete
       | Imported ->

@@ -215,7 +215,8 @@ module Layout : sig
          unified to correct levels *)
     | Type_expression_call
 
-  type float64_creation_reason = |
+  type float64_creation_reason =
+    | Primitive of Ident.t
 
   type creation_reason =
     | Annotated of annotation_context * Location.t
