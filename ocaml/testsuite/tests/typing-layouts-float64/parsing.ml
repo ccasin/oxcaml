@@ -21,12 +21,20 @@ Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
 
 type t = C of float#;;
 [%%expect {|
-type t = C of float#
+Line 1, characters 9-20:
+1 | type t = C of float#;;
+             ^^^^^^^^^^^
+Error: Type float# has layout float64.
+       Types of this layout are not yet allowed in blocks (like records or variants).
 |}];;
 
 type t = C : float# -> t;;
 [%%expect {|
-type t = C : float# -> t
+Line 1, characters 9-24:
+1 | type t = C : float# -> t;;
+             ^^^^^^^^^^^^^^^
+Error: Type float# has layout float64.
+       Types of this layout are not yet allowed in blocks (like records or variants).
 |}];;
 
 (* float# works as an argument to normal type constructors, not just classes,
