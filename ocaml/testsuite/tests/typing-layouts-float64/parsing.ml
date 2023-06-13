@@ -12,11 +12,7 @@ type t = float#;;
 let f (_ : float#) = ();;
 [%%expect {|
 type t = float#
-Line 2, characters 6-23:
-2 | let f (_ : float#) = ();;
-          ^^^^^^^^^^^^^^^^^
-Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
-       float#. Please report this error to the Jane Street compilers team.
+val f : float# -> unit = <fun>
 |}];;
 
 type t = C of float#;;

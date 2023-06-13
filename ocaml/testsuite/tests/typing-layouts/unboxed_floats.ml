@@ -11,11 +11,11 @@ let id : float# -> float# = fun x -> x;;
 
 id #4.0;;
 [%%expect {|
-Line 1, characters 28-38:
-1 | let id : float# -> float# = fun x -> x;;
-                                ^^^^^^^^^^
-Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
-       float#. Please report this error to the Jane Street compilers team.
+val id : float# -> float# = <fun>
+Line 3, characters 3-7:
+3 | id #4.0;;
+       ^^^^
+Error: Unboxed float literals aren't supported yet.
 |}];;
 
 (* CR layouts: We should actually add the numbers here when
@@ -37,9 +37,10 @@ let apply (f : float# -> float# -> float#) (x : float#) (y : float#) =
 
 apply add #4.0 #5.0;;
 [%%expect {|
-Lines 1-2, characters 43-7:
-1 | ...........................................(x : float#) (y : float#) =
-2 |   f x y..
-Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
-       float#. Please report this error to the Jane Street compilers team.
+val apply : (float# -> float# -> float#) -> float# -> float# -> float# =
+  <fun>
+Line 4, characters 6-9:
+4 | apply add #4.0 #5.0;;
+          ^^^
+Error: Unbound value add
 |}];;

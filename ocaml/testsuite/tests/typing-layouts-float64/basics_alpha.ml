@@ -12,11 +12,7 @@
 
 let f1 (x : float#) = x;;
 [%%expect{|
-Line 1, characters 7-23:
-1 | let f1 (x : float#) = x;;
-           ^^^^^^^^^^^^^^^^
-Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
-       float#. Please report this error to the Jane Street compilers team.
+val f1 : float# -> float# = <fun>
 |}];;
 
 (*****************************************)
@@ -25,12 +21,7 @@ let f2 (x : float#) =
   let y = x in
   y;;
 [%%expect{|
-Lines 1-3, characters 7-3:
-1 | .......(x : float#) =
-2 |   let y = x in
-3 |   y..
-Error: Non-value layout float64 detected in [Typeopt.layout] as sort for type
-       float#. Please report this error to the Jane Street compilers team.
+val f2 : float# -> float# = <fun>
 |}];;
 
 (**************************************)
