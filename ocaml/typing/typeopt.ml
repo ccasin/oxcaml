@@ -500,7 +500,9 @@ let value_kind env loc ty =
 let layout env loc sort ty =
   match Layouts.Sort.get_default_value sort with
   | Void -> raise (Error (loc, Non_value_sort (Sort.void,ty)))
-  | Float64 -> Lambda.Punboxed_float
+  | Float64 when Language_extension.(is_at_least Layouts Alpha) ->
+    Lambda.Punboxed_float
+  | Float64 -> raise (Error (loc, Non_value_sort (Sort.float64,ty)))
   | Value -> Lambda.Pvalue (value_kind env loc ty)
 
 let layout_of_sort loc sort =
