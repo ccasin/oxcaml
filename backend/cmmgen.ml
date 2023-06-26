@@ -383,6 +383,20 @@ let is_strict : kind_for_unboxing -> bool = function
   | Boxed_integer _ | Boxed_float -> false
   | Any -> true
 
+(* [exttype_of_sort] and [machtype_of_sort] should be kept in sync with
+   [Typeopt.layout_of_const_sort]. *)
+let exttype_of_sort (s : Layouts.Sort.const) =
+  match s with
+  | Value -> XInt
+  | Float64 -> XFloat
+  | Void -> assert false
+
+let machtype_of_sort (s : Layouts.Sort.const) =
+  match s with
+  | Value -> typ_val
+  | Float64 -> typ_float
+  | Void -> assert false
+
 let rec is_unboxed_number_cmm = function
     | Cop(Calloc mode, [Cconst_natint (hdr, _); _], dbg)
       when Nativeint.equal hdr float_header ->
@@ -896,10 +910,7 @@ and transl_make_array dbg env kind mode args =
 and transl_ccall env prim args dbg =
   let transl_arg native_repr arg =
     match native_repr with
-    | Same_as_ocaml_repr Value ->
-        (XInt, transl env arg)
-    | Same_as_ocaml_repr Void -> assert false
-    | Same_as_ocaml_repr Float64 -> (XFloat, transl env arg)
+    | Same_as_ocaml_repr sort -> (exttype_of_sort sort, transl env arg)
     | Unboxed_float ->
         (XFloat, transl_unbox_float dbg env arg)
     | Unboxed_integer bi ->
@@ -927,9 +938,7 @@ and transl_ccall env prim args dbg =
   in
   let typ_res, wrap_result =
     match prim.prim_native_repr_res with
-    | _, Same_as_ocaml_repr Value -> (typ_val, fun x -> x)
-    | _, Same_as_ocaml_repr Void -> assert false
-    | _, Same_as_ocaml_repr Float64 -> (typ_float, fun x -> x)
+    | _, Same_as_ocaml_repr sort -> (machtype_of_sort sort, fun x -> x)
     (* TODO: Allow Alloc_local on suitably typed C stubs *)
     | _, Unboxed_float -> (typ_float, box_float dbg alloc_heap)
     | _, Unboxed_integer Pint64 when size_int = 4 ->

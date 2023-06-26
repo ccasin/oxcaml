@@ -511,6 +511,12 @@ let layout_of_sort loc sort =
   | Float64 -> Lambda.Punboxed_float
   | Value -> Lambda.Pvalue Pgenval
 
+let layout_of_const_sort (s : Layouts.Sort.const) =
+  match s with
+  | Void -> assert false
+  | Float64 -> Lambda.Punboxed_float
+  | Value -> Lambda.Pvalue Pgenval
+
 let function_return_layout env loc sort ty =
   match is_function_type env ty with
   | Some (_lhs, rhs) -> layout env loc sort rhs

@@ -464,9 +464,8 @@ let close_c_call acc env ~loc ~let_bound_ids_with_kinds
   let kind_of_primitive_native_repr
       ((_, repr) : Primitive.mode * Primitive.native_repr) =
     match repr with
-    | Same_as_ocaml_repr Value -> K.value
-    | Same_as_ocaml_repr Void -> assert false
-    | Same_as_ocaml_repr Float64 -> K.naked_float
+    | Same_as_ocaml_repr sort ->
+      K.With_subkind.(kind (from_lambda (Typeopt.layout_of_const_sort sort)))
     | Unboxed_float -> K.naked_float
     | Unboxed_integer Pnativeint -> K.naked_nativeint
     | Unboxed_integer Pint32 -> K.naked_int32
