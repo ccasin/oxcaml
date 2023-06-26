@@ -6,10 +6,6 @@
 (* A test comparing allocations with unboxed floats to allocations with boxed
    floats. *)
 
-(* CR layouts v2: test shouldn't print exact allocation numbers. And I've only
-   run it on closure - surely different on other middle ends. *)
-
-
 module type Float_u = sig
   external to_float : float# -> (float[@local_opt]) = "%box_float"
   external of_float : (float[@local_opt]) -> float# = "%unbox_float"
@@ -45,11 +41,24 @@ let measure_alloc f =
   alloc := (after -. before) -. baseline_allocation;
   result
 
+(* We mark both [step] functions [@inline never].  Without this, flambda2 can
+   eliminate all allocations in [Pi_boxed] (and we do it in [Pi_unboxed] for a
+   fair comparison).  Despite the fact that flambda2 could eliminate these
+   allocations, this seems like a reasonable test - it's not hard to imagine
+   more complicated scenarios with functions that couldn't be inlined for other
+   reasons.
+*)
+
+let get_allocations () =
+  let result = if !alloc > 0. then "Allocated" else "Did not allocate" in
+  alloc := 0.0;
+  result
+
 module Pi_unboxed =
 struct
   open Float_u
 
-  let step n estimate =
+  let[@inline never] step n estimate =
     let new_term =
       ((of_float (-1.)) ** n)
       / ((n * (of_float 2.)) + (of_float 1.))
@@ -63,13 +72,13 @@ struct
     let est =
       measure_alloc (fun () -> go (of_float 0.) (of_float 0.))
     in
-    Printf.printf "Unboxed:\n  estimate: %f\n  bytes allocated: %f\n"
-      ((to_float est) *. 4.) !alloc
+    Printf.printf "Unboxed:\n  estimate: %f\n  allocations: %s\n"
+      ((to_float est) *. 4.) (get_allocations ())
 end
 
 module Pi_boxed =
 struct
-  let step n estimate =
+  let[@inline never] step n estimate =
     let new_term =
       (-1. ** n) /. ((n *. 2.) +. 1.)
     in
@@ -82,8 +91,8 @@ struct
     let est =
       measure_alloc (fun () -> Float_u.of_float (go 0. 0.))
     in
-    Printf.printf "Boxed:\n  estimate: %f\n  bytes allocated: %f\n"
-      ((Float_u.to_float est) *. 4.) !alloc
+    Printf.printf "Boxed:\n  estimate: %f\n  allocations: %s\n"
+      ((Float_u.to_float est) *. 4.) (get_allocations ())
 end
 
 let _ = Pi_unboxed.estimate ()

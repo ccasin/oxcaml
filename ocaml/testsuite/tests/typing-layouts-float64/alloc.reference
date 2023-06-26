@@ -1,6 +1,6 @@
 Unboxed:
   estimate: 3.141693
-  bytes allocated: 0.000000
+  allocations: Did not allocate
 Boxed:
   estimate: 3.141693
-  bytes allocated: 320032.000000
+  allocations: Allocated
