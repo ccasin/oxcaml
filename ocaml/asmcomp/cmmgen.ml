@@ -860,7 +860,7 @@ and transl_ccall env prim args dbg =
     match prim.prim_native_repr_res with
     | _, Same_as_ocaml_repr Value -> (typ_val, fun x -> x)
     | _, Same_as_ocaml_repr Void -> assert false
-    | Same_as_ocaml_repr Float64 -> (typ_float, fun x -> x)
+    | _, Same_as_ocaml_repr Float64 -> (typ_float, fun x -> x)
     (* TODO: Allow Alloc_local on suitably typed C stubs *)
     | _, Unboxed_float -> (typ_float, box_float dbg alloc_heap)
     | _, Unboxed_integer Pint64 when size_int = 4 ->
