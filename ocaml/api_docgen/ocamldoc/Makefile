@@ -46,6 +46,15 @@ $(libref:%=build/libref/%.odoc): build/libref/%.odoc: %.mli | build/libref
 "$(AWK) -v ocamldoc=true -f ../../stdlib/expand_module_aliases.awk" \
 	$(DOC_STDLIB_INCLUDES) $< -dump  $@
 
+# Special case for float_u, which needs an -extension flag
+# CR layouts: one day, this can be just [-extension layouts]
+build/libref/float_u.odoc: float_u.mli | build/libref
+	$(OCAMLDOC_RUN) -nostdlib -hide Stdlib -lib Stdlib \
+	-extension layouts_alpha \
+	-pp \
+"$(AWK) -v ocamldoc=true -f ../../stdlib/expand_module_aliases.awk" \
+	$(DOC_STDLIB_INCLUDES) $< -dump  $@
+
 $(compilerlibref:%=build/compilerlibref/%.odoc):\
 build/compilerlibref/%.odoc: %.mli | build/compilerlibref
 	$(OCAMLDOC_RUN) -nostdlib -hide Stdlib \
