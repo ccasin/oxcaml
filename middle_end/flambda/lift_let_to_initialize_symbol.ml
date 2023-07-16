@@ -22,10 +22,14 @@ type ('a, 'b) kind =
   | Initialisation of (Symbol.t * Tag.t * Flambda.t list)
   | Effect of 'b
 
-let should_copy (named:Flambda.named) =
-  match named with
-  | Symbol _ | Read_symbol_field _ | Const _ -> true
-  | _ -> false
+let should_copy layouts (named:Flambda.named) =
+  let layout = Flambda.result_layout_named ~layouts named in
+  match layout with
+  | Punboxed_float | Punboxed_int _ -> false
+  | Ptop | Pvalue _ | Pbottom ->
+    match named with
+    | Symbol _ | Read_symbol_field _ | Const _ -> true
+    | _ -> false
 
 type access =
   | Field of int
@@ -151,7 +155,7 @@ let rec accumulate ~(layouts : Layouts.t) ~substitution ~copied_lets ~extracted_
       body
   | Let { var; defining_expr = named; body; _ }
   | Let_rec ([var, named], body)
-    when should_copy named ->
+    when should_copy layouts named ->
       let layout = Flambda.result_layout_named ~layouts named in
       let layouts = Layouts.add layouts var layout in
       accumulate body
