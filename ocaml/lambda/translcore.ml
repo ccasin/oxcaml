@@ -72,7 +72,7 @@ let check_record_field_sort loc sort repres =
   | Float64, (Record_boxed _ | Record_inlined _
              | Record_unboxed | Record_float) ->
     raise (Error (loc, Illegal_record_field Float64))
-  | Void, _ ->
+  | (Void | Word | Bits32 | Bits64), _ ->
     raise (Error (loc, Illegal_record_field Void))
 
 (* Forward declaration -- to be filled in by Translmod.transl_module *)

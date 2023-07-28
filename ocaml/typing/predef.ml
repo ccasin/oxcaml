@@ -48,6 +48,9 @@ and ident_string = ident_create "string"
 and ident_extension_constructor = ident_create "extension_constructor"
 and ident_floatarray = ident_create "floatarray"
 and ident_unboxed_float = ident_create "float#"
+and ident_unboxed_nativeint = ident_create "nativeint#"
+and ident_unboxed_int32 = ident_create "int32#"
+and ident_unboxed_int64 = ident_create "int64#"
 
 and ident_int8x16 = ident_create "int8x16"
 and ident_int16x8 = ident_create "int16x8"
@@ -75,6 +78,9 @@ and path_string = Pident ident_string
 and path_extension_constructor = Pident ident_extension_constructor
 and path_floatarray = Pident ident_floatarray
 and path_unboxed_float = Pident ident_unboxed_float
+and path_unboxed_nativeint = Pident ident_unboxed_nativeint
+and path_unboxed_int32 = Pident ident_unboxed_int32
+and path_unboxed_int64 = Pident ident_unboxed_int64
 
 and path_int8x16 = Pident ident_int8x16
 and path_int16x8 = Pident ident_int16x8
@@ -103,6 +109,10 @@ and type_extension_constructor =
       newgenty (Tconstr(path_extension_constructor, [], ref Mnil))
 and type_floatarray = newgenty (Tconstr(path_floatarray, [], ref Mnil))
 and type_unboxed_float = newgenty (Tconstr(path_unboxed_float, [], ref Mnil))
+and type_unboxed_nativeint =
+      newgenty (Tconstr(path_unboxed_nativeint, [], ref Mnil))
+and type_unboxed_int32 = newgenty (Tconstr(path_unboxed_int32, [], ref Mnil))
+and type_unboxed_int64 = newgenty (Tconstr(path_unboxed_int64, [], ref Mnil))
 
 and type_int8x16 = newgenty (Tconstr(path_int8x16, [], ref Mnil))
 and type_int16x8 = newgenty (Tconstr(path_int16x8, [], ref Mnil))
@@ -278,6 +288,12 @@ let common_initial_env add_type add_extension empty_env =
   |> add_type ident_string
   |> add_type ident_unboxed_float
        ~layout:(Layout.float64 ~why:(Primitive ident_unboxed_float))
+  |> add_type ident_unboxed_nativeint
+       ~layout:(Layout.word ~why:(Primitive ident_unboxed_nativeint))
+  |> add_type ident_unboxed_int32
+       ~layout:(Layout.bits32 ~why:(Primitive ident_unboxed_int32))
+  |> add_type ident_unboxed_int64
+       ~layout:(Layout.bits64 ~why:(Primitive ident_unboxed_int64))
   |> add_type ident_unit
        ~kind:(variant [cstr ident_void []] [| [| |] |])
        ~layout:(Layout.immediate ~why:Enumeration)

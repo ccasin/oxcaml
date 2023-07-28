@@ -627,7 +627,6 @@ parsing/printast.cmo : \
     parsing/parsetree.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
-    parsing/jane_asttypes.cmi \
     utils/clflags.cmi \
     parsing/asttypes.cmi \
     parsing/printast.cmi
@@ -635,13 +634,11 @@ parsing/printast.cmx : \
     parsing/parsetree.cmi \
     parsing/longident.cmx \
     parsing/location.cmx \
-    parsing/jane_asttypes.cmi \
     utils/clflags.cmx \
     parsing/asttypes.cmi \
     parsing/printast.cmi
 parsing/printast.cmi : \
-    parsing/parsetree.cmi \
-    parsing/jane_asttypes.cmi
+    parsing/parsetree.cmi
 parsing/syntaxerr.cmo : \
     parsing/printast.cmi \
     parsing/location.cmi \
@@ -1405,6 +1402,7 @@ typing/printtyped.cmo : \
     parsing/longident.cmi \
     parsing/location.cmi \
     typing/layouts.cmi \
+    parsing/jane_syntax.cmi \
     typing/ident.cmi \
     utils/clflags.cmi \
     parsing/asttypes.cmi \
@@ -1419,6 +1417,7 @@ typing/printtyped.cmx : \
     parsing/longident.cmx \
     parsing/location.cmx \
     typing/layouts.cmx \
+    parsing/jane_syntax.cmx \
     typing/ident.cmx \
     utils/clflags.cmx \
     parsing/asttypes.cmi \

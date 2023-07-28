@@ -72,7 +72,7 @@ type error =
       }
   | Layout_empty_record
   | Non_value_in_sig of Layout.Violation.t * string
-  | Float64_in_block of type_expr * layout_sort_loc
+  | Invalid_layout_in_block of Sort.const * type_expr * layout_sort_loc
   | Mixed_block
   | Separability of Typedecl_separability.error
   | Bad_unboxed_attribute of string
@@ -1031,7 +1031,8 @@ let check_representable ~why ~allow_float env loc lloc typ =
       | Float64 when allow_float -> ()
       (* CR layouts v2.5: If we want to hold back [float#] records from the
          maturity progression of [float64], we can add a check here. *)
-      | Float64 -> raise (Error (loc, Float64_in_block (typ, lloc)))
+      | (Float64 | Word | Bits32 | Bits64 as const) ->
+        raise (Error (loc, Invalid_layout_in_block (const, typ, lloc)))
     end
   | Error err -> raise (Error (loc,Layout_sort {lloc; typ; err}))
 
@@ -1108,15 +1109,24 @@ let update_decl_layout env dpath decl =
     | _, Record_boxed layouts ->
       let lbls, all_void = update_label_layouts env loc lbls (Some layouts) in
       let layout = Layout.for_boxed_record ~all_void in
-      let has_values, has_floats =
+      let has_values, has_floats, _ =
         Array.fold_left
-          (fun (values, floats) layout ->
+          (fun (values, floats, idx) layout ->
              match Layout.get_default_value layout with
-             | Value | Immediate64 | Immediate -> (Has_values, floats)
-             | Float64 -> (values, Has_float64s)
-             | Void -> (values, floats)
+             | Value | Immediate64 | Immediate -> (Has_values, floats, idx + 1)
+             | Float64 -> (values, Has_float64s, idx + 1)
+             | Void -> (values, floats, idx + 1)
+             | Word | Bits32 | Bits64 ->
+               (* CR layouts v2.5: This case is a little gross, but will be reworked
+                  in the patch for mixed unboxed/immediate records. *)
+               let lbl = List.nth lbls idx in
+               let sort =
+                 layout |> Layout.sort_of_layout |> Sort.get_default_value
+               in
+               raise (Error (loc, Invalid_layout_in_block
+                                    (sort, lbl.ld_type, Record)))
              | Any -> assert false)
-          (No_values, No_float64s) layouts
+          (No_values, No_float64s, 0) layouts
       in
       let rep =
         match has_values, has_floats with
@@ -2601,18 +2611,23 @@ let report_error ppf = function
   | Non_value_in_sig (err, val_name) ->
     fprintf ppf "@[This type signature for %s is not a value type.@ %a@]"
       val_name (Layout.Violation.report_with_name ~name:val_name) err
-  | Float64_in_block (typ, lloc) ->
+  | Invalid_layout_in_block (sort, typ, lloc) ->
     let struct_desc =
       match lloc with
       | Cstr_tuple -> "Variants"
-      | Record -> "Unboxed records"
-        (* [Record] always means unboxed record here, because illegal boxed records
-           get rejected with the [Mixed_block] error instead. *)
+      | Record ->
+        begin match sort with
+        | Float64 -> "Unboxed records"
+          (* For the special case of float64s, we say "unboxed records" here
+             because illegal boxed records get rejected with a [Mixed_block] or
+             [Invalid_layout_in_record] error instead. *)
+        | Value | Void | Word | Bits32 | Bits64 -> "Records"
+        end
       | External -> assert false
     in
     fprintf ppf
-      "@[Type %a has layout float64.@ %s may not yet contain types of this layout.@]"
-      Printtyp.type_expr typ struct_desc
+      "@[Type %a has layout %a.@ %s may not yet contain types of this layout.@]"
+      Printtyp.type_expr typ Sort.format_const sort struct_desc
   | Mixed_block  ->
     fprintf ppf
       "@[Records may not contain both unboxed floats and normal values.@]"
