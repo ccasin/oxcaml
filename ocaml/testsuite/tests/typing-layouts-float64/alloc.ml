@@ -135,10 +135,50 @@ let[@inline never] manipulate ({c; _} as r) =
     r.a
 
 let _ =
+  Printf.printf "Float# record tests:\n";
   let r = measure_alloc_value (fun () -> build (Float_u.of_float 3.14)) in
   print_record_and_allocs "Construction (40 bytes for record)" r;
   let _ = measure_alloc (fun () -> manipulate r) in
   print_record_and_allocs "Manipulation (0 bytes)" r
 
+(************************************************)
+(* (float# + immediate) record allocation tests *)
 
+let[@inline never] consumer x y = Float_u.(of_int x + y)
 
+type t_mixed = { a : int;
+                 mutable b : int;
+                 c : float#;
+                 mutable d : float# }
+
+let print_record_and_allocs s r =
+  let allocs = get_exact_allocations () in
+  Printf.printf
+    "%s:\n  allocated bytes: %.2f\n  a: %d\n  b: %d\n  c: %.2f\n  d: %.2f\n"
+    s allocs r.a r.b (Float_u.to_float r.c) (Float_u.to_float r.d)
+
+(* Building a record should only allocate the box *)
+let[@inline never] build i f =
+  { a = i;
+    b = 42;
+    c = consumer i f;
+    d = consumer i (Float_u.of_float 1.0) }
+
+let[@inline never] project_a r = r.a
+let[@inline never] update_d r x = r.d <- x
+
+(* We should be able to get floats out, do math on them, pass them to functions,
+   etc, without allocating. *)
+let[@inline never] manipulate ({c; _} as r) =
+  match r with
+  | { b; _ } ->
+    update_d r (consumer b (Float_u.of_int (project_a r)));
+    r.b <- Float_u.(to_int (Float_u.sub c (Float_u.of_float 21.5)));
+    r.a
+
+let _ =
+  Printf.printf "(Float# + int) record tests:\n";
+  let r = measure_alloc_value (fun () -> build 7 (Float_u.of_float 3.14)) in
+  print_record_and_allocs "Construction (40 bytes for record)" r;
+  let _ = measure_alloc_value (fun () -> manipulate r) in
+  print_record_and_allocs "Manipulation (0 bytes)" r

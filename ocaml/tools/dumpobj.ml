@@ -321,6 +321,7 @@ let op_shapes = [
   opMAKEBLOCK1, Uint;
   opMAKEBLOCK2, Uint;
   opMAKEBLOCK3, Uint;
+  opMAKEABSBLOCK, Uint;
   opMAKEFLOATBLOCK, Uint;
   opGETFIELD0, Nothing;
   opGETFIELD1, Nothing;

@@ -365,6 +365,17 @@ CAMLextern void caml_Store_double_val (value,double);
 CAMLextern mlsize_t caml_array_length (value);   /* size in items */
 CAMLextern int caml_is_double_array (value);   /* 0 is false, 1 is true */
 
+/* Records of immediates and unboxed floats. */
+#define Store_abs_flat_field(v,i,f) do{ \
+  mlsize_t caml__temp_i = (i); \
+  if (Is_block((int)(f))) {                \
+    double caml__temp_d = (Double_val(f)); \
+    Store_double_val((value)((double *) (v) + caml__temp_i), caml__temp_d); \
+  } else { \
+    Field((v), caml__temp_i) = (f); \
+  } \
+}while(0)
+
 
 /* Custom blocks.  They contain a pointer to a "method suite"
    of functions (for finalization, comparison, hashing, etc)

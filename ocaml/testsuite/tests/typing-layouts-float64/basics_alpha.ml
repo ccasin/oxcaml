@@ -170,22 +170,17 @@ Error: This type ('b : value) should be an instance of type ('a : float64)
        'a has layout float64, which does not overlap with value.
 |}]
 
-(******************************************************************************)
-(* Test 5: Can't be put in structures in typedecls, except all-float records. *)
+(***************************************************)
+(* Test 5: Limited use in structures in typedecls *)
 
 type t5_1 = { x : t_float64 };;
 [%%expect{|
 type t5_1 = { x : t_float64; }
 |}];;
 
-(* CR layouts v5: this should work *)
 type t5_2 = { y : int; x : t_float64 };;
 [%%expect{|
-Line 1, characters 0-38:
-1 | type t5_2 = { y : int; x : t_float64 };;
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: This type declaration violates the mixed block restriction:
-       records must contain no unboxed floats or only unboxed floats.
+type t5_2 = { y : int; x : t_float64; }
 |}];;
 
 (* CR layouts: this runs afoul of the mixed block restriction, but should work
@@ -766,10 +761,12 @@ let a, b, c, a', b', c' =
   FU.to_float r'.b,
   FU.to_float r'.c
 
+(* pattern match in let *)
 let f14_4 r =
   let {x; y} = r in
   FU.add x y
 
+let sum14_3 = FU.to_float (f14_4 r14)
 
 [%%expect{|
 module FU = Stdlib__Float_u
@@ -788,4 +785,83 @@ val a' : float = 42.
 val b' : float = 20.
 val c' : float = 3.1
 val f14_4 : t14_1 -> float# = <fun>
+val sum14_3 : float = 5.86
+|}]
+
+(* polymorphic equality is allowed and works *)
+let b14 = r14 = r14;;
+[%%expect {|
+val b14 : bool = true
+|}]
+
+
+(***************************************)
+(* Test 15: float# + immediate records *)
+
+type t15_1 = { x : int; y : float# }
+
+(* pattern matching *)
+let f15_1 {x;y} = FU.sub FU.(of_int x) y
+
+(* construction *)
+let r15 = { x = 3; y = FU.of_float 2.72 }
+
+let sum15_1 = FU.to_float (f15_1 r15)
+
+(* projection *)
+let f15_2 ({y;_} as r) = FU.sub (FU.of_int r.x) y
+
+let sum15_2 = FU.to_float (f15_1 r15)
+
+type t15_2 = { mutable a : float#; b : float#; mutable c : int }
+
+let f15_3 ({b; c; _} as r) =
+  (* pure record update *)
+  let r' =
+    { r with b = FU.of_float 20.0; c = Int.of_float (FU.to_float r.a) }
+  in
+  (* mutation *)
+  r.a <- FU.sub r.a r'.b;
+  r'.a <- FU.of_float 42.0;
+  r'
+
+let a, b, c, a', b', c' =
+  let r = {a = FU.of_float 3.1; b = FU.of_float (-0.42); c = 27 } in
+  let r' = f15_3 r in
+  FU.to_float r.a,
+  FU.to_float r.b,
+  r.c,
+  FU.to_float r'.a,
+  FU.to_float r'.b,
+  r'.c
+
+let f15_4 r =
+  let {x; y} = r in
+  FU.sub (FU.of_int x) y
+
+let sum15_3 = FU.to_float (f15_4 r15)
+
+[%%expect{|
+type t15_1 = { x : int; y : float#; }
+val f15_1 : t15_1 -> float# = <fun>
+val r15 : t15_1 = {x = 3; y = <abstr>}
+val sum15_1 : float = 0.279999999999999805
+val f15_2 : t15_1 -> float# = <fun>
+val sum15_2 : float = 0.279999999999999805
+type t15_2 = { mutable a : float#; b : float#; mutable c : int; }
+val f15_3 : t15_2 -> t15_2 = <fun>
+val a : float = -16.9
+val b : float = -0.42
+val c : int = 27
+val a' : float = 42.
+val b' : float = 20.
+val c' : int = 3
+val f15_4 : t15_1 -> float# = <fun>
+val sum15_3 : float = 0.279999999999999805
+|}]
+
+(* polymorphic equality is allowed and blows up *)
+let b15 = r15 = r15;;
+[%%expect {|
+Exception: Invalid_argument "compare: abstract value".
 |}]

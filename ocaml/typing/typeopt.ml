@@ -502,9 +502,9 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
       | [] | _ :: _ :: _ -> assert false
     end
   | _ -> begin
-      let (is_mutable, num_nodes_visited), fields =
+      let (_, is_mutable, num_nodes_visited), fields =
         List.fold_left_map
-          (fun (is_mutable, num_nodes_visited)
+          (fun (num, is_mutable, num_nodes_visited)
                (label:Types.label_declaration) ->
             let is_mutable =
               match label.ld_mutable with
@@ -518,17 +518,23 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
                  sort (we can get this info from the label.ld_layout).  For now
                  we rely on the layout check at the top of value_kind to rule
                  out void. *)
-              if rep = Record_float then
+              match rep with
+              | Record_float ->
                 (* We're using the `Pfloatval` value kind for unboxed floats.
                    But that was already happening here due to the float record
                    optimization. *)
                 num_nodes_visited, Pfloatval
-              else
+              | Record_abstract abs -> begin
+                  match abs.(num) with
+                  | Immediate -> num_nodes_visited, Pintval
+                  | Float64 -> (* XXX layouts: lying here *) num_nodes_visited, Pfloatval
+                end
+              | Record_boxed _ | Record_unboxed | Record_inlined _ ->
                 value_kind env ~loc ~visited ~depth ~num_nodes_visited
                   label.ld_type
             in
-            (is_mutable, num_nodes_visited), field)
-          (false, num_nodes_visited) labels
+            (num + 1, is_mutable, num_nodes_visited), field)
+          (0, false, num_nodes_visited) labels
       in
       if is_mutable then
         num_nodes_visited, Pgenval
@@ -544,6 +550,8 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
           | Record_inlined (Extension _, _) ->
             [0, fields]
           | Record_unboxed -> assert false
+          | Record_abstract _ ->
+            [ Obj.abstract_tag, fields]
         in
         (num_nodes_visited, Pvariant { consts = []; non_consts })
     end

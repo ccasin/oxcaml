@@ -26,6 +26,7 @@ end
 (* Test 1: some basic arithmetic *)
 
 let print_floatu prefix x = Printf.printf "%s: %.2f\n" prefix (Float_u.to_float x)
+let print_int prefix x = Printf.printf "%s: %d\n" prefix x
 
 (* Tests all the operators above *)
 let test1 () =
@@ -396,3 +397,127 @@ let _ =
   print_t8 t8_1;
   print_t8 t8_2;
   print_t8 t8_3
+
+(**********************************************)
+(* Test 9: basic (float# + immediate) records *)
+
+(* Copy of test 3, everything is in the record. *)
+type mixedargs = { x0_1 : int;
+                   x0_2 : int;
+                   x1 : float#;
+                   x2_1 : int;
+                   x2_2 : int;
+                   x3 : float#;
+                   x4_1 : int;
+                   x4_2 : int;
+                   x5 : float#;
+                   x6_1 : int;
+                   x6_2 : int;
+                   x7 : float#;
+                   x8_1 : int;
+                   x8_2 : int;
+                   x9 : float# }
+
+(* Get some float# args by pattern matching and others by projection *)
+let[@inline_never] f9 steps ({ x1; x0_1=start_k; x0_2=end_k; x8_1; x8_2; x5;
+                               x6_1; x6_2 } as fargs) () =
+  let[@inline never] rec go k =
+    if k = end_k
+    then Float_u.of_float 0.
+    else begin
+      let (x2_1, x2_2) = (fargs.x2_1, fargs.x2_2) in
+      let {x4_1; x4_2; _} = fargs in
+      let sum = x2_1 + x2_2 + x4_1 + x4_2 + x6_1 + x6_2 + x8_1 + x8_2 in
+      let acc = go (k + 1) in
+      steps.(k) <- Float_u.to_float acc;
+      Float_u.(acc + ((x1 + fargs.x3 + x5 + fargs.x7 + fargs.x9)
+                      * (of_float (Float.of_int sum))))
+    end
+  in
+  go start_k
+
+let test9 () =
+  (* same math as f3_manyargs *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let x1 = Float_u.of_float 3.14 in
+  let x3 = Float_u.of_float 2.72 in
+  let x5 = Float_u.of_float 1.62 in
+  let x7 = Float_u.of_float 1.41 in
+  let x9 = Float_u.of_float 42.0 in
+
+  (* these sum to 3 *)
+  let x2_1, x2_2 = (7, 42) in
+  let x4_1, x4_2 = (-23, 109) in
+  let x6_1, x6_2 = (-242, 90) in
+  let x8_1, x8_2 = (-2, 22) in
+
+  let fargs =
+    { x0_1 = 4; x0_2 = 8; x1; x2_1; x2_2; x3; x4_1; x4_2; x5; x6_1; x6_2; x7;
+      x8_1; x8_2; x9 }
+  in
+
+  let f9 = f9 steps fargs in
+  print_floatu "Test 9, 610.68: " (f9 ());
+  Array.iteri (Printf.printf "  Test 9, step %d: %.2f\n") steps
+
+let _ = test9 ()
+
+(***************************************)
+(* Test 10: float# record manipulation *)
+
+type t10 = { a : float#;
+             mutable b : int;
+             c : int;
+             mutable d : float# }
+
+(* Construction *)
+let t10_1 = { a = Float_u.of_float 3.14;
+              b = 13;
+              c = 6;
+              d = Float_u.of_float 1.41 }
+
+let t10_2 = { a = Float_u.of_float (-3.14);
+              b = -13;
+              c = -6;
+              d = Float_u.of_float (-1.41) }
+
+let print_t10 t10 =
+  print_floatu "  a: " t10.a;
+  print_int "  b: " t10.b;
+  print_int "  c: " t10.c;
+  print_floatu "  d: " t10.d
+
+let _ =
+  Printf.printf "Test 10, construction:\n";
+  print_t10 t10_1;
+  print_t10 t10_2
+
+(* Matching, projection *)
+let f10_1 {c; d; _} r =
+  match r with
+  | { a; _ } ->
+    { a = (Float_u.of_int c);
+      b = Float_u.(to_int (a - d));
+      c = r.c + c;
+      d = Float_u.(d - (of_int r.b)) }
+
+let _ =
+  Printf.printf "Test 10, matching and projection:\n";
+  print_t10 (f10_1 t10_1 t10_2)
+
+(* Record update and mutation *)
+let f10_2 ({a; d; _} as r1) r2 =
+  r1.d <- Float_u.of_float 42.0;
+  let r3 = { r2 with c = (Float_u.to_int r1.d);
+                     d = Float_u.of_float 25.0 }
+  in
+  r3.b <- Float_u.(to_int (a + d));
+  r2.b <- 17;
+  r3
+
+let _ =
+  Printf.printf "Test 10, record update and mutation:\n";
+  let t10_3 = f10_2 t10_1 t10_2 in
+  print_t10 t10_1;
+  print_t10 t10_2;
+  print_t10 t10_3

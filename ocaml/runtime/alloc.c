@@ -220,6 +220,19 @@ CAMLprim value caml_alloc_dummy_float (value size)
   return caml_alloc (wosize, 0);
 }
 
+/* [size] is a [value] representing number of fields.
+
+   The fields are currently either immediates or unboxed floats.  We are
+   assuming these have the same width, which is false on 32 bit platforms,
+   but should be fine within Jane Street?
+ */
+CAMLprim value caml_alloc_dummy_abstract (value size)
+{
+  mlsize_t wosize = Long_val(size) * Double_wosize;
+  return caml_alloc (wosize, 0);
+}
+
+
 CAMLprim value caml_alloc_dummy_infix(value vsize, value voffset)
 {
   mlsize_t wosize = Long_val(vsize), offset = Long_val(voffset);

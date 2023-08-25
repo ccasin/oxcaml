@@ -19,6 +19,8 @@ type immediate_or_pointer = Lambda.immediate_or_pointer
 
 type initialization_or_assignment = Lambda.initialization_or_assignment
 
+type abstract_block_shape = Lambda.abstract_block_shape
+
 type is_safe = Lambda.is_safe
 
 type boxed =
@@ -38,6 +40,7 @@ type primitive =
   | Pread_symbol of string
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
+  | Pmakeabstractblock of mutable_flag * abstract_block_shape * alloc_mode
   | Pfield of int * layout
   | Pfield_computed
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment

@@ -38,7 +38,7 @@ type locality_mode = private
   | Alloc_heap
   | Alloc_local
 
-(** For now we don't have strong update, and thus uniqueness is irrelavent in 
+(** For now we don't have strong update, and thus uniqueness is irrelavent in
     middle and back-end; in the future this will be extended with uniqueness *)
 type alloc_mode = locality_mode
 
@@ -92,6 +92,7 @@ type primitive =
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
   | Pmakefloatblock of mutable_flag * alloc_mode
+  | Pmakeabstractblock of mutable_flag * abstract_block_shape * alloc_mode
   | Pfield of int * field_read_semantics
   | Pfield_computed of field_read_semantics
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -258,6 +259,9 @@ and layout =
 
 and block_shape =
   value_kind list option
+
+and abstract_block_shape =
+  Types.abstract_block_element array
 
 and boxed_integer = Primitive.boxed_integer =
     Pnativeint | Pint32 | Pint64

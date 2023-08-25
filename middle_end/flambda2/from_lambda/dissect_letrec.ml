@@ -122,6 +122,7 @@ type block_type =
   | Normal of int
   (* tag *)
   | Boxed_float
+  | Abstract
 
 type block =
   { block_type : block_type;
@@ -286,6 +287,8 @@ let rec prepare_letrec (recursive_set : Ident.Set.t)
       | Record_inlined (Extension _, Variant_extensible) ->
         build_block cl (size + 1) (Normal 0) arg letrec
       | Record_float -> build_block cl size Boxed_float arg letrec
+      | Record_abstract _ -> build_block cl size Abstract arg letrec
+      (* XXX layouts: make sure some test hits this *)
       | Record_inlined (Extension _, _)
       | Record_inlined (Ordinary _, (Variant_unboxed | Variant_extensible))
       | Record_unboxed ->
@@ -569,6 +572,7 @@ let dissect_letrec ~bindings ~body ~free_vars_kind =
           match block_type with
           | Normal _tag -> "caml_alloc_dummy"
           | Boxed_float -> "caml_alloc_dummy_float"
+          | Abstract -> "caml_alloc_dummy_abstract"
         in
         let desc = Primitive.simple_on_values ~name:fn ~arity:1 ~alloc:true in
         let size : lambda = Lconst (Const_base (Const_int size)) in

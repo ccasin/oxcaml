@@ -4,6 +4,7 @@ Unboxed:
 Boxed:
   estimate: 3.141693
   allocations: Allocated
+Float# record tests:
 Construction (40 bytes for record):
   allocated bytes: 40.00
   a: 3.14
@@ -16,3 +17,16 @@ Manipulation (0 bytes):
   b: -14.82
   c: 6.28
   d: 45.14
+(Float# + int) record tests:
+Construction (40 bytes for record):
+  allocated bytes: 40.00
+  a: 7
+  b: 42
+  c: 10.14
+  d: 8.00
+Manipulation (0 bytes):
+  allocated bytes: 0.00
+  a: 7
+  b: -11
+  c: 10.14
+  d: 49.00
