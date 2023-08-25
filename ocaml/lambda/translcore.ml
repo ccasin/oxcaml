@@ -72,7 +72,7 @@ let record_field_kind l =
 let record_field_is_unboxed_float loc sort repres =
   match Sort.get_default_value sort, repres with
   | Value, _ -> false
-  | Float64, Record_float -> true
+  | Float64, (Record_float | Record_abstract _) -> true
   | Float64, (Record_boxed _ | Record_inlined _ | Record_unboxed) ->
     raise (Error (loc, Illegal_record_field Float64))
   | Void, _ ->
@@ -568,6 +568,16 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Record_inlined (_, Variant_extensible) ->
           Lprim (Pfield (lbl.lbl_pos + 1, sem), [targ],
                  of_location ~scopes e.exp_loc)
+        | Record_abstract abs ->
+          let loc = of_location ~scopes e.exp_loc in
+          begin match abs.(lbl.lbl_num) with
+          | Float64 ->
+            let boxed =
+              Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap), [targ], loc)
+            in
+            Lprim (Punbox_float, [boxed], loc)
+          | Immediate -> Lprim (Pfield (lbl.lbl_pos, sem), [targ], loc)
+          end
       end
   | Texp_setfield(arg, arg_mode, id, lbl, newval) ->
       (* CR layouts v2.5: When we allow `any` in record fields and check
@@ -589,6 +599,11 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Record_unboxed | Record_inlined (_, Variant_unboxed) ->
           assert false
         | Record_float -> Psetfloatfield (lbl.lbl_pos, mode)
+        | Record_abstract abs -> begin
+            match abs.(lbl.lbl_num) with
+            | Immediate -> Psetfield(lbl.lbl_pos, Immediate, mode)
+            | Float64 -> Psetfloatfield (lbl.lbl_pos, mode)
+          end
         | Record_inlined (_, Variant_extensible) ->
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, mode)
       in
@@ -1513,7 +1528,14 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                  | Record_float ->
                     (* This allocation is always deleted,
                        so it's simpler to leave it Alloc_heap *)
-                    Pfloatfield (i, sem, alloc_heap) in
+                   Pfloatfield (i, sem, alloc_heap)
+                 | Record_abstract abs -> begin
+                     match abs.(lbl.lbl_num) with
+                     | Immediate -> Pfield (i, sem)
+                     | Float64 -> Pfloatfield (i, sem, alloc_heap)
+                   end
+
+               in
                Lprim(access, [Lvar init_id], loc), field_kind
            | Overridden (_lid, expr) ->
                let field_kind, unboxed_float =
@@ -1547,7 +1569,10 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
             Lconst(Const_float_block(List.map extract_float cl))
         | Record_inlined (_, Variant_extensible)
         | Record_inlined (Extension _, _) ->
-            raise Not_constant
+          raise Not_constant
+        | Record_abstract _ ->
+          (* CR layouts: could do better here with new primitives. *)
+          raise Not_constant
       with Not_constant ->
         match repres with
           Record_boxed _ ->
@@ -1565,7 +1590,10 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                   slot :: ll, loc)
         | Record_inlined (Extension _, (Variant_unboxed | Variant_boxed _))
         | Record_inlined (Ordinary _, Variant_extensible) ->
-            assert false
+          assert false
+        | Record_abstract abs ->
+          (* XXX layouts: need new primitive? *)
+          Lprim(Pmakeabstractblock(mut, abs, Option.get mode), ll, loc)
     in
     begin match opt_init_expr with
       None -> lam
@@ -1598,6 +1626,13 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                 let pos = lbl.lbl_pos + 1 in
                 let ptr = maybe_pointer expr in
                 Psetfield(pos, ptr, Assignment modify_heap)
+            | Record_abstract abs -> begin
+                match abs.(lbl.lbl_num) with
+                | Immediate ->
+                  Psetfield(lbl.lbl_pos, Immediate, Assignment modify_heap)
+                | Float64 ->
+                  Psetfloatfield (lbl.lbl_pos, Assignment modify_heap)
+              end
           in
           let expr = transl_exp ~scopes lbl_sort expr in
           let expr =

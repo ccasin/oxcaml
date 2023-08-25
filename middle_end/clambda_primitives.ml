@@ -38,6 +38,8 @@ type primitive =
   | Pread_symbol of string
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
+  | Pmakeabstractblock of
+      mutable_flag * Types.abstract_block_element array * alloc_mode
   | Pfield of int * layout
   | Pfield_computed
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment

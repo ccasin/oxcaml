@@ -438,7 +438,7 @@ let record_representation ~prepare_layout loc = function
                     variant_representation ~prepare_layout loc variant_rep)
   | Record_boxed lays ->
       Record_boxed (Array.map (prepare_layout loc) lays)
-  | Record_float -> Record_float
+  | (Record_float | Record_abstract _) as rep -> rep
 
 let type_declaration' copy_scope s decl =
   { type_params = List.map (typexp copy_scope s decl.type_loc) decl.type_params;

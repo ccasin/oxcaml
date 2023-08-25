@@ -180,6 +180,10 @@ let tag ppf = let open Types in function
       fprintf ppf "Ordinary {index: %d; tag: %d}" src_index runtime_tag
   | Extension (p,_) -> fprintf ppf "Extension %a" fmt_path p
 
+let abstract_block_element i ppf = let open Types in function
+  | Immediate -> line i ppf "Immediate\n"
+  | Float64 -> line i ppf "Float64\n"
+
 let variant_representation i ppf = let open Types in function
   | Variant_unboxed ->
     line i ppf "Variant_unboxed\n"
@@ -196,6 +200,9 @@ let record_representation i ppf = let open Types in function
   | Record_inlined (t,v) ->
     line i ppf "Record_inlined (%a, %a)\n" tag t (variant_representation i) v
   | Record_float -> line i ppf "Record_float\n"
+  | Record_abstract abs ->
+    line i ppf "Record_abstract %a\n" (array (i+1) abstract_block_element)
+      abs
 
 let attribute i ppf k a =
   line i ppf "%s \"%s\"\n" k a.Parsetree.attr_name.txt;

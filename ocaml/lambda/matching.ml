@@ -119,7 +119,7 @@ let layout_must_be_value loc layout =
 let check_record_field_layout lbl =
   match Layout.(get_default_value lbl.lbl_layout), lbl.lbl_repres with
   | (Value | Immediate | Immediate64), _ -> false
-  | Float64, Record_float -> true
+  | Float64, (Record_float | Record_abstract _) -> true
   | Float64, (Record_boxed _ | Record_inlined _ | Record_unboxed) ->
     raise (Error (lbl.lbl_loc, Illegal_record_field Float64))
   | (Any | Void) as c, _ -> raise (Error (lbl.lbl_loc, Illegal_record_field c))
@@ -2152,6 +2152,17 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
         | Record_inlined (_, Variant_extensible) ->
             Lprim (Pfield (lbl.lbl_pos + 1, sem), [ arg ], loc),
             lbl_sort, lbl_layout
+        | Record_abstract abs ->
+          begin
+            match abs.(pos) with
+            | Immediate -> Lprim (Pfield (lbl.lbl_pos, sem), [arg], loc)
+            | Float64 ->
+              Lprim (Punbox_float,
+                     [Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap),
+                             [arg], loc)],
+                     loc)
+          end,
+          lbl_sort, lbl_layout
       in
       let str =
         match lbl.lbl_mut with

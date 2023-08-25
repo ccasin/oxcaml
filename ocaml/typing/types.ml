@@ -221,11 +221,14 @@ and tag = Ordinary of {src_index: int;     (* Unique name (per type) *)
                        runtime_tag: int}   (* The runtime tag *)
         | Extension of Path.t * layout array
 
+and abstract_block_element = Immediate | Float64
+
 and record_representation =
   | Record_unboxed
   | Record_inlined of tag * variant_representation
   | Record_boxed of layout array
   | Record_float
+  | Record_abstract of abstract_block_element array
 
 and variant_representation =
   | Variant_unboxed
@@ -511,6 +514,12 @@ let equal_variant_representation r1 r2 = r1 == r2 || match r1, r2 with
   | (Variant_unboxed | Variant_boxed _ | Variant_extensible), _ ->
       false
 
+let equal_abstract_block_element abs1 abs2 =
+  match abs1, abs2 with
+  | Immediate, Immediate -> true
+  | Float64, Float64 -> true
+  | (Immediate | Float64), _ -> false
+
 let equal_record_representation r1 r2 = match r1, r2 with
   | Record_unboxed, Record_unboxed ->
       true
@@ -520,7 +529,10 @@ let equal_record_representation r1 r2 = match r1, r2 with
       Misc.Stdlib.Array.equal Layout.equal lays1 lays2
   | Record_float, Record_float ->
       true
-  | (Record_unboxed | Record_inlined _ | Record_boxed _ | Record_float), _ ->
+  | Record_abstract abs1, Record_abstract abs2 ->
+      Misc.Stdlib.Array.equal equal_abstract_block_element abs1 abs2
+  | (Record_unboxed | Record_inlined _ | Record_boxed _ | Record_float
+    | Record_abstract _), _ ->
       false
 
 let may_equal_constr c1 c2 =
@@ -546,7 +558,7 @@ let find_unboxed_type decl =
                   Variant_unboxed) ->
     Some arg
   | Type_record (_, ( Record_inlined _ | Record_unboxed
-                    | Record_boxed _ | Record_float ))
+                    | Record_boxed _ | Record_float | Record_abstract _))
   | Type_variant (_, ( Variant_boxed _ | Variant_unboxed
                      | Variant_extensible ))
   | Type_abstract | Type_open ->

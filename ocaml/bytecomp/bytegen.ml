@@ -117,7 +117,7 @@ let preserve_tailcall_for_prim = function
   | Pget_header _
   | Pignore
   | Pgetglobal _ | Psetglobal _ | Pgetpredef _
-  | Pmakeblock _ | Pmakefloatblock _
+  | Pmakeblock _ | Pmakefloatblock _ | Pmakeabstractblock _
   | Pfield _ | Pfield_computed _ | Psetfield _
   | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Pduprecord _
   | Pccall _ | Praise _ | Pnot | Pnegint | Paddint | Psubint | Pmulint
@@ -193,6 +193,8 @@ let rec size_of_lambda env = function
       | Record_unboxed | Record_inlined (_, Variant_unboxed) -> assert false
       | Record_float -> RHS_floatblock size
       | Record_inlined (_, Variant_extensible) -> RHS_block (size + 1)
+      | Record_abstract _ -> (* XXX layouts: obviously wrong *)
+        RHS_block size
       end
   | Llet(_str, _k, id, arg, body) ->
       size_of_lambda (Ident.add id (size_of_lambda env arg) env) body
@@ -544,6 +546,7 @@ let comp_primitive p args =
   | Pfloatcomp _
   | Pmakeblock _
   | Pmakefloatblock _
+  | Pmakeabstractblock _
   | Pprobe_is_enabled _
   | Punbox_float | Pbox_float _ | Punbox_int _ | Pbox_int _
     ->
@@ -827,6 +830,11 @@ let rec comp_expr env exp sz cont =
   | Lprim(Pmakeblock(tag, _mut, _, _), args, loc) ->
       let cont = add_pseudo_event loc !compunit_name cont in
       comp_args env args sz (Kmakeblock(List.length args, tag) :: cont)
+  | Lprim(Pmakeabstractblock(_mut, _, _), args, loc) ->
+      (* XXX layouts: Do I need a new bytecode instruction? *)
+      let cont = add_pseudo_event loc !compunit_name cont in
+      comp_args env args sz
+        (Kmakeblock(List.length args, Obj.abstract_tag) :: cont)
   | Lprim(Pfloatfield (n, _, _), args, loc) ->
       let cont = add_pseudo_event loc !compunit_name cont in
       comp_args env args sz (Kgetfloatfield n :: cont)

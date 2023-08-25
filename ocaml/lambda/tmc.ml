@@ -897,8 +897,9 @@ let rec choice ctx t =
     (* we don't handle { foo with x = ...; y = recursive-call } *)
     | Pduprecord _
 
-    (* we don't handle all-float records *)
+    (* we don't handle all-float or abstract records *)
     | Pmakefloatblock _
+    | Pmakeabstractblock _
 
     | Pobj_dup
     | Pobj_magic _

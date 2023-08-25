@@ -135,6 +135,7 @@ type primitive =
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
   | Pmakefloatblock of mutable_flag * alloc_mode
+  | Pmakeabstractblock of mutable_flag * abstract_block_shape * alloc_mode
   | Pfield of int * field_read_semantics
   | Pfield_computed of field_read_semantics
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -268,6 +269,9 @@ and layout =
 
 and block_shape =
   value_kind list option
+
+and abstract_block_shape =
+  Types.abstract_block_element array
 
 and array_kind =
     Pgenarray | Paddrarray | Pintarray | Pfloatarray
@@ -1399,6 +1403,7 @@ let primitive_may_allocate : primitive -> alloc_mode option = function
   | Pgetglobal _ | Psetglobal _ | Pgetpredef _ -> None
   | Pmakeblock (_, _, _, m) -> Some m
   | Pmakefloatblock (_, m) -> Some m
+  | Pmakeabstractblock (_, _, m) -> Some m
   | Pfield _ | Pfield_computed _ | Psetfield _ | Psetfield_computed _ -> None
   | Pfloatfield (_, _, m) -> Some m
   | Psetfloatfield _ -> None
@@ -1497,8 +1502,8 @@ let primitive_result_layout (p : primitive) =
   | Pbigstring_set_16 _ | Pbigstring_set_32 _ | Pbigstring_set_64 _
     -> layout_unit
   | Pgetglobal _ | Psetglobal _ | Pgetpredef _ -> layout_module_field
-  | Pmakeblock _ | Pmakefloatblock _ | Pmakearray _ | Pduprecord _
-  | Pduparray _ | Pbigarraydim _ | Pobj_dup -> layout_block
+  | Pmakeblock _ | Pmakefloatblock _ | Pmakeabstractblock _ | Pmakearray _
+  | Pduprecord _ | Pduparray _ | Pbigarraydim _ | Pobj_dup -> layout_block
   | Pfield _ | Pfield_computed _ -> layout_field
   | Pfloatfield _ | Pfloatofint _ | Pnegfloat _ | Pabsfloat _
   | Paddfloat _ | Psubfloat _ | Pmulfloat _ | Pdivfloat _

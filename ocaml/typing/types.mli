@@ -516,6 +516,8 @@ and tag = Ordinary of {src_index: int;  (* Unique name (per type) *)
                        runtime_tag: int}    (* The runtime tag *)
         | Extension of Path.t * layout array
 
+and abstract_block_element = Immediate | Float64
+
 and record_representation =
   | Record_unboxed
   | Record_inlined of tag * variant_representation
@@ -523,7 +525,9 @@ and record_representation =
      contains it and the tag of the relevant constructor of that variant. *)
   | Record_boxed of layout array
   | Record_float (* All fields are floats *)
-
+  | Record_abstract of abstract_block_element array
+  (* XXX layouts: pretty sure I can just drop the abstract_block_element array
+     because the relevant info is available from the sanity checks. *)
 
 (* For unboxed variants, we record the layout of the mandatory single argument.
    For boxed variants, we record the layouts for the arguments of each
