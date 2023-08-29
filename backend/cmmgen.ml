@@ -1579,6 +1579,7 @@ and transl_letrec env bindings cont =
         Clet(id, op_alloc "caml_alloc_dummy_infix"
              [int_const dbg blocksize; int_const dbg offset],
              init_blocks rem)
+    (* XXX layouts: probably new case needed here. *)
     | (id, _exp, RHS_floatblock (Alloc_heap, sz)) :: rem ->
         Clet(id, op_alloc "caml_alloc_dummy_float" [int_const dbg sz],
           init_blocks rem)

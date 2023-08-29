@@ -124,3 +124,41 @@ Test 8, record update and mutation:
   b: : 4.55
   c: : 42.00
   d: : 25.00
+Test 9, 610.68: : 610.68
+  Test 9, step 0: 0.00
+  Test 9, step 1: 0.00
+  Test 9, step 2: 0.00
+  Test 9, step 3: 0.00
+  Test 9, step 4: 458.01
+  Test 9, step 5: 305.34
+  Test 9, step 6: 152.67
+  Test 9, step 7: 0.00
+  Test 9, step 8: 0.00
+  Test 9, step 9: 0.00
+Test 10, construction:
+  a: : 3.14
+  b: : 13
+  c: : 6
+  d: : 1.41
+  a: : -3.14
+  b: : -13
+  c: : -6
+  d: : -1.41
+Test 10, matching and projection:
+  a: : 6.00
+  b: : -4
+  c: : 0
+  d: : 14.41
+Test 10, record update and mutation:
+  a: : 3.14
+  b: : 13
+  c: : 6
+  d: : 42.00
+  a: : -3.14
+  b: : 17
+  c: : -6
+  d: : -1.41
+  a: : -3.14
+  b: : 4
+  c: : 42
+  d: : 25.00

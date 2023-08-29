@@ -764,7 +764,23 @@ value caml_interprete(code_t prog, asize_t prog_size)
       accu = block;
       Next;
     }
-
+    Instruct(MAKEABSBLOCK): {
+      mlsize_t size = *pc++;
+      mlsize_t i;
+      value block;
+      if (size <= Max_young_wosize / Double_wosize) {
+        Alloc_small(block, size * Double_wosize, Abstract_tag);
+      } else {
+        block = caml_alloc_shr(size * Double_wosize, Abstract_tag);
+      }
+      Store_abs_flat_field(block, 0, accu);
+      for (i = 1; i < size; i++){
+        Store_abs_flat_field(block, i, (*sp));
+        ++ sp;
+      }
+      accu = block;
+      Next;
+    }
 /* Access to components of blocks */
 
     Instruct(GETFIELD0):
