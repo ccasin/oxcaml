@@ -957,7 +957,8 @@ let primitive_can_raise (prim : Lambda.primitive) =
   | Pbytes_to_string | Pbytes_of_string | Parray_of_iarray | Parray_to_iarray
   | Pignore | Pgetglobal _ | Psetglobal _ | Pgetpredef _ | Pmakeblock _
   | Pmakefloatblock _ | Pfield _ | Pfield_computed _ | Psetfield _
-  | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Pduprecord _
+  | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _
+  | Pmakeufloatblock _ | Pufloatfield _ | Psetufloatfield _ | Pduprecord _
   | Psequand | Psequor | Pnot | Pnegint | Paddint | Psubint | Pmulint | Pandint
   | Porint | Pxorint | Plslint | Plsrint | Pasrint | Pintcomp _ | Pcompare_ints
   | Pcompare_floats | Pcompare_bints _ | Poffsetint _ | Poffsetref _

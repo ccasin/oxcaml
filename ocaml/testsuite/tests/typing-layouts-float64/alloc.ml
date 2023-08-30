@@ -141,4 +141,24 @@ let _ =
   print_record_and_allocs "Manipulation (0 bytes)" r
 
 
+(* There was some concern the below would allocate when passed `false` due to
+   CSE.  The idea is:
+   - Projections like `r.a` were initially implemented as
+     `unbox (box ( *(r+offset) ))`.  This box is supposed to be erased by the
+     middle-end, but...
+   - The boxes from the `true` branch could get lifted out of the `if` to be
+     combined with the box from the projection, preventing it from being erased.
+   Projections are no longer implemented that way, so there's no common
+   subexpression to be eliminated, but I've kept the test.  *)
+let[@inline never] cse_test b r =
+  let (x : float#) = r.a in
+  if b then
+    (Float_u.to_float x, Float_u.to_float x)
+  else
+    (0., 0.)
 
+let _ =
+  let r = build (Float_u.of_float 3.14) in
+  let _ = measure_alloc_value (fun () -> cse_test false r) in
+  let allocs = get_exact_allocations () in
+  Printf.printf "CSE test (0 bytes):\n  allocated bytes: %.2f\n" allocs

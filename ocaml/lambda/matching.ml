@@ -114,13 +114,13 @@ let layout_must_be_value loc layout =
   | Ok _ -> ()
   | Error e -> raise (Error (loc, Non_value_layout e))
 
-(* Does sanity check for void / any / float64, and returns whether it was
-   float64. *)
+(* Does sanity check for void / any / float64 *)
 let check_record_field_layout lbl =
   match Layout.(get_default_value lbl.lbl_layout), lbl.lbl_repres with
-  | (Value | Immediate | Immediate64), _ -> false
-  | Float64, Record_float -> true
-  | Float64, (Record_boxed _ | Record_inlined _ | Record_unboxed) ->
+  | (Value | Immediate | Immediate64), _ -> ()
+  | Float64, Record_ufloat -> ()
+  | Float64, (Record_boxed _ | Record_inlined _
+             | Record_unboxed | Record_float) ->
     raise (Error (lbl.lbl_loc, Illegal_record_field Float64))
   | (Any | Void) as c, _ -> raise (Error (lbl.lbl_loc, Illegal_record_field c))
 
@@ -2095,7 +2095,7 @@ let record_matching_line num_fields lbl_pat_list =
   List.iter (fun (_, lbl, pat) ->
     (* CR layouts v5: This void sanity check can be removed when we add proper
        void support (or whenever we remove `lbl_pos_void`) *)
-    ignore (check_record_field_layout lbl);
+    check_record_field_layout lbl;
     patv.(lbl.lbl_pos) <- pat)
     lbl_pat_list;
   Array.to_list patv
@@ -2122,7 +2122,7 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
       rem
     else
       let lbl = all_labels.(pos) in
-      let unboxed_float = check_record_field_layout lbl in
+      check_record_field_layout lbl;
       let lbl_sort = Layout.sort_of_layout lbl.lbl_layout in
       let lbl_layout = Typeopt.layout_of_sort lbl.lbl_loc lbl_sort in
       let sem =
@@ -2139,16 +2139,14 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
         | Record_unboxed
         | Record_inlined (_, Variant_unboxed) -> arg, sort, layout
         | Record_float ->
-           let lam =
-             (* TODO: could optimise to Alloc_local sometimes *)
-             Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap), [ arg ], loc)
-           in
-           let lam =
-             (* Project a boxed float from a float record or an unboxed float
-                from a float# record. *)
-             if unboxed_float then Lprim (Punbox_float, [lam], loc) else lam
-           in
-           lam, lbl_sort, lbl_layout
+           (* TODO: could optimise to Alloc_local sometimes *)
+           Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap), [ arg ], loc),
+           (* Here we are projecting a boxed float from a float record. *)
+           lbl_sort, lbl_layout
+        | Record_ufloat ->
+           Lprim (Pufloatfield (lbl.lbl_pos, sem), [ arg ], loc),
+           (* Here we are projecting an unboxed float from a float record. *)
+           lbl_sort, lbl_layout
         | Record_inlined (_, Variant_extensible) ->
             Lprim (Pfield (lbl.lbl_pos + 1, sem), [ arg ], loc),
             lbl_sort, lbl_layout

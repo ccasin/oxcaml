@@ -518,12 +518,14 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
                  sort (we can get this info from the label.ld_layout).  For now
                  we rely on the layout check at the top of value_kind to rule
                  out void. *)
-              if rep = Record_float then
+              match rep with
+              | Record_float | Record_ufloat ->
                 (* We're using the `Pfloatval` value kind for unboxed floats.
-                   But that was already happening here due to the float record
-                   optimization. *)
+                   This is kind of a lie (there are unboxed floats in here, not
+                   boxed floats), but that was already happening here due to the
+                   float record optimization. *)
                 num_nodes_visited, Pfloatval
-              else
+              | Record_boxed _ | Record_inlined _ | Record_unboxed ->
                 value_kind env ~loc ~visited ~depth ~num_nodes_visited
                   label.ld_type
             in
@@ -537,7 +539,7 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
           match rep with
           | Record_inlined (Ordinary {runtime_tag}, _) ->
             [runtime_tag, fields]
-          | Record_float ->
+          | Record_float | Record_ufloat ->
             [ Obj.double_array_tag, fields ]
           | Record_boxed _ ->
             [0, fields]

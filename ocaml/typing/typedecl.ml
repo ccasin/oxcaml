@@ -442,8 +442,8 @@ let make_constructor
       let args, targs =
         transl_constructor_arguments env univars closed sargs
       in
-      let tret_type = 
-        transl_simple_type env ?univars ~closed Mode.Alloc.Const.legacy sret_type 
+      let tret_type =
+        transl_simple_type env ?univars ~closed Mode.Alloc.Const.legacy sret_type
       in
       let ret_type = tret_type.ctyp_type in
       (* TODO add back type_path as a parameter ? *)
@@ -1103,7 +1103,7 @@ let update_decl_layout env dpath decl =
       let rep =
         if has_floats then
           if has_values then raise (Error (loc, Mixed_block))
-          else Record_float
+          else Record_ufloat
         else rep
       in
       lbls, rep, layout
@@ -1117,7 +1117,8 @@ let update_decl_layout env dpath decl =
           lbls
       in
       lbls, rep, Layout.value ~why:Boxed_record
-    | (([] | (_ :: _)), Record_unboxed | _, Record_inlined _) -> assert false
+    | (([] | (_ :: _)), Record_unboxed
+      | _, (Record_inlined _ | Record_ufloat)) -> assert false
   in
 
   (* returns updated constructors, updated rep, and updated layout *)

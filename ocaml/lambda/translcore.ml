@@ -59,21 +59,19 @@ let layout_exp sort e = layout e.exp_env e.exp_loc sort e.exp_type
    compiler already has legacy support for that using (incorrect) value kind
    `Pfloatval` for their fields.
 
-   In addition to the value kind, it returns a bool indicating whether we are in
-   the unboxed case.
-
    CR layouts v5: eliminate this hack.
 *)
 let record_field_kind l =
   match l with
-  | Punboxed_float -> Pfloatval, true
-  | _ -> must_be_value l, false
+  | Punboxed_float -> Pfloatval
+  | _ -> must_be_value l
 
-let record_field_is_unboxed_float loc sort repres =
+let check_record_field_sort loc sort repres =
   match Sort.get_default_value sort, repres with
-  | Value, _ -> false
-  | Float64, Record_float -> true
-  | Float64, (Record_boxed _ | Record_inlined _ | Record_unboxed) ->
+  | Value, _ -> ()
+  | Float64, Record_ufloat -> ()
+  | Float64, (Record_boxed _ | Record_inlined _
+             | Record_unboxed | Record_float) ->
     raise (Error (loc, Illegal_record_field Float64))
   | Void, _ ->
     raise (Error (loc, Illegal_record_field Void))
@@ -548,9 +546,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Mutable -> Reads_vary
       in
       let lbl_sort = Layout.sort_of_layout lbl.lbl_layout in
-      let unboxed_float =
-        record_field_is_unboxed_float id.loc lbl_sort lbl.lbl_repres
-      in
+      check_record_field_sort id.loc lbl_sort lbl.lbl_repres;
       begin match lbl.lbl_repres with
           Record_boxed _ | Record_inlined (_, Variant_boxed _) ->
           Lprim (Pfield (lbl.lbl_pos, sem), [targ],
@@ -559,12 +555,10 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Record_float ->
           let loc = of_location ~scopes e.exp_loc in
           let mode = transl_alloc_mode (Option.get alloc_mode) in
-          let boxed =
-            Lprim (Pfloatfield (lbl.lbl_pos, sem, mode), [targ], loc)
-          in
-          if unboxed_float then
-            Lprim (Punbox_float, [boxed], loc)
-          else boxed
+          Lprim (Pfloatfield (lbl.lbl_pos, sem, mode), [targ], loc)
+        | Record_ufloat ->
+          let loc = of_location ~scopes e.exp_loc in
+          Lprim (Pufloatfield (lbl.lbl_pos, sem), [targ], loc)
         | Record_inlined (_, Variant_extensible) ->
           Lprim (Pfield (lbl.lbl_pos + 1, sem), [targ],
                  of_location ~scopes e.exp_loc)
@@ -575,9 +569,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
          Probably we should add a sort to `Texp_setfield` in the typed tree,
          then. *)
       let lbl_sort = Layout.sort_of_layout lbl.lbl_layout in
-      let unboxed_float =
-        record_field_is_unboxed_float id.loc lbl_sort lbl.lbl_repres
-      in
+      check_record_field_sort id.loc lbl_sort lbl.lbl_repres;
       let mode =
         Assignment (transl_modify_mode arg_mode)
       in
@@ -589,18 +581,13 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Record_unboxed | Record_inlined (_, Variant_unboxed) ->
           assert false
         | Record_float -> Psetfloatfield (lbl.lbl_pos, mode)
+        | Record_ufloat -> Psetufloatfield (lbl.lbl_pos, mode)
         | Record_inlined (_, Variant_extensible) ->
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, mode)
       in
       let loc = of_location ~scopes e.exp_loc in
-      let newval = transl_exp ~scopes lbl_sort newval in
-      let newval =
-        if unboxed_float then
-          (* this allocation gets optimized away, so alloc_heap is fine. *)
-          Lprim (Pbox_float alloc_heap, [newval], loc)
-        else newval
-      in
-      Lprim(access, [transl_exp ~scopes Sort.for_record arg; newval], loc)
+      Lprim(access, [transl_exp ~scopes Sort.for_record arg;
+                     transl_exp ~scopes lbl_sort newval], loc)
   | Texp_array (amut, expr_list, alloc_mode) ->
       let mode = transl_alloc_mode alloc_mode in
       let kind = array_kind e in
@@ -1478,7 +1465,6 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
     | None -> false (* unboxed is not on heap *)
     | Some m -> is_heap_mode m
   in
-  let loc = of_location ~scopes loc in
   if no_init || size < Config.max_young_wosize || not on_heap
   then begin
     (* Allocate new record with given fields (and remaining fields
@@ -1495,7 +1481,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
            let lbl_sort = Layout.sort_of_layout lbl.lbl_layout in
            match definition with
            | Kept (typ, _) ->
-               let field_kind, _unboxed_float =
+               let field_kind =
                  record_field_kind (layout env lbl.lbl_loc lbl_sort typ)
                in
                let sem =
@@ -1513,19 +1499,15 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                  | Record_float ->
                     (* This allocation is always deleted,
                        so it's simpler to leave it Alloc_heap *)
-                    Pfloatfield (i, sem, alloc_heap) in
-               Lprim(access, [Lvar init_id], loc), field_kind
+                    Pfloatfield (i, sem, alloc_heap)
+                 | Record_ufloat -> Pufloatfield (i, sem)
+               in
+               Lprim(access, [Lvar init_id],
+                     of_location ~scopes loc),
+               field_kind
            | Overridden (_lid, expr) ->
-               let field_kind, unboxed_float =
-                 record_field_kind (layout_exp lbl_sort expr)
-               in
-               let lam = transl_exp ~scopes lbl_sort expr in
-               let lam =
-                 if unboxed_float then
-                   Lprim(Pbox_float alloc_heap, [lam], loc)
-                 else lam
-               in
-               lam, field_kind)
+               let field_kind = record_field_kind (layout_exp lbl_sort expr) in
+               transl_exp ~scopes lbl_sort expr, field_kind)
         fields
     in
     let ll, shape = List.split (Array.to_list lv) in
@@ -1545,10 +1527,17 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
             Lconst(match cl with [v] -> v | _ -> assert false)
         | Record_float ->
             Lconst(Const_float_block(List.map extract_float cl))
+        | Record_ufloat ->
+            (* CR layouts v2.5: When we add unboxed float literals, we may need
+               to do something here.  (Currrently this case isn't reachable for
+               `float#` records because `extact_constant` will have raised
+               `Not_constant`.) *)
+            raise Not_constant
         | Record_inlined (_, Variant_extensible)
         | Record_inlined (Extension _, _) ->
             raise Not_constant
       with Not_constant ->
+        let loc = of_location ~scopes loc in
         match repres with
           Record_boxed _ ->
             Lprim(Pmakeblock(0, mut, Some shape, Option.get mode), ll, loc)
@@ -1559,6 +1548,8 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
             (match ll with [v] -> v | _ -> assert false)
         | Record_float ->
             Lprim(Pmakefloatblock (mut, Option.get mode), ll, loc)
+        | Record_ufloat ->
+            Lprim(Pmakeufloatblock (mut, Option.get mode), ll, loc)
         | Record_inlined (Extension (path, _), Variant_extensible) ->
             let slot = transl_extension_path loc env path in
             Lprim(Pmakeblock(0, mut, Some (Pgenval :: shape), Option.get mode),
@@ -1579,9 +1570,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
     let update_field cont (lbl, definition) =
       (* CR layouts v5: allow more unboxed types here. *)
       let lbl_sort = Layout.sort_of_layout lbl.lbl_layout in
-      let unboxed_float =
-        record_field_is_unboxed_float lbl.lbl_loc lbl_sort lbl.lbl_repres
-      in
+      check_record_field_sort lbl.lbl_loc lbl_sort lbl.lbl_repres;
       match definition with
       | Kept (_type, _uu) -> cont
       | Overridden (_lid, expr) ->
@@ -1594,19 +1583,16 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                 assert false
             | Record_float ->
                 Psetfloatfield (lbl.lbl_pos, Assignment modify_heap)
+            | Record_ufloat ->
+                Psetufloatfield (lbl.lbl_pos, Assignment modify_heap)
             | Record_inlined (_, Variant_extensible) ->
                 let pos = lbl.lbl_pos + 1 in
                 let ptr = maybe_pointer expr in
                 Psetfield(pos, ptr, Assignment modify_heap)
           in
-          let expr = transl_exp ~scopes lbl_sort expr in
-          let expr =
-            if unboxed_float then
-              (* This allocation will be erased by the middle-end *)
-              Lprim(Pbox_float alloc_heap, [expr], loc)
-            else expr
-          in
-          Lsequence(Lprim(upd, [Lvar copy_id; expr], loc),
+          Lsequence(Lprim(upd, [Lvar copy_id;
+                                transl_exp ~scopes lbl_sort expr],
+                          of_location ~scopes loc),
                     cont)
     in
     begin match opt_init_expr with
@@ -1616,7 +1602,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
         Llet(Strict, Lambda.layout_block, copy_id,
              Lprim(Pduprecord (repres, size),
                    [transl_exp ~scopes Sort.for_record init_expr],
-                   loc),
+                   of_location ~scopes loc),
              Array.fold_left update_field (Lvar copy_id) fields)
     end
   end
