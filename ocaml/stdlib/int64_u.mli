@@ -171,24 +171,40 @@ val to_float : int64# -> float
 (** Convert the given unboxed 64-bit integer to a floating-point number. *)
 
 val of_int32 : int32 -> int64#
-(** Convert the given 32-bit integer (type [int32])
-   to an unboxed 64-bit integer (type [int64]). *)
+(** Convert the given 32-bit integer (type [int32]) to an unboxed 64-bit integer
+    (type [int64#]). *)
 
 val to_int32 : int64# -> int32
-(** Convert the given unboxed 64-bit integer (type [int64]) to a
-   32-bit integer (type [int32]).  The 64-bit integer
-   is taken modulo 2{^32}, i.e. the top 32 bits are lost
-   during the conversion.  *)
+(** Convert the given unboxed 64-bit integer (type [int64#]) to a 32-bit integer
+    (type [int32]).  The 64-bit integer is taken modulo 2{^32}, i.e. the top 32
+    bits are lost during the conversion.  *)
+
+val of_int32_u : int32# -> int64#
+(** Convert the given unboxed 32-bit integer (type [int32#]) to an unboxed
+    64-bit integer (type [int64#]). *)
+
+val to_int32_u : int64# -> int32#
+(** Convert the given unboxed 64-bit integer (type [int64#]) to an unboxed
+    32-bit integer (type [int32#]).  The 64-bit integer is taken modulo 2{^32},
+    i.e. the top 32 bits are lost during the conversion.  *)
 
 val of_nativeint : nativeint -> int64#
-(** Convert the given native integer (type [nativeint])
-   to an unboxed 64-bit integer (type [int64#]). *)
+(** Convert the given native integer (type [nativeint]) to an unboxed 64-bit
+    integer (type [int64#]). *)
 
 val to_nativeint : int64# -> nativeint
-(** Convert the given unboxed 64-bit integer (type [int64#]) to a
-   native integer.  On 32-bit platforms, the 64-bit integer
-   is taken modulo 2{^32}.  On 64-bit platforms,
-   the conversion is exact. *)
+(** Convert the given unboxed 64-bit integer (type [int64#]) to a native
+    integer.  On 32-bit platforms, the 64-bit integer is taken modulo 2{^32}.
+    On 64-bit platforms, the conversion is exact. *)
+
+val of_nativeint_u : nativeint# -> int64#
+(** Convert the given unboxed native integer (type [nativeint#]) to an unboxed
+    64-bit integer (type [int64#]). *)
+
+val to_nativeint_u : int64# -> nativeint#
+(** Convert the given unboxed 64-bit integer (type [int64#]) to an unboxed
+    native integer.  On 32-bit platforms, the 64-bit integer is taken modulo
+    2{^32}.  On 64-bit platforms, the conversion is exact. *)
 
 val of_string : string -> int64#
 (** Convert the given string to an unboxed 64-bit integer.

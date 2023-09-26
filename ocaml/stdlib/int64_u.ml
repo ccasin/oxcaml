@@ -78,9 +78,21 @@ let[@inline always] of_int32 x = of_int64 (Int64.of_int32 x)
 
 let[@inline always] to_int32 x = Int64.to_int32 (to_int64 x)
 
+let[@inline always] of_int32_u x =
+  (of_int32[@inlined]) (Stdlib__Int32_u.to_int32 x)
+
+let[@inline always] to_int32_u x =
+  Stdlib__Int32_u.of_int32 ((to_int32[@inlined]) x)
+
 let[@inline always] of_nativeint x = of_int64 (Int64.of_nativeint x)
 
 let[@inline always] to_nativeint x = Int64.to_nativeint (to_int64 x)
+
+let[@inline always] of_nativeint_u x =
+  (of_nativeint[@inlined]) (Stdlib__Nativeint_u.to_nativeint x)
+
+let[@inline always] to_nativeint_u x =
+  Stdlib__Nativeint_u.of_nativeint ((to_nativeint[@inlined]) x)
 
 let[@inline always] bits_of_float x = of_int64 (Int64.bits_of_float x)
 

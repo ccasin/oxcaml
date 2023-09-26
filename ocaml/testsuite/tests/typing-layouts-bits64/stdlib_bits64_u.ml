@@ -3,6 +3,8 @@
 *)
 
 module Int64_u = Stdlib__Int64_u
+module Int32_u = Stdlib__Int32_u
+module Nativeint_u = Stdlib__Nativeint_u
 
 (* Print all individual successful tests; used for debugging, as it will cause
    this test to fail *)
@@ -256,9 +258,29 @@ let test_unary_of ?n name f fu result =
   test_same_unary ?n name int64_input result f
     (fun x -> fu (Int64_u.of_int64 x))
 
+(* CR layouts: When we have layout polymorphism, the following two functions can
+   be one. *)
+let test_unary_bits32_of ?n name f fu box_result result =
+  test_same_unary ?n name int64_input result f
+    (fun x -> box_result (fu (Int64_u.of_int64 x)))
+
+let test_unary_word_of ?n name f fu box_result result =
+  test_same_unary ?n name int64_input result f
+    (fun x -> box_result (fu (Int64_u.of_int64 x)))
+
 let test_unary_to ?n name f fu input =
   test_same_unary ?n name input int64_result f
     (fun x -> Int64_u.to_int64 (fu x))
+
+(* CR layouts: When we have layout polymorphism, the following two functions can
+   be one. *)
+let test_unary_bits32_to ?n name f fu unbox_input input =
+  test_same_unary ?n name input int64_result f
+    (fun x -> Int64_u.to_int64 (fu (unbox_input x)))
+
+let test_unary_word_to ?n name f fu unbox_input input =
+  test_same_unary ?n name input int64_result f
+    (fun x -> Int64_u.to_int64 (fu (unbox_input x)))
 
 let test_binary' ~second_input ?n name f fu =
   test_same_binary ?n name int64_input second_input int64_result f
@@ -311,8 +333,16 @@ let () =
   test_unary_of  "to_float"            Int64.to_float            Int64_u.to_float             float_result;
   test_unary_to  "of_int32"            Int64.of_int32            Int64_u.of_int32             int32_input;
   test_unary_of  "to_int32"            Int64.to_int32            Int64_u.to_int32             int32_result;
+  test_unary_bits32_to "of_int32_u"    Int64.of_int32            Int64_u.of_int32_u
+    Int32_u.of_int32 int32_input;
+  test_unary_bits32_of "to_int32_u"    Int64.to_int32            Int64_u.to_int32_u
+    Int32_u.to_int32 int32_result;
   test_unary_to  "of_nativeint"        Int64.of_nativeint        Int64_u.of_nativeint         nativeint_input;
   test_unary_of  "to_nativeint"        Int64.to_nativeint        Int64_u.to_nativeint         nativeint_result;
+  test_unary_word_to "of_nativeint_u"  Int64.of_nativeint        Int64_u.of_nativeint_u
+    Nativeint_u.of_nativeint nativeint_input;
+  test_unary_word_of "to_nativeint_u"  Int64.to_nativeint        Int64_u.to_nativeint_u
+    Nativeint_u.to_nativeint nativeint_result;
   test_unary_to  "of_string"           Int64.of_string           Int64_u.of_string            int64_string_input;
   test_unary_of  "to_string"           Int64.to_string           Int64_u.to_string            string_result;
   test_unary_to  "bits_of_float"       Int64.bits_of_float       Int64_u.bits_of_float        float_input;

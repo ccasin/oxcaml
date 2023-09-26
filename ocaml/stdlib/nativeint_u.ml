@@ -94,6 +94,12 @@ let[@inline always] of_int32 x = of_nativeint (Nativeint.of_int32 x)
 
 let[@inline always] to_int32 x = Nativeint.to_int32 (to_nativeint x)
 
+let[@inline always] of_int32_u x =
+  (of_int32[@inlined]) (Stdlib__Int32_u.to_int32 x)
+
+let[@inline always] to_int32_u x =
+  Stdlib__Int32_u.of_int32 ((to_int32[@inlined]) x)
+
 let[@inline always] of_string x = of_nativeint (Nativeint.of_string x)
 
 let[@inline always] to_string x =

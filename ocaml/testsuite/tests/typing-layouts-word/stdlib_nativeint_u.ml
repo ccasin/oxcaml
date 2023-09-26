@@ -3,6 +3,7 @@
 *)
 
 module Nativeint_u = Stdlib__Nativeint_u
+module Int32_u = Stdlib__Int32_u
 
 (* Print all individual successful tests; used for debugging, as it will cause
    this test to fail *)
@@ -254,9 +255,17 @@ let test_unary_of ?n name f fu result =
   test_same_unary ?n name nativeint_input result f
     (fun x -> fu (Nativeint_u.of_nativeint x))
 
+let test_unary_bits32_of ?n name f fu box_result result =
+  test_same_unary ?n name nativeint_input result f
+    (fun x -> box_result (fu (Nativeint_u.of_nativeint x)))
+
 let test_unary_to ?n name f fu input =
   test_same_unary ?n name input nativeint_result f
     (fun x -> Nativeint_u.to_nativeint (fu x))
+
+let test_unary_bits32_to ?n name f fu unbox_input input =
+  test_same_unary ?n name input nativeint_result f
+    (fun x -> Nativeint_u.to_nativeint (fu (unbox_input x)))
 
 let test_binary' ~second_input ?n name f fu =
   test_same_binary ?n name nativeint_input second_input nativeint_result f
@@ -310,6 +319,10 @@ let () =
   test_unary_of  "to_float"            Nativeint.to_float            Nativeint_u.to_float             float_result;
   test_unary_to  "of_int32"            Nativeint.of_int32            Nativeint_u.of_int32             int32_input;
   test_unary_of  "to_int32"            Nativeint.to_int32            Nativeint_u.to_int32             int32_result;
+  test_unary_bits32_to "of_int32_u"    Nativeint.of_int32            Nativeint_u.of_int32_u
+    Int32_u.of_int32 int32_input;
+  test_unary_bits32_of "to_int32"      Nativeint.to_int32            Nativeint_u.to_int32_u
+    Int32_u.to_int32 int32_result;
   test_unary_to  "of_string"           Nativeint.of_string           Nativeint_u.of_string            nativeint_string_input;
   test_unary_of  "to_string"           Nativeint.to_string           Nativeint_u.to_string            string_result;
   test_binary_of "compare"             Nativeint.compare             Nativeint_u.compare              int_result;

@@ -182,15 +182,24 @@ val to_float : nativeint# -> float
 (** Convert the given unboxed native integer to a floating-point number. *)
 
 val of_int32 : int32 -> nativeint#
-(** Convert the given 32-bit integer (type [int32])
-   to an unboxed native integer. *)
+(** Convert the given 32-bit integer (type [int32]) to an unboxed native
+    integer. *)
 
 val to_int32 : nativeint# -> int32
-(** Convert the given unboxed native integer to a
-   32-bit integer (type [int32]).  On 64-bit platforms,
-   the 64-bit unboxed native integer is taken modulo 2{^32},
-   i.e. the top 32 bits are lost.  On 32-bit platforms,
-   the conversion is exact. *)
+(** Convert the given unboxed native integer to a 32-bit integer (type [int32]).
+    On 64-bit platforms, the 64-bit unboxed native integer is taken modulo
+    2{^32}, i.e. the top 32 bits are lost.  On 32-bit platforms, the conversion
+    is exact. *)
+
+val of_int32_u : int32# -> nativeint#
+(** Convert the given unboxed 32-bit integer (type [int32#]) to an unboxed native
+    integer. *)
+
+val to_int32_u : nativeint# -> int32#
+(** Convert the given unboxed native integer to a 32-bit integer (type [int32#]).
+    On 64-bit platforms, the 64-bit unboxed native integer is taken modulo
+    2{^32}, i.e. the top 32 bits are lost.  On 32-bit platforms, the conversion
+    is exact. *)
 
 val of_string : string -> nativeint#
 (** Convert the given string to an unboxed native integer.
