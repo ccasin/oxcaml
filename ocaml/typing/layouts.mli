@@ -27,11 +27,11 @@ module Sort : sig
     | Float64
       (** Unboxed 64-bit floats *)
     | Word
-      (** Unboxed native-size integers (no tag bit) *)
+      (** Unboxed native-size integers *)
     | Bits32
       (** Unboxed 32-bit integers *)
     | Bits64
-      (** Unboxed 64-bit integers (no tag bit) *)
+      (** Unboxed 64-bit integers *)
 
   (** A sort variable that can be unified during type-checking. *)
   type var

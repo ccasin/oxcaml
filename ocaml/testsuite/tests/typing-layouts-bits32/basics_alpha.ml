@@ -404,9 +404,7 @@ val f9_3 : unit -> int32# t_bits32_id = <fun>
 (* Valid uses of bits32 in externals are tested elsewhere - this is just a test
    for uses the typechecker should reject.  In particular
    - if using a non-value layout in an external, you must supply separate
-     bytecode and native code implementations,
-   - if using a non-value layout in an external, you may not use the old-style
-     unboxed int32 directive, and
+     bytecode and native code implementations, and
    - unboxed types can't be unboxed more.
 *)
 
@@ -428,17 +426,17 @@ Error: The native code version of the primitive is mandatory
        for types with non-value layouts.
 |}];;
 
-external f10_3 : int32 -> t_bits32  = "foo" "bar" "int32";;
+external f10_3 : int32 -> t_bits32  = "foo" "bar";;
 [%%expect{|
 external f10_3 : int32 -> t_bits32 = "foo" "bar"
 |}];;
 
-external f10_4 : int -> int32# -> int32  = "foo" "bar" "int32";;
+external f10_4 : int -> int32# -> int32  = "foo" "bar";;
 [%%expect{|
 external f10_4 : int -> int32# -> int32 = "foo" "bar"
 |}];;
 
-external f10_5 : int32# -> bool -> string  = "foo" "bar" "int32";;
+external f10_5 : int32# -> bool -> string  = "foo" "bar";;
 [%%expect{|
 external f10_5 : int32# -> bool -> string = "foo" "bar"
 |}];;

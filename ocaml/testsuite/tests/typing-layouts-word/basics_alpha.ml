@@ -404,8 +404,6 @@ val f9_3 : unit -> nativeint# t_word_id = <fun>
    for uses the typechecker should reject.  In particular
    - if using a non-value layout in an external, you must supply separate
      bytecode and native code implementations,
-   - if using a non-value layout in an external, you may not use the old-style
-     unboxed nativeint directive, and
    - unboxed types can't be unboxed more.
 *)
 
@@ -427,17 +425,17 @@ Error: The native code version of the primitive is mandatory
        for types with non-value layouts.
 |}];;
 
-external f10_3 : nativeint -> t_word  = "foo" "bar" "nativeint";;
+external f10_3 : nativeint -> t_word  = "foo" "bar";;
 [%%expect{|
 external f10_3 : nativeint -> t_word = "foo" "bar"
 |}];;
 
-external f10_4 : int -> nativeint# -> nativeint  = "foo" "bar" "nativeint";;
+external f10_4 : int -> nativeint# -> nativeint  = "foo" "bar";;
 [%%expect{|
 external f10_4 : int -> nativeint# -> nativeint = "foo" "bar"
 |}];;
 
-external f10_5 : nativeint# -> bool -> string  = "foo" "bar" "nativeint";;
+external f10_5 : nativeint# -> bool -> string  = "foo" "bar";;
 [%%expect{|
 external f10_5 : nativeint# -> bool -> string = "foo" "bar"
 |}];;

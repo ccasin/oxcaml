@@ -560,9 +560,9 @@ let value_kind env loc ty =
   with
   | Missing_cmi_fallback -> raise (Error (loc, Non_value_layout (ty, None)))
 
-let[@inline always] layout_of_const_sort_generic ~value ~error
+let[@inline always] layout_of_const_sort_generic ~value_kind ~error
   : Layouts.Sort.const -> _ = function
-  | Value -> Lambda.Pvalue (Lazy.force value)
+  | Value -> Lambda.Pvalue (Lazy.force value_kind)
   | Float64 when Language_extension.(is_at_least Layouts Beta) ->
     Lambda.Punboxed_float
   | Word when Language_extension.(is_at_least Layouts Alpha) ->
@@ -577,21 +577,21 @@ let[@inline always] layout_of_const_sort_generic ~value ~error
 let layout env loc sort ty =
   layout_of_const_sort_generic
     (Layouts.Sort.get_default_value sort)
-    ~value:(lazy (value_kind env loc ty))
+    ~value_kind:(lazy (value_kind env loc ty))
     ~error:(fun const ->
       raise (Error (loc, Non_value_sort (Sort.of_const const, ty))))
 
 let layout_of_sort loc sort =
   layout_of_const_sort_generic
     (Layouts.Sort.get_default_value sort)
-    ~value:(lazy Pgenval)
+    ~value_kind:(lazy Pgenval)
     ~error:(fun const ->
       raise (Error (loc, Non_value_sort_unknown_ty (Sort.of_const const))))
 
 let layout_of_const_sort s =
   layout_of_const_sort_generic
     s
-    ~value:(lazy Pgenval)
+    ~value_kind:(lazy Pgenval)
     ~error:(fun const ->
       Misc.fatal_errorf "layout_of_const_sort: %a encountered"
         Sort.format_const const)
