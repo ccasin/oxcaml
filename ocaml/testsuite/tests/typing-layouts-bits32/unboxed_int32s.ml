@@ -1,5 +1,5 @@
 (* TEST
-   reference = "${test_source_directory}/unboxed_bits32s.reference"
+   reference = "${test_source_directory}/unboxed_int32s.reference"
    * native
      flags = "-extension layouts_alpha"
    * bytecode
@@ -12,7 +12,7 @@
      ocamlc_byte_exit_status = "2"
      flags = "-extension layouts"
    ** ocamlc.byte
-     compiler_reference = "${test_source_directory}/unboxed_bits32s_disabled.compilers.reference"
+     compiler_reference = "${test_source_directory}/unboxed_int32s_disabled.compilers.reference"
    *** check-ocamlc.byte-output
 *)
 

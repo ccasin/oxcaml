@@ -1,4 +1,4 @@
-File "unboxed_bits64s.ml", line 187, characters 11-17:
+File "unboxed_int64s.ml", line 187, characters 11-17:
 187 | type ('a : bits64) t_bits64 = 'a
                  ^^^^^^
 Error: Layout bits64 is more experimental than allowed by -extension layouts.
