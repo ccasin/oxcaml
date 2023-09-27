@@ -565,13 +565,13 @@ let[@inline always] layout_of_const_sort_generic ~value_kind ~error
   | Value -> Lambda.Pvalue (Lazy.force value_kind)
   | Float64 when Language_extension.(is_at_least Layouts Beta) ->
     Lambda.Punboxed_float
-  | Word when Language_extension.(is_at_least Layouts Alpha) ->
+  | Word when Language_extension.(is_at_least Layouts Beta) ->
     Lambda.Punboxed_int Pnativeint
-  | Bits32 when Language_extension.(is_at_least Layouts Alpha) ->
+  | Bits32 when Language_extension.(is_at_least Layouts Beta) ->
     Lambda.Punboxed_int Pint32
-  | Bits64 when Language_extension.(is_at_least Layouts Alpha) ->
+  | Bits64 when Language_extension.(is_at_least Layouts Beta) ->
     Lambda.Punboxed_int Pint64
-  | (Void | (* alpha: *) Float64 | Word | Bits32 | Bits64 as const) ->
+  | (Void | Float64 | Word | Bits32 | Bits64 as const) ->
     error const
 
 let layout env loc sort ty =

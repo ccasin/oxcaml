@@ -1,0 +1,5 @@
+File "unboxed_bits32s.ml", line 187, characters 11-17:
+187 | type ('a : bits32) t_bits32 = 'a
+                 ^^^^^^
+Error: Layout bits32 is more experimental than allowed by -extension layouts.
+       You must enable -extension layouts_beta to use this feature.

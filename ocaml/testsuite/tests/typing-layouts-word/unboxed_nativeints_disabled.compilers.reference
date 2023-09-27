@@ -1,0 +1,5 @@
+File "unboxed_nativeints.ml", line 191, characters 11-15:
+191 | type ('a : word) t_word = 'a
+                 ^^^^
+Error: Layout word is more experimental than allowed by -extension layouts.
+       You must enable -extension layouts_beta to use this feature.
