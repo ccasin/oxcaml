@@ -428,7 +428,8 @@ Line 1, characters 6-18:
 Error: Could not determine the type of this partial tuple pattern.
 |}]
 
-(* CR labeled tuples: test all of the above with top-level lets *)
+(* CR labeled tuples: One day, all the above should be supported for top-level
+   lets.  But this requires changing their typechecking a fair bit. *)
 
 (* Labeled tuples nested in records *)
 
