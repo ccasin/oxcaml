@@ -303,7 +303,6 @@ type value_creation_reason =
   | Univar
   | Polymorphic_variant_field
   | Default_type_jkind
-  | Float_record_field
   | Existential_type_variable
   | Array_element
   | Lazy_expression
@@ -860,7 +859,6 @@ end = struct
       fprintf ppf "a field of a polymorphic variant"
     | Default_type_jkind ->
       fprintf ppf "the default layout for an abstract type"
-    | Float_record_field -> fprintf ppf "a field of a float record"
     | Existential_type_variable ->
       fprintf ppf "an unannotated existential type variable"
     | Array_element -> fprintf ppf "an array element"
@@ -1264,7 +1262,6 @@ module Debug_printers = struct
     | Univar -> fprintf ppf "Univar"
     | Polymorphic_variant_field -> fprintf ppf "Polymorphic_variant_field"
     | Default_type_jkind -> fprintf ppf "Default_type_jkind"
-    | Float_record_field -> fprintf ppf "Float_record_field"
     | Existential_type_variable -> fprintf ppf "Existential_type_variable"
     | Array_element -> fprintf ppf "Array_element"
     | Lazy_expression -> fprintf ppf "Lazy_expression"

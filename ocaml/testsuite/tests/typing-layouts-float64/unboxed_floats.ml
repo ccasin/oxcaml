@@ -1,23 +1,22 @@
 (* TEST
    reference = "${test_source_directory}/unboxed_floats.reference"
-   * flambda2
-   ** native
+   * native
      flags = "-extension layouts_alpha"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts_alpha"
-   ** native
+   * native
      flags = "-extension layouts_beta"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts_beta"
-   ** native
+   * native
      flags = "-extension layouts"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts"
-   ** setup-ocamlc.byte-build-env
+   * setup-ocamlc.byte-build-env
      ocamlc_byte_exit_status = "2"
-   *** ocamlc.byte
+   ** ocamlc.byte
      compiler_reference = "${test_source_directory}/unboxed_floats_disabled.compilers.reference"
-   **** check-ocamlc.byte-output
+   *** check-ocamlc.byte-output
 
 
 *)
@@ -50,6 +49,8 @@ end
 (* Test 1: some basic arithmetic *)
 
 let print_floatu prefix x = Printf.printf "%s: %.2f\n" prefix (Float_u.to_float x)
+let print_float prefix x = Printf.printf "%s: %.2f\n" prefix x
+let print_int prefix x = Printf.printf "%s: %d\n" prefix x
 
 (* Tests all the operators above *)
 let test1 () =
@@ -485,3 +486,180 @@ let _ =
   Printf.printf "Test 11, heterogeneous polymorphic equality.\n";
   Printf.printf "  equal: %b\n" (Ex ru = Ex rb);
   Printf.printf "  unequal: %b\n" (Ex ru = Ex rb');
+
+(***********************************************)
+(* Test 12: basic (float# + immediate) records *)
+
+(* Copy of test 3, everything is in the record. *)
+type mixedargs = { x0_1 : int;
+                   x0_2 : int;
+                   x1 : float#;
+                   x2_1 : float;
+                   x2_2 : int;
+                   x3 : float#;
+                   x4_1 : float;
+                   x4_2 : int;
+                   x5 : float#;
+                   x6_1 : float;
+                   x6_2 : int;
+                   x7 : float#;
+                   x8_1 : float;
+                   x8_2 : int;
+                   x9 : float# }
+
+(* Get some float# args by pattern matching and others by projection *)
+let[@inline_never] f12 steps ({ x1; x0_1=start_k; x0_2=end_k; x8_1; x8_2; x5;
+                               x6_1; x6_2 } as fargs) () =
+  let[@inline never] rec go k =
+    if k = end_k
+    then Float_u.of_float 0.
+    else begin
+      let (x2_1, x2_2) = (fargs.x2_1, fargs.x2_2) in
+      let {x4_1; x4_2; _} = fargs in
+      let sum =
+        Float_u.(of_float x2_1 + of_int x2_2 + of_float x4_1 + of_int x4_2
+                 + of_float x6_1 + of_int x6_2 + of_float x8_1 + of_int x8_2)
+      in
+      let acc = go (k + 1) in
+      steps.(k) <- Float_u.to_float acc;
+      Float_u.(acc + ((x1 + fargs.x3 + x5 + fargs.x7 + fargs.x9)
+                      * sum))
+    end
+  in
+  go start_k
+
+let test12 () =
+  (* same math as f3_manyargs *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let x1 = Float_u.of_float 3.14 in
+  let x3 = Float_u.of_float 2.72 in
+  let x5 = Float_u.of_float 1.62 in
+  let x7 = Float_u.of_float 1.41 in
+  let x9 = Float_u.of_float 42.0 in
+
+  (* these sum to 3.0 *)
+  let x2_1 = 6.6 in
+  let x2_2 = 42 in
+  let x4_1 = -22.9 in
+  let x4_2 = 109 in
+  let x6_1 = -241.2 in
+  let x6_2 = 90 in
+  let x8_1 = -2.5 in
+  let x8_2 = 22 in
+
+  let fargs =
+    { x0_1 = 4; x0_2 = 8; x1; x2_1; x2_2; x3; x4_1; x4_2; x5; x6_1; x6_2; x7;
+      x8_1; x8_2; x9 }
+  in
+
+  let f12 = f12 steps fargs in
+  print_floatu "Test 12, 610.68: " (f12 ());
+  Array.iteri (Printf.printf "  Test 12, step %d: %.2f\n") steps
+
+let _ = test12 ()
+
+(*****************************************************)
+(* Test 13: (float# + immediate) record manipulation *)
+
+type t13 = { a : float#;
+             mutable b : int;
+             c : float;
+             mutable d : float#;
+             e : int;
+             mutable f : float }
+
+(* Construction *)
+let t13_1 = { a = Float_u.of_float 3.14;
+              b = 13;
+              c = 7.31;
+              d = Float_u.of_float 1.41;
+              e = 6;
+              f = 27.1
+            }
+
+let t13_2 = { a = Float_u.of_float (-3.14);
+              b = -13;
+              c = -7.31;
+              d = Float_u.of_float (-1.41);
+              e = -6;
+              f = -27.1
+            }
+
+let print_t13 t13 =
+  print_floatu "  a" t13.a;
+  print_int "  b" t13.b;
+  print_float "  c" t13.c;
+  print_floatu "  d" t13.d;
+  print_int "  e" t13.e;
+  print_float "  f" t13.f
+
+let _ =
+  Printf.printf "Test 13, construction:\n";
+  print_t13 t13_1;
+  print_t13 t13_2
+
+(* Matching, projection *)
+let f13_1 {c; d; f; _} r =
+  match r with
+  | { a; _ } ->
+    { a = (Float_u.of_int r.e);
+      b = Float_u.(to_int (a - d));
+      c = r.c +. c;
+      d = Float_u.(d - (of_int r.b));
+      e = Float_u.(to_int (of_float f + (of_int r.e)));
+      f = r.f}
+
+let _ =
+  Printf.printf "Test 13, matching and projection:\n";
+  print_t13 (f13_1 t13_1 t13_2)
+
+(* Record update and mutation *)
+let f13_2 ({a; d; _} as r1) r2 =
+  r1.d <- Float_u.of_float 42.0;
+  let r3 = { r2 with c = (Float_u.to_float r1.d);
+                     d = Float_u.of_float 25.0 }
+  in
+  r3.b <- Float_u.(to_int (a + d));
+  r2.b <- 17;
+  r1.f <- r2.c;
+  r3
+
+let _ =
+  Printf.printf "Test 13, record update and mutation:\n";
+  let t13_3 = f13_2 t13_1 t13_2 in
+  print_t13 t13_1;
+  print_t13 t13_2;
+  print_t13 t13_3
+
+(*************************************************************)
+(* Test 14: (float# + immediate) records in recursive groups *)
+
+let rec f r =
+  r.d <- Float_u.of_int t14_1.b;
+  t14_2.b <- 42;
+  t14_1.f <- Float_u.to_float t14_1.a;
+  Float_u.(r.a + t14_2.a)
+
+
+and t14_1 = { a = Float_u.of_float 1.1;
+              b = 2;
+              c = 3.3;
+              d = Float_u.of_float 4.4;
+              e = 5;
+              f = 6.6}
+
+and t14_2 = { a = Float_u.of_float (- 5.1);
+              b = -6;
+              c = -7.3;
+              d = Float_u.of_float (- 8.4);
+              e = -9;
+              f = -10.6}
+
+let _ =
+  Printf.printf "Test 14, (float#+float+imm) records in recursive groups:\n";
+  print_t13 t14_1;
+  print_t13 t14_2;
+  let result = f t14_1 in
+  print_floatu "  result (-4.00)" result;
+  print_t13 t14_1;
+  print_t13 t14_2
