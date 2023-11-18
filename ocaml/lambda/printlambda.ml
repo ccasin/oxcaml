@@ -220,6 +220,7 @@ let record_rep ppf r = match r with
   | Record_inlined _ -> fprintf ppf "inlined"
   | Record_float -> fprintf ppf "float"
   | Record_ufloat -> fprintf ppf "ufloat"
+  | Record_abstract _ -> fprintf ppf "abstract"
 
 let block_shape ppf shape = match shape with
   | None | Some [] -> ()

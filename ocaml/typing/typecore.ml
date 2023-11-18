@@ -1943,7 +1943,8 @@ module Label = NameChoice (struct
     Env.lookup_all_labels_from_type ~loc usage path env
   let in_env lbl =
     match lbl.lbl_repres with
-    | Record_boxed _ | Record_float | Record_ufloat | Record_unboxed -> true
+    | Record_boxed _ | Record_float | Record_ufloat | Record_unboxed
+    | Record_abstract _ -> true
     | Record_inlined _ -> false
 end)
 
@@ -6708,7 +6709,9 @@ and type_label_exp create env (expected_mode : expected_mode) loc ty_expected
     match label.lbl_repres with
     | Record_unboxed | Record_inlined (_, Variant_unboxed) ->
       expected_mode
-    | _ -> mode_subcomponent expected_mode
+    | Record_inlined (_, (Variant_boxed _ | Variant_extensible))
+    | Record_boxed _ | Record_float | Record_ufloat | Record_abstract _ ->
+      mode_subcomponent expected_mode
   in
   let arg_mode = mode_box_modality label.lbl_global rmode in
   (* #4682: we try two type-checking approaches for [arg] using backtracking:
