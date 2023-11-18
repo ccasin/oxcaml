@@ -97,6 +97,7 @@ type primitive =
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
   | Pmakefloatblock of mutable_flag * alloc_mode
   | Pmakeufloatblock of mutable_flag * alloc_mode
+  | Pmakeabstractblock of mutable_flag * abstract_block_shape * alloc_mode
   | Pfield of int * immediate_or_pointer * field_read_semantics
   | Pfield_computed of field_read_semantics
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -287,6 +288,9 @@ and layout =
 
 and block_shape =
   value_kind list option
+
+and abstract_element = Types.abstract_element = Imm | Float | Float64
+and abstract_block_shape = abstract_element array
 
 and boxed_integer = Primitive.boxed_integer =
     Pnativeint | Pint32 | Pint64

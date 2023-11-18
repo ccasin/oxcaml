@@ -40,6 +40,7 @@ type primitive =
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * alloc_mode
   | Pmakeufloatblock of mutable_flag * alloc_mode
+  | Pmakeabstractblock of mutable_flag * abstract_block_shape * alloc_mode
   | Pfield of int * layout * immediate_or_pointer * mutable_flag
   | Pfield_computed
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -192,6 +193,10 @@ and block_shape = Lambda.block_shape
 and boxed_integer = Primitive.boxed_integer =
     Pnativeint | Pint32 | Pint64
 
+and abstract_element = Lambda.abstract_element =
+    Imm | Float | Float64
+and abstract_block_shape = abstract_element array
+
 and vec128_type = Lambda.vec128_type =
   | Unknown128
   | Int8x16
@@ -234,7 +239,8 @@ let result_layout (p : primitive) =
   | Pccall {prim_native_repr_res = (_, repr_res); _} ->
     Lambda.layout_of_native_repr repr_res
   | Pufloatfield _ -> Lambda.Punboxed_float
-  | Pread_symbol _ | Pmakeblock _ | Pmakeufloatblock _ | Pfield _
+  | Pread_symbol _ | Pmakeblock _ | Pmakeufloatblock _ | Pmakeabstractblock _
+  | Pfield _
   | Pfield_computed | Psetfield _ | Psetfield_computed _ | Pfloatfield _
   | Psetfloatfield _ | Psetufloatfield _ | Pduprecord _ | Praise _
   | Psequand | Psequor | Pnot | Pnegint | Paddint | Psubint | Pmulint

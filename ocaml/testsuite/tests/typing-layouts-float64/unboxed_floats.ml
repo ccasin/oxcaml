@@ -1,23 +1,22 @@
 (* TEST
    reference = "${test_source_directory}/unboxed_floats.reference"
-   * flambda2
-   ** native
+   * native
      flags = "-extension layouts_alpha"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts_alpha"
-   ** native
+   * native
      flags = "-extension layouts_beta"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts_beta"
-   ** native
+   * native
      flags = "-extension layouts"
-   ** bytecode
+   * bytecode
      flags = "-extension layouts"
-   ** setup-ocamlc.byte-build-env
+   * setup-ocamlc.byte-build-env
      ocamlc_byte_exit_status = "2"
-   *** ocamlc.byte
+   ** ocamlc.byte
      compiler_reference = "${test_source_directory}/unboxed_floats_disabled.compilers.reference"
-   **** check-ocamlc.byte-output
+   *** check-ocamlc.byte-output
 
 
 *)
@@ -50,6 +49,7 @@ end
 (* Test 1: some basic arithmetic *)
 
 let print_floatu prefix x = Printf.printf "%s: %.2f\n" prefix (Float_u.to_float x)
+let print_int prefix x = Printf.printf "%s: %d\n" prefix x
 
 (* Tests all the operators above *)
 let test1 () =
@@ -485,3 +485,129 @@ let _ =
   Printf.printf "Test 11, heterogeneous polymorphic equality.\n";
   Printf.printf "  equal: %b\n" (Ex ru = Ex rb);
   Printf.printf "  unequal: %b\n" (Ex ru = Ex rb');
+
+(***********************************************)
+(* Test 12: basic (float# + immediate) records *)
+
+(* XXX layouts Tests 12 and 13 need to add float fields *)
+
+(* Copy of test 3, everything is in the record. *)
+type mixedargs = { x0_1 : int;
+                   x0_2 : int;
+                   x1 : float#;
+                   x2_1 : int;
+                   x2_2 : int;
+                   x3 : float#;
+                   x4_1 : int;
+                   x4_2 : int;
+                   x5 : float#;
+                   x6_1 : int;
+                   x6_2 : int;
+                   x7 : float#;
+                   x8_1 : int;
+                   x8_2 : int;
+                   x9 : float# }
+
+(* Get some float# args by pattern matching and others by projection *)
+let[@inline_never] f12 steps ({ x1; x0_1=start_k; x0_2=end_k; x8_1; x8_2; x5;
+                               x6_1; x6_2 } as fargs) () =
+  let[@inline never] rec go k =
+    if k = end_k
+    then Float_u.of_float 0.
+    else begin
+      let (x2_1, x2_2) = (fargs.x2_1, fargs.x2_2) in
+      let {x4_1; x4_2; _} = fargs in
+      let sum = x2_1 + x2_2 + x4_1 + x4_2 + x6_1 + x6_2 + x8_1 + x8_2 in
+      let acc = go (k + 1) in
+      steps.(k) <- Float_u.to_float acc;
+      Float_u.(acc + ((x1 + fargs.x3 + x5 + fargs.x7 + fargs.x9)
+                      * (of_float (Float.of_int sum))))
+    end
+  in
+  go start_k
+
+let test12 () =
+  (* same math as f3_manyargs *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let x1 = Float_u.of_float 3.14 in
+  let x3 = Float_u.of_float 2.72 in
+  let x5 = Float_u.of_float 1.62 in
+  let x7 = Float_u.of_float 1.41 in
+  let x9 = Float_u.of_float 42.0 in
+
+  (* these sum to 3 *)
+  let x2_1, x2_2 = (7, 42) in
+  let x4_1, x4_2 = (-23, 109) in
+  let x6_1, x6_2 = (-242, 90) in
+  let x8_1, x8_2 = (-2, 22) in
+
+  let fargs =
+    { x0_1 = 4; x0_2 = 8; x1; x2_1; x2_2; x3; x4_1; x4_2; x5; x6_1; x6_2; x7;
+      x8_1; x8_2; x9 }
+  in
+
+  let f12 = f12 steps fargs in
+  print_floatu "Test 12, 610.68: " (f12 ());
+  Array.iteri (Printf.printf "  Test 12, step %d: %.2f\n") steps
+
+let _ = test12 ()
+
+(***************************************)
+(* Test 13: float# record manipulation *)
+
+type t13 = { a : float#;
+             mutable b : int;
+             c : int;
+             mutable d : float# }
+
+(* Construction *)
+let t13_1 = { a = Float_u.of_float 3.14;
+              b = 13;
+              c = 6;
+              d = Float_u.of_float 1.41 }
+
+let t13_2 = { a = Float_u.of_float (-3.14);
+              b = -13;
+              c = -6;
+              d = Float_u.of_float (-1.41) }
+
+let print_t13 t13 =
+  print_floatu "  a: " t13.a;
+  print_int "  b: " t13.b;
+  print_int "  c: " t13.c;
+  print_floatu "  d: " t13.d
+
+let _ =
+  Printf.printf "Test 13, construction:\n";
+  print_t13 t13_1;
+  print_t13 t13_2
+
+(* Matching, projection *)
+let f13_1 {c; d; _} r =
+  match r with
+  | { a; _ } ->
+    { a = (Float_u.of_int c);
+      b = Float_u.(to_int (a - d));
+      c = r.c + c;
+      d = Float_u.(d - (of_int r.b)) }
+
+let _ =
+  Printf.printf "Test 13, matching and projection:\n";
+  print_t13 (f13_1 t13_1 t13_2)
+
+(* Record update and mutation *)
+let f13_2 ({a; d; _} as r1) r2 =
+  r1.d <- Float_u.of_float 42.0;
+  let r3 = { r2 with c = (Float_u.to_int r1.d);
+                     d = Float_u.of_float 25.0 }
+  in
+  r3.b <- Float_u.(to_int (a + d));
+  r2.b <- 17;
+  r3
+
+let _ =
+  Printf.printf "Test 13, record update and mutation:\n";
+  let t13_3 = f13_2 t13_1 t13_2 in
+  print_t13 t13_1;
+  print_t13 t13_2;
+  print_t13 t13_3

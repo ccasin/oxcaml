@@ -175,7 +175,7 @@ let variant_representation i ppf = let open Types in function
   | Variant_extensible -> line i ppf "Variant_inlined\n"
 
 let abstract_block_element i ppf = let open Types in function
-  | Immediate -> line i ppf "Immediate\n"
+  | Imm -> line i ppf "Immediate\n"
   | Float -> line i ppf "Float\n"
   | Float64 -> line i ppf "Float64\n"
 

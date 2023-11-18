@@ -83,33 +83,33 @@ let access_safety safety =
 let primitive ppf (prim:Clambda_primitives.primitive) =
   let open Lambda in
   let open Clambda_primitives in
+  let mode_to_string = function
+    | Alloc_heap -> ""
+    | Alloc_local -> "local"
+  in
+  let mut_to_string = function
+    | Immutable -> "block"
+    | Immutable_unique -> "block_unique"
+    | Mutable -> "mutable"
+  in
   match prim with
   | Pread_symbol sym ->
       fprintf ppf "read_symbol %s" sym
   | Pmakeblock(tag, mut, shape, mode) ->
-      let mode = match mode with
-        | Alloc_heap -> ""
-        | Alloc_local -> "local"
-      in
-      let mut = match mut with
-        | Immutable -> "block"
-        | Immutable_unique -> "block_unique"
-        | Mutable -> "mutable"
-      in
+      let mode = mode_to_string mode in
+      let mut = mut_to_string mut in
       let name = "make" ^ mode ^ mut in
       fprintf ppf "%s %i%a" name tag Printlambda.block_shape shape
   | Pmakeufloatblock(mut, mode) ->
-      let mode = match mode with
-        | Alloc_heap -> ""
-        | Alloc_local -> "local"
-      in
-      let mut = match mut with
-        | Immutable -> "block"
-        | Immutable_unique -> "block_unique"
-        | Mutable -> "mutable"
-      in
+      let mode = mode_to_string mode in
+      let mut = mut_to_string mut in
       let name = "make" ^ mode ^ "ufloat" ^ mut in
       fprintf ppf "%s" name
+  | Pmakeabstractblock(mut, shape, mode) ->
+      let mode = mode_to_string mode in
+      let mut = mut_to_string mut in
+      let name = "make" ^ mode ^ "ufloat" ^ mut in
+      fprintf ppf "%s %a" name Printlambda.abstract_block_shape shape
   | Pfield (n, layout, ptr, mut) ->
       let instr =
         match ptr, mut with

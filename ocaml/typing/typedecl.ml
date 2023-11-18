@@ -1136,7 +1136,7 @@ let update_decl_jkind env dpath decl =
 
       (* Check for [Record_float], [Record_ufloat], and [Record_abstract], and
          compute the [abstract_block_shape] for the latter case. *)
-      let abs = Array.init (Array.length jkinds) (fun _ -> Types.Immediate) in
+      let abs = Array.init (Array.length jkinds) (fun _ -> Imm) in
       let element_reprs =
         { values = false; imms = false; floats = false; float64s = false }
       in

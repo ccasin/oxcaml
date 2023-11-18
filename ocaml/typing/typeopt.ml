@@ -528,7 +528,7 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
                 num_nodes_visited, Pfloatval
               | Record_abstract abs -> begin
                   match abs.(idx) with
-                  | Immediate -> num_nodes_visited, Pintval
+                  | Imm -> num_nodes_visited, Pintval
                   | Float | Float64 -> num_nodes_visited, Pfloatval
                 end
               | Record_boxed _ | Record_inlined _ | Record_unboxed ->

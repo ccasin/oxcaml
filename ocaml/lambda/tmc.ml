@@ -912,9 +912,10 @@ let rec choice ctx t =
     (* we don't handle { foo with x = ...; y = recursive-call } *)
     | Pduprecord _
 
-    (* we don't handle all-float records *)
+    (* we don't handle all-float records or abstract blocks *)
     | Pmakefloatblock _
     | Pmakeufloatblock _
+    | Pmakeabstractblock _
 
     (* nor unboxed products *)
     | Pmake_unboxed_product _ | Punboxed_product_field _

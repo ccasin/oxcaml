@@ -234,6 +234,26 @@ let block_shape ppf shape = match shape with
         t;
       Format.fprintf ppf ")"
 
+let abstract_block_element ppf : abstract_element -> unit = function
+  | Imm -> pp_print_string ppf "int"
+  | Float -> pp_print_string ppf "float"
+  | Float64 -> pp_print_string ppf "float64"
+
+let abstract_block_shape ppf shape =
+  match Array.length shape with
+  | 0 -> ()
+  | 1 ->
+      Format.fprintf ppf " (%a)" abstract_block_element (shape.(0))
+  | _ -> begin
+    Array.iteri (fun i elt ->
+      if i = 0 then
+        Format.fprintf ppf " (%a" abstract_block_element elt
+      else
+        Format.fprintf ppf ",%a" abstract_block_element elt)
+      shape;
+    Format.fprintf ppf ")"
+  end
+
 let integer_comparison ppf = function
   | Ceq -> fprintf ppf "=="
   | Cne -> fprintf ppf "!="
@@ -293,6 +313,15 @@ let primitive ppf = function
   | Pmakeufloatblock (Mutable, mode) ->
      fprintf ppf "make%sufloatblock Mutable"
         (alloc_mode mode)
+  | Pmakeabstractblock (Immutable, abs, mode) ->
+      fprintf ppf "make%sabstractblock Immutable %a"
+        (alloc_mode mode) abstract_block_shape abs
+  | Pmakeabstractblock (Immutable_unique, abs, mode) ->
+     fprintf ppf "make%sabstractblock Immutable_unique %a"
+        (alloc_mode mode) abstract_block_shape abs
+  | Pmakeabstractblock (Mutable, abs, mode) ->
+     fprintf ppf "make%sabstractblock Mutable %a"
+        (alloc_mode mode) abstract_block_shape abs
   | Pfield (n, ptr, sem) ->
       let instr =
         match ptr, sem with
@@ -578,6 +607,7 @@ let name_of_primitive = function
   | Pmakeblock _ -> "Pmakeblock"
   | Pmakefloatblock _ -> "Pmakefloatblock"
   | Pmakeufloatblock _ -> "Pmakeufloatblock"
+  | Pmakeabstractblock _ -> "Pmakeabstractblock"
   | Pfield _ -> "Pfield"
   | Pfield_computed _ -> "Pfield_computed"
   | Psetfield _ -> "Psetfield"

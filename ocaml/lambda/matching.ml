@@ -2300,7 +2300,7 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
         | Record_abstract abs ->
           begin
             match abs.(pos) with
-            | Immediate -> Lprim (Pfield (lbl.lbl_pos, ptr, sem), [ arg ], loc)
+            | Imm -> Lprim (Pfield (lbl.lbl_pos, ptr, sem), [ arg ], loc)
             | Float ->
               (* TODO: could optimise to Alloc_local sometimes *)
               Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap), [ arg ], loc)

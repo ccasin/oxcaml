@@ -260,7 +260,7 @@ and abstract_reason =
     Abstract_def
   | Abstract_rec_check_regularity
 
-and abstract_element = Immediate | Float | Float64
+and abstract_element = Imm | Float | Float64
 and abstract_block_shape = abstract_element array
 
 and record_representation =
@@ -558,10 +558,10 @@ let equal_variant_representation r1 r2 = r1 == r2 || match r1, r2 with
 
 let equal_abstract_element abs1 abs2 =
   match abs1, abs2 with
-  | Immediate, Immediate -> true
+  | Imm, Imm -> true
   | Float, Float -> true
   | Float64, Float64 -> true
-  | (Immediate | Float | Float64), _ -> false
+  | (Imm | Float | Float64), _ -> false
 
 let equal_record_representation r1 r2 = match r1, r2 with
   | Record_unboxed, Record_unboxed ->

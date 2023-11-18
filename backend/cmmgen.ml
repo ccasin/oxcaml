@@ -642,13 +642,15 @@ let rec transl env e =
           Ctuple (List.map (transl env) args)
       | (Pread_symbol sym, []) ->
           Cconst_symbol (global_symbol sym, dbg)
-      | ((Pmakeblock _ | Pmakeufloatblock _), []) ->
+      | ((Pmakeblock _ | Pmakeufloatblock _ | Pmakeabstractblock _), []) ->
           assert false
       | (Pmakeblock(tag, _mut, _kind, mode), args) ->
           make_alloc ~mode dbg tag (List.map (transl env) args)
       | (Pmakeufloatblock(_mut, mode), args) ->
           make_float_alloc ~mode dbg Obj.double_array_tag
             (List.map (transl env) args)
+      | (Pmakeabstractblock(_mut, abs, mode), args) ->
+          transl_make_abstract_block dbg env abs mode args
       | (Pccall prim, args) ->
           transl_ccall env prim args dbg
       | (Pduparray (kind, _), [Uprim (Pmakearray (kind', _, _), args, _dbg)]) ->
@@ -952,6 +954,16 @@ and transl_make_array dbg env kind mode args =
       make_float_alloc ~mode dbg Obj.double_array_tag
                       (List.map (transl_unbox_float dbg env) args)
 
+and transl_make_abstract_block dbg env (abs : abstract_block_shape)  mode args =
+  (* XXX layouts: double check that `Float` args will be boxed for all middle
+     ends that use this file. *)
+  make_abstract_alloc ~mode dbg abs
+    (List.mapi (fun i arg ->
+       match abs.(i) with
+       | Imm | Float64 -> transl env arg
+       | Float -> transl_unbox_float dbg env arg)
+       args)
+
 and transl_ccall env prim args dbg =
   let transl_arg native_repr arg =
     match native_repr with
@@ -1102,7 +1114,8 @@ and transl_prim_1 env p arg dbg =
     | Pbytesrefs | Pbytessets | Pisout | Pread_symbol _
     | Pmakeblock (_, _, _, _) | Psetfield (_, _, _) | Psetfield_computed (_, _)
     | Psetfloatfield (_, _) | Pduprecord (_, _) | Pccall _ | Pdivint _
-    | Pmakeufloatblock (_, _) | Psetufloatfield (_, _)
+    | Pmakeufloatblock (_, _) | Pmakeabstractblock (_, _, _)
+    | Psetufloatfield (_, _)
     | Pmodint _ | Pintcomp _ | Pfloatcomp _ | Pmakearray (_, _, _)
     | Pcompare_ints | Pcompare_floats | Pcompare_bints _
     | Pduparray (_, _) | Parrayrefu _ | Parraysetu _
@@ -1315,6 +1328,7 @@ and transl_prim_2 env p arg1 arg2 dbg =
   | Pisint | Pbswap16 | Pint_as_pointer _ | Popaque | Pread_symbol _
   | Pmakeblock (_, _, _, _) | Pfield _ | Psetfield_computed (_, _)
   | Pmakeufloatblock (_, _) | Pfloatfield _ | Pufloatfield _
+  | Pmakeabstractblock (_, _, _)
   | Pduprecord (_, _) | Pccall _ | Praise _ | Poffsetint _ | Poffsetref _
   | Pmakearray (_, _, _) | Pduparray (_, _) | Parraylength _ | Parraysetu _
   | Parraysets _ | Pbintofint _ | Pintofbint _ | Pcvtbint (_, _, _)
@@ -1422,6 +1436,7 @@ and transl_prim_3 env p arg1 arg2 arg3 dbg =
   | Pmakeblock (_, _, _, _)
   | Pfield _ | Psetfield (_, _, _) | Pfloatfield _ | Psetfloatfield (_, _)
   | Pmakeufloatblock (_, _) | Pufloatfield _ | Psetufloatfield (_, _)
+  | Pmakeabstractblock (_, _, _)
   | Pduprecord (_, _) | Pccall _ | Praise _ | Pdivint _ | Pmodint _ | Pintcomp _
   | Pcompare_ints | Pcompare_floats | Pcompare_bints _
   | Poffsetint _ | Poffsetref _ | Pfloatcomp _ | Pmakearray (_, _, _)
@@ -1708,6 +1723,7 @@ and transl_letrec env bindings cont =
     | (id, _exp, RHS_floatblock (Alloc_heap, sz)) :: rem ->
         Clet(id, op_alloc "caml_alloc_dummy_float" [int_const dbg sz],
           init_blocks rem)
+    (* XXX layouts: new case needed here? *)
     | (id, _exp, RHS_nonrec) :: rem ->
         Clet (id, Cconst_int (1, dbg), init_blocks rem)
   and fill_nonrec = function

@@ -147,3 +147,41 @@ Test 10, float# records in recursive groups.
 Test 11, heterogeneous polymorphic equality.
   equal: true
   unequal: false
+Test 12, 610.68: : 610.68
+  Test 12, step 0: 0.00
+  Test 12, step 1: 0.00
+  Test 12, step 2: 0.00
+  Test 12, step 3: 0.00
+  Test 12, step 4: 458.01
+  Test 12, step 5: 305.34
+  Test 12, step 6: 152.67
+  Test 12, step 7: 0.00
+  Test 12, step 8: 0.00
+  Test 12, step 9: 0.00
+Test 13, construction:
+  a: : 3.14
+  b: : 13
+  c: : 6
+  d: : 1.41
+  a: : -3.14
+  b: : -13
+  c: : -6
+  d: : -1.41
+Test 13, matching and projection:
+  a: : 6.00
+  b: : -4
+  c: : 0
+  d: : 14.41
+Test 13, record update and mutation:
+  a: : 3.14
+  b: : 13
+  c: : 6
+  d: : 42.00
+  a: : -3.14
+  b: : 17
+  c: : -6
+  d: : -1.41
+  a: : -3.14
+  b: : 4
+  c: : 42
+  d: : 25.00

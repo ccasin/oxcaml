@@ -558,7 +558,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | Record_abstract abs ->
           let loc = of_location ~scopes e.exp_loc in
           begin match abs.(lbl.lbl_num) with
-          | Immediate ->
+          | Imm ->
             Lprim (Pfield (lbl.lbl_pos, Immediate, sem), [targ], loc)
           | Float ->
             let mode = transl_alloc_mode (Option.get alloc_mode) in
@@ -590,7 +590,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, mode)
         | Record_abstract abs -> begin
           match abs.(lbl.lbl_num) with
-          | Immediate -> Psetfield(lbl.lbl_pos, Immediate, mode)
+          | Imm -> Psetfield(lbl.lbl_pos, Immediate, mode)
           | Float -> Psetfloatfield (lbl.lbl_pos, mode)
           | Float64 -> Psetufloatfield (lbl.lbl_pos, mode)
         end
@@ -1527,7 +1527,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                  | Record_ufloat -> Pufloatfield (i, sem)
                  | Record_abstract abs -> begin
                    match abs.(lbl.lbl_num) with
-                   | Immediate -> Pfield (i, Immediate, sem)
+                   | Imm -> Pfield (i, Immediate, sem)
                    | Float -> Pfloatfield (i, sem, alloc_heap)
                    | Float64 -> Pufloatfield (i, sem)
                  end
@@ -1587,8 +1587,8 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
         | Record_inlined (Extension _, (Variant_unboxed | Variant_boxed _))
         | Record_inlined (Ordinary _, Variant_extensible) ->
             assert false
-        | Record_abstract _abs ->
-            assert false (* XXX layouts: new prim *)
+        | Record_abstract abs ->
+            Lprim(Pmakeabstractblock(mut, abs, Option.get mode), ll, loc)
     in
     begin match opt_init_expr with
       None -> lam
@@ -1623,7 +1623,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                 Psetfield(pos, ptr, Assignment modify_heap)
             | Record_abstract abs -> begin
                 match abs.(lbl.lbl_num) with
-                | Immediate ->
+                | Imm ->
                   Psetfield(lbl.lbl_pos, Immediate, Assignment modify_heap)
                 | Float ->
                   Psetfloatfield (lbl.lbl_pos, Assignment modify_heap)

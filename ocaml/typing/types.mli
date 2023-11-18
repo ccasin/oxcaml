@@ -524,7 +524,7 @@ and abstract_reason =
     Abstract_def
   | Abstract_rec_check_regularity       (* See Typedecl.transl_type_decl *)
 
-and abstract_element = Immediate | Float | Float64
+and abstract_element = Imm | Float | Float64
 and abstract_block_shape = abstract_element array
 
 and record_representation =
