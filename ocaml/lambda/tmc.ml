@@ -879,6 +879,7 @@ let rec choice ctx t =
     | Psetfield _ | Psetfield_computed _
     | Pfloatfield _ | Psetfloatfield _
     | Pufloatfield _ | Psetufloatfield _
+    | Pabstractfield _  | Psetabstractfield _
     | Pccall _
     | Praise _
     | Pnot

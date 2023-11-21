@@ -557,14 +557,18 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
                  of_location ~scopes e.exp_loc)
         | Record_abstract abs ->
           let loc = of_location ~scopes e.exp_loc in
+          (* alloc_mode is arbitrary for the non-float cases, as they don't
+             allocate. *)
           begin match abs.(lbl.lbl_num) with
           | Imm ->
-            Lprim (Pfield (lbl.lbl_pos, Immediate, sem), [targ], loc)
+            Lprim (Pabstractfield (lbl.lbl_pos, Imm, sem, alloc_heap),
+                   [targ], loc)
           | Float ->
             let mode = transl_alloc_mode (Option.get alloc_mode) in
-            Lprim (Pfloatfield (lbl.lbl_pos, sem, mode), [targ], loc)
+            Lprim (Pabstractfield (lbl.lbl_pos, Float, sem, mode), [targ], loc)
           | Float64 ->
-            Lprim (Pufloatfield (lbl.lbl_pos, sem), [targ], loc)
+            Lprim (Pabstractfield (lbl.lbl_pos, Float64, sem, alloc_heap),
+                   [targ], loc)
           end
       end
   | Texp_setfield(arg, arg_mode, id, lbl, newval) ->
@@ -590,9 +594,9 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
           Psetfield (lbl.lbl_pos + 1, maybe_pointer newval, mode)
         | Record_abstract abs -> begin
           match abs.(lbl.lbl_num) with
-          | Imm -> Psetfield(lbl.lbl_pos, Immediate, mode)
-          | Float -> Psetfloatfield (lbl.lbl_pos, mode)
-          | Float64 -> Psetufloatfield (lbl.lbl_pos, mode)
+          | Imm -> Psetabstractfield(lbl.lbl_pos, Imm, mode)
+          | Float -> Psetabstractfield (lbl.lbl_pos, Float, mode)
+          | Float64 -> Psetabstractfield (lbl.lbl_pos, Float64, mode)
         end
       in
       Lprim(access, [transl_exp ~scopes Jkind.Sort.for_record arg;
@@ -1526,11 +1530,13 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                     Pfloatfield (i, sem, alloc_heap)
                  | Record_ufloat -> Pufloatfield (i, sem)
                  | Record_abstract abs -> begin
-                   match abs.(lbl.lbl_num) with
-                   | Imm -> Pfield (i, Immediate, sem)
-                   | Float -> Pfloatfield (i, sem, alloc_heap)
-                   | Float64 -> Pufloatfield (i, sem)
-                 end
+                     (* alloc_mode: for floats, same as above. for others it's
+                        unused. *)
+                     match abs.(lbl.lbl_num) with
+                     | Imm -> Pabstractfield (i, Imm, sem, alloc_heap)
+                     | Float -> Pabstractfield (i, Float, sem, alloc_heap)
+                     | Float64 -> Pabstractfield (i, Float64, sem, alloc_heap)
+                   end
                in
                Lprim(access, [Lvar init_id],
                      of_location ~scopes loc),
@@ -1624,11 +1630,12 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
             | Record_abstract abs -> begin
                 match abs.(lbl.lbl_num) with
                 | Imm ->
-                  Psetfield(lbl.lbl_pos, Immediate, Assignment modify_heap)
+                  Psetabstractfield(lbl.lbl_pos, Imm, Assignment modify_heap)
                 | Float ->
-                  Psetfloatfield (lbl.lbl_pos, Assignment modify_heap)
+                  Psetabstractfield (lbl.lbl_pos, Float, Assignment modify_heap)
                 | Float64 ->
-                  Psetufloatfield (lbl.lbl_pos, Assignment modify_heap)
+                  Psetabstractfield (lbl.lbl_pos, Float64,
+                                     Assignment modify_heap)
               end
           in
           Lsequence(Lprim(upd, [Lvar copy_id;

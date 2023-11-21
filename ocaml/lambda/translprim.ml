@@ -1033,7 +1033,7 @@ let lambda_primitive_needs_event_after = function
   | Pmake_unboxed_product _ | Punboxed_product_field _
   | Pfield _ | Pfield_computed _ | Psetfield _
   | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Praise _
-  | Pufloatfield _ | Psetufloatfield _
+  | Pufloatfield _ | Psetufloatfield _ | Pabstractfield _ | Psetabstractfield _
   | Psequor | Psequand | Pnot | Pnegint | Paddint | Psubint | Pmulint
   | Pdivint _ | Pmodint _ | Pandint | Porint | Pxorint | Plslint | Plsrint
   | Pasrint | Pintcomp _ | Poffsetint _ | Poffsetref _ | Pintoffloat

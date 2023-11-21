@@ -104,8 +104,11 @@ type primitive =
   | Psetfield_computed of immediate_or_pointer * initialization_or_assignment
   | Pfloatfield of int * field_read_semantics * alloc_mode
   | Pufloatfield of int * field_read_semantics
+  | Pabstractfield of int * abstract_element * field_read_semantics * alloc_mode
+      (* Note the alloc_mode here is only relevant for float fields. *)
   | Psetfloatfield of int * initialization_or_assignment
   | Psetufloatfield of int * initialization_or_assignment
+  | Psetabstractfield of int * abstract_element * initialization_or_assignment
   | Pduprecord of Types.record_representation * int
   (* Unboxed products *)
   | Pmake_unboxed_product of layout list

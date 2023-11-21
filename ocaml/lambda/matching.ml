@@ -2299,12 +2299,18 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
             lbl_sort, lbl_layout
         | Record_abstract abs ->
           begin
+            (* TODO: could optimise to Alloc_local sometimes (only matters in
+               the Float case) *)
             match abs.(pos) with
-            | Imm -> Lprim (Pfield (lbl.lbl_pos, ptr, sem), [ arg ], loc)
+            | Imm ->
+              Lprim (Pabstractfield (lbl.lbl_pos, Imm, sem, alloc_heap),
+                     [ arg ], loc)
             | Float ->
-              (* TODO: could optimise to Alloc_local sometimes *)
-              Lprim (Pfloatfield (lbl.lbl_pos, sem, alloc_heap), [ arg ], loc)
-            | Float64 -> Lprim (Pufloatfield (lbl.lbl_pos, sem), [ arg ], loc)
+              Lprim (Pabstractfield (lbl.lbl_pos, Float, sem, alloc_heap),
+                     [ arg ], loc)
+            | Float64 ->
+              Lprim (Pabstractfield (lbl.lbl_pos, Float64, sem, alloc_heap),
+                     [ arg ], loc)
           end,
           lbl_sort, lbl_layout
       in

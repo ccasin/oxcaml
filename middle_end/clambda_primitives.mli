@@ -49,6 +49,8 @@ type primitive =
   | Psetfloatfield of int * initialization_or_assignment
   | Pufloatfield of int
   | Psetufloatfield of int * initialization_or_assignment
+  | Pabstractfield of int * abstract_element * alloc_mode
+  | Psetabstractfield of int * abstract_element * initialization_or_assignment
   | Pduprecord of Types.record_representation * int
   (* Context switches *)
   | Prunstack

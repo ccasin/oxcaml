@@ -5442,9 +5442,15 @@ and type_expect_
         type_label_access env srecord Env.Projection lid
       in
       let alloc_mode = match label.lbl_repres with
-      (* projecting out of packed-float-record needs allocation *)
+        (* projecting out of packed-float-record needs allocation *)
         | Record_float -> Some (register_allocation expected_mode)
-        | _ -> None
+        | Record_abstract shape -> begin
+            match shape.(label.lbl_num) with
+            | Imm | Float64 -> None
+            | Float -> Some (register_allocation expected_mode)
+          end
+        | Record_unboxed | Record_inlined _ | Record_boxed _ | Record_ufloat ->
+          None
       in
       let mode = modality_unbox_left label.lbl_global rmode in
       let ty_arg =

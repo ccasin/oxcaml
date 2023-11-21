@@ -49,6 +49,8 @@ type primitive =
   | Psetfloatfield of int * initialization_or_assignment
   | Pufloatfield of int
   | Psetufloatfield of int * initialization_or_assignment
+  | Pabstractfield of int * abstract_element * alloc_mode
+  | Psetabstractfield of int * abstract_element * initialization_or_assignment
   | Pduprecord of Types.record_representation * int
   (* Context switches *)
   | Prunstack
@@ -238,11 +240,17 @@ let result_layout (p : primitive) =
   | Punboxed_product_field (field, layouts) -> List.nth layouts field
   | Pccall {prim_native_repr_res = (_, repr_res); _} ->
     Lambda.layout_of_native_repr repr_res
-  | Pufloatfield _ -> Lambda.Punboxed_float
+  | Pufloatfield _ -> Lambda.layout_unboxed_float
+  | Pabstractfield (_, shape, _) -> begin
+      match shape with
+      | Imm | Float -> Lambda.layout_any_value
+      | Float64 -> Lambda.layout_unboxed_float
+    end
   | Pread_symbol _ | Pmakeblock _ | Pmakeufloatblock _ | Pmakeabstractblock _
   | Pfield _
   | Pfield_computed | Psetfield _ | Psetfield_computed _ | Pfloatfield _
-  | Psetfloatfield _ | Psetufloatfield _ | Pduprecord _ | Praise _
+  | Psetfloatfield _ | Psetufloatfield _ | Psetabstractfield _
+  | Pduprecord _ | Praise _
   | Psequand | Psequor | Pnot | Pnegint | Paddint | Psubint | Pmulint
   | Pdivint _ | Pmodint _ | Pandint | Porint | Pxorint | Plslint | Plsrint
   | Pasrint | Pintcomp _ | Pcompare_ints | Pcompare_floats | Pcompare_bints _

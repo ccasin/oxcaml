@@ -234,7 +234,7 @@ let block_shape ppf shape = match shape with
         t;
       Format.fprintf ppf ")"
 
-let abstract_block_element ppf : abstract_element -> unit = function
+let abstract_element ppf : abstract_element -> unit = function
   | Imm -> pp_print_string ppf "int"
   | Float -> pp_print_string ppf "float"
   | Float64 -> pp_print_string ppf "float64"
@@ -243,13 +243,13 @@ let abstract_block_shape ppf shape =
   match Array.length shape with
   | 0 -> ()
   | 1 ->
-      Format.fprintf ppf " (%a)" abstract_block_element (shape.(0))
+      Format.fprintf ppf " (%a)" abstract_element (shape.(0))
   | _ -> begin
     Array.iteri (fun i elt ->
       if i = 0 then
-        Format.fprintf ppf " (%a" abstract_block_element elt
+        Format.fprintf ppf " (%a" abstract_element elt
       else
-        Format.fprintf ppf ",%a" abstract_block_element elt)
+        Format.fprintf ppf ",%a" abstract_element elt)
       shape;
     Format.fprintf ppf ")"
   end
@@ -366,6 +366,9 @@ let primitive ppf = function
   | Pufloatfield (n, sem) ->
       fprintf ppf "ufloatfield%a %i"
         field_read_semantics sem n
+  | Pabstractfield (n, shape, sem, mode) ->
+      fprintf ppf "abstractfield%a%s %i %a"
+        field_read_semantics sem (alloc_mode mode) n abstract_element shape
   | Psetfloatfield (n, init) ->
       let init =
         match init with
@@ -384,6 +387,16 @@ let primitive ppf = function
         | Assignment Modify_maybe_stack -> "(maybe-stack)"
       in
       fprintf ppf "setufloatfield%s %i" init n
+  | Psetabstractfield (n, shape, init) ->
+      let init =
+        match init with
+        | Heap_initialization -> "(heap-init)"
+        | Root_initialization -> "(root-init)"
+        | Assignment Modify_heap -> ""
+        | Assignment Modify_maybe_stack -> "(maybe-stack)"
+      in
+      fprintf ppf "setabstractfield%s %i %a"
+        init n abstract_element shape
   | Pduprecord (rep, size) -> fprintf ppf "duprecord %a %i" record_rep rep size
   | Prunstack -> fprintf ppf "runstack"
   | Pperform -> fprintf ppf "perform"
@@ -616,6 +629,8 @@ let name_of_primitive = function
   | Psetfloatfield _ -> "Psetfloatfield"
   | Pufloatfield _ -> "Pufloatfield"
   | Psetufloatfield _ -> "Psetufloatfield"
+  | Pabstractfield _ -> "Pabstractfield"
+  | Psetabstractfield _ -> "Psetabstractfield"
   | Pduprecord _ -> "Pduprecord"
   | Pmake_unboxed_product _ -> "Pmake_unboxed_product"
   | Punboxed_product_field _ -> "Punboxed_product_field"

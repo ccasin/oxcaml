@@ -121,7 +121,7 @@ let preserve_tailcall_for_prim = function
   | Pmakeblock _ | Pmakefloatblock _ | Pmakeufloatblock _ | Pmakeabstractblock _
   | Pfield _ | Pfield_computed _ | Psetfield _
   | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Pduprecord _
-  | Pufloatfield _ | Psetufloatfield _
+  | Pufloatfield _ | Psetufloatfield _ | Pabstractfield _ | Psetabstractfield _
   | Pmake_unboxed_product _ | Punboxed_product_field _
   | Pccall _ | Praise _ | Pnot | Pnegint | Paddint | Psubint | Pmulint
   | Pdivint _ | Pmodint _ | Pandint | Porint | Pxorint | Plslint | Plsrint
@@ -458,6 +458,22 @@ let comp_primitive stack_info p sz args =
      instructions for the ufloat primitives. *)
   | Pufloatfield (n, _sem) -> Kgetfloatfield n
   | Psetufloatfield (n, _init) -> Ksetfloatfield n
+  | Pabstractfield (n, shape, _sem, _mode) -> begin
+      (* CR layouts: This assumes immediates and floats are the same size (false
+         on 32 bits), and will need reworking when we have other sizes. *)
+      match shape with
+      | Imm -> Kgetfield n
+      | (Float | Float64) -> Kgetfloatfield n
+      (* Note float64s are unboxed in records but otherwise boxed in bytecode. *)
+    end
+  | Psetabstractfield (n, shape, _init) -> begin
+      (* CR layouts: This assumes immediates and floats are the same size (false
+         on 32 bits), and will need reworking when we have other sizes. *)
+      match shape with
+      | Imm -> Ksetfield n
+      | (Float | Float64) -> Ksetfloatfield n
+      (* Note float64s are unboxed in records but otherwise boxed in bytecode. *)
+    end
   | Pduprecord _ -> Kccall("caml_obj_dup", 1)
   | Pccall p -> Kccall(p.prim_name, p.prim_arity)
   | Pperform ->

@@ -125,6 +125,7 @@ let pfield_computed = "Pfield_computed"
 let pfloatcomp = "Pfloatcomp"
 let pfloatfield = "Pfloatfield"
 let pufloatfield = "Pufloatfield"
+let pabstractfield = "Pabstractfield"
 let pfloatofint = "Pfloatofint"
 let pgetglobal = "Pgetglobal"
 let pgetpredef = "Pgetpredef"
@@ -173,6 +174,7 @@ let psetfield = "Psetfield"
 let psetfield_computed = "Psetfield_computed"
 let psetfloatfield = "Psetfloatfield"
 let psetufloatfield = "Psetufloatfield"
+let psetabstractfield = "Psetabstractfield"
 let psetglobal = "Psetglobal"
 let pstring_load_16 = "Pstring_load_16"
 let pstring_load_32 = "Pstring_load_32"
@@ -249,6 +251,7 @@ let pfield_computed_arg = "Pfield_computed_arg"
 let pfloatcomp_arg = "Pfloatcomp_arg"
 let pfloatfield_arg = "Pfloatfield_arg"
 let pufloatfield_arg = "Pufloatfield_arg"
+let pabstractfield_arg = "Pabstractfield_arg"
 let pfloatofint_arg = "Pfloatofint_arg"
 let pgetglobal_arg = "Pgetglobal_arg"
 let pgetpredef_arg = "Pgetpredef_arg"
@@ -294,6 +297,7 @@ let psetfield_arg = "Psetfield_arg"
 let psetfield_computed_arg = "Psetfield_computed_arg"
 let psetfloatfield_arg = "Psetfloatfield_arg"
 let psetufloatfield_arg = "Psetufloatfield_arg"
+let psetabstractfield_arg = "Psetabstractfield_arg"
 let psetglobal_arg = "Psetglobal_arg"
 let pstring_load_16_arg = "Pstring_load_16_arg"
 let pstring_load_32_arg = "Pstring_load_32_arg"
@@ -394,6 +398,8 @@ let of_primitive : Lambda.primitive -> string = function
   | Psetfloatfield _ -> psetfloatfield
   | Pufloatfield _ -> pufloatfield
   | Psetufloatfield _ -> psetufloatfield
+  | Pabstractfield _ -> pabstractfield
+  | Psetabstractfield _ -> psetabstractfield
   | Pduprecord _ -> pduprecord
   | Pccall _ -> pccall
   | Praise _ -> praise
@@ -529,6 +535,8 @@ let of_primitive_arg : Lambda.primitive -> string = function
   | Psetfloatfield _ -> psetfloatfield_arg
   | Pufloatfield _ -> pufloatfield_arg
   | Psetufloatfield _ -> psetufloatfield_arg
+  | Pabstractfield _ -> pabstractfield_arg
+  | Psetabstractfield _ -> psetabstractfield_arg
   | Pduprecord _ -> pduprecord_arg
   | Pccall _ -> pccall_arg
   | Praise _ -> praise_arg
