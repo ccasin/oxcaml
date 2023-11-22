@@ -265,6 +265,15 @@ CAMLprim value caml_update_dummy(value dummy, value newval)
     for (i = 0; i < size; i++) {
       Store_double_flat_field (dummy, i, Double_flat_field (newval, i));
     }
+  } else if (tag == Abstract_tag) {
+    CAMLassert (Wosize_val(newval) == Wosize_val(dummy));
+    CAMLassert (Tag_val(dummy) != Infix_tag);
+    Tag_val(dummy) = Abstract_tag;
+    int bytes = Wosize_val(newval) * sizeof(value);
+    /* XXX layouts: I think just doing a memcpy is fine here because we know
+       there are no pointers?  Figuring out which fields are floats would be
+       hard. */
+    memcpy((void*)dummy, (void*)newval, bytes);
   } else if (tag == Infix_tag) {
     value clos = newval - Infix_offset_hd(Hd_val(newval));
     CAMLassert (Tag_val(clos) == Closure_tag);
