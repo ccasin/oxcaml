@@ -208,7 +208,6 @@ let rec size_of_lambda env = function
             (0, 0) abs
         in
         RHS_abstractblock { imms; floats }
-      (* XXX layouts: hit this with test case *)
       end
   | Llet(_str, _k, id, arg, body) ->
       size_of_lambda (Ident.add id (size_of_lambda env arg) env) body
@@ -245,7 +244,6 @@ let rec size_of_lambda env = function
            (0, 0) abs
        in
        RHS_abstractblock { imms; floats }
-      (* XXX layouts: hit this with test case. *)
   | Lprim (Pmakearray (Pgenarray, _, _), _, _) ->
      (* Pgenarray is excluded from recursive bindings by the
         check in Translcore.check_recursive_lambda *)
@@ -757,7 +755,6 @@ let rec comp_expr stack_info env exp sz cont =
               Kccall("caml_alloc_dummy_float", 1) :: Kpush ::
               comp_init (add_var id (sz+1) new_env) (sz+1) rem
           | (id, _exp, RHS_abstractblock {imms; floats}) :: rem ->
-              (* XXX layouts: hit this with a test. *)
               Kconst(Const_base(Const_int floats)) ::
               Kpush ::
               Kconst(Const_base(Const_int imms)) ::

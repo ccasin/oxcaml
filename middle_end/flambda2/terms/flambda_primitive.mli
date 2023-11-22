@@ -99,7 +99,7 @@ module Duplicate_block_kind : sig
           length : Targetint_31_63.t
         }
     | Naked_floats of { length : Targetint_31_63.t }
-    | Abstract  (* XXX layouts: needs shape? *)
+    | Abstract
 
   val print : Format.formatter -> t -> unit
 
