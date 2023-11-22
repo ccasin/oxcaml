@@ -174,27 +174,38 @@ Error: This type ('b : value) should be an instance of type ('a : float64)
        'a has layout float64, which does not overlap with value.
 |}]
 
-(******************************************************************************)
-(* Test 5: Can't be put in structures in typedecls, except all-float records. *)
+(****************************************************************************)
+(* Test 5: Can't be put in structures in typedecls, except certain records. *)
 
+(* all-float64 records are allowed, as are any combination of immediate, float,
+   and float64 *)
 type t5_1 = { x : t_float64 };;
 [%%expect{|
 type t5_1 = { x : t_float64; }
 |}];;
 
-(* XXX layouts: more abstract block typing tests. *)
-type t5_2 = { y : int; x : t_float64 };;
+type t5_2_1 = { y : int; x : t_float64 };;
 [%%expect{|
-type t5_2 = { y : int; x : t_float64; }
+type t5_2_1 = { y : int; x : t_float64; }
+|}];;
+
+type t5_2_2 = { y : float; x : t_float64 };;
+[%%expect{|
+type t5_2_2 = { y : float; x : t_float64; }
+|}];;
+
+type t5_2_3 = { z : float; y : int; x : t_float64 };;
+[%%expect{|
+type t5_2_3 = { z : float; y : int; x : t_float64; }
 |}];;
 
 (* CR layouts: this runs afoul of the mixed block restriction, but should work
    once we relax that. *)
-type t5_2' = { y : string; x : t_float64 };;
+type t5_2_4 = { y : string; x : t_float64 };;
 [%%expect{|
-Line 1, characters 0-42:
-1 | type t5_2' = { y : string; x : t_float64 };;
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Line 1, characters 0-43:
+1 | type t5_2_4 = { y : string; x : t_float64 };;
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Records may not contain both unboxed floats and boxed values.
 |}];;
 
