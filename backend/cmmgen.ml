@@ -192,6 +192,9 @@ type rhs_kind =
   | RHS_block of Lambda.alloc_mode * int
   | RHS_infix of { blocksize : int; offset : int; blockmode: Lambda.alloc_mode }
   | RHS_floatblock of Lambda.alloc_mode * int
+  | RHS_abstractblock of { imms : int;
+                           floats : int;
+                           blockmode : Lambda.alloc_mode }
   | RHS_nonrec
 
 let rec expr_size env = function
@@ -217,6 +220,15 @@ let rec expr_size env = function
       RHS_block (mode, List.length args)
   | Uprim(Pmakeufloatblock (_, mode), args, _) ->
       RHS_floatblock (mode, List.length args)
+  | Uprim(Pmakeabstractblock(_, shape, blockmode), _args, _) ->
+      let (imms, floats) =
+        Array.fold_left (fun (imms, floats) shape ->
+          match (shape : Lambda.abstract_element) with
+          | Imm -> (imms+1, floats)
+          | Float | Float64 -> (imms, floats+1))
+          (0, 0) shape
+      in
+      RHS_abstractblock { imms; floats; blockmode }
   | Uprim(Pmakearray((Paddrarray | Pintarray), _, mode), args, _) ->
       RHS_block (mode, List.length args)
   | Uprim(Pmakearray(Pfloatarray, _, mode), args, _) ->
@@ -1729,7 +1741,8 @@ and transl_letrec env bindings cont =
     | (_, _,
        (RHS_block (Alloc_local, _) |
         RHS_infix {blockmode=Alloc_local; _} |
-        RHS_floatblock (Alloc_local, _))) :: _ ->
+        RHS_floatblock (Alloc_local, _) |
+        RHS_abstractblock {blockmode=Alloc_local; _})) :: _ ->
       Misc.fatal_error "Invalid stack allocation found"
     | (id, _exp, RHS_block (Alloc_heap, sz)) :: rem ->
         Clet(id, op_alloc "caml_alloc_dummy" [int_const dbg sz],
@@ -1741,19 +1754,25 @@ and transl_letrec env bindings cont =
     | (id, _exp, RHS_floatblock (Alloc_heap, sz)) :: rem ->
         Clet(id, op_alloc "caml_alloc_dummy_float" [int_const dbg sz],
           init_blocks rem)
-    (* XXX layouts: new case needed here? *)
+    | (id, _exp, RHS_abstractblock {imms; floats; blockmode=Alloc_heap})
+      :: rem ->
+        let imms = int_const dbg imms in
+        let floats = int_const dbg floats in
+        Clet(id, op_alloc "caml_alloc_dummy_abstract" [imms; floats],
+             init_blocks rem)
     | (id, _exp, RHS_nonrec) :: rem ->
         Clet (id, Cconst_int (1, dbg), init_blocks rem)
   and fill_nonrec = function
     | [] -> fill_blocks bsz
     | (_id, _exp,
-       (RHS_block _ | RHS_infix _ | RHS_floatblock _)) :: rem ->
+       (RHS_block _ | RHS_infix _ | RHS_floatblock _ | RHS_abstractblock _)) :: rem ->
         fill_nonrec rem
     | (id, exp, RHS_nonrec) :: rem ->
         Clet(id, transl env exp, fill_nonrec rem)
   and fill_blocks = function
     | [] -> cont
-    | (id, exp, (RHS_block _ | RHS_infix _ | RHS_floatblock _)) :: rem ->
+    | (id, exp, (RHS_block _ | RHS_infix _ | RHS_floatblock _ | RHS_abstractblock _))
+      :: rem ->
         let op =
           Cop(Cextcall { func = "caml_update_dummy"; ty = typ_void;
                          builtin = false;
