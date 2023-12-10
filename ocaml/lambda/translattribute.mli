@@ -19,19 +19,11 @@ val add_inline_attribute
   -> Parsetree.attributes
   -> Lambda.lambda
 
-val get_inline_attribute
-   : Parsetree.attributes
-  -> Lambda.inline_attribute
-
 val add_specialise_attribute
    : Lambda.lambda
   -> Location.t
   -> Parsetree.attributes
   -> Lambda.lambda
-
-val get_specialise_attribute
-   : Parsetree.attributes
-  -> Lambda.specialise_attribute
 
 val add_local_attribute
    : Lambda.lambda
@@ -39,30 +31,8 @@ val add_local_attribute
   -> Parsetree.attributes
   -> Lambda.lambda
 
-val get_local_attribute
-   : Parsetree.attributes
-  -> Lambda.local_attribute
-
-val get_inlined_attribute
-   : Typedtree.expression
-  -> Lambda.inlined_attribute
-
-val get_inlined_attribute_on_module
-   : Typedtree.module_expr
-  -> Lambda.inlined_attribute
-
-val get_specialised_attribute
-   : Typedtree.expression
-  -> Lambda.specialise_attribute
-
-val get_tailcall_attribute
-   : Typedtree.expression
-  -> Lambda.tailcall_attribute
-
 val add_function_attributes
   : Lambda.lambda
   -> Location.t
   -> Parsetree.attributes
   -> Lambda.lambda
-
-val assume_zero_alloc : Parsetree.attributes -> bool

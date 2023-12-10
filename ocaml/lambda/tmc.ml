@@ -16,6 +16,7 @@
 (**************************************************************************)
 
 open Lambda
+open Parse_attributes
 
 (* Error-reporting information for ambiguous TMC calls *)
 type tmc_call_information = {

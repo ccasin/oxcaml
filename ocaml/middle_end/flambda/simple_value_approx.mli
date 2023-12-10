@@ -154,11 +154,11 @@ and function_body = private {
   free_symbols : Symbol.Set.t;
   stub : bool;
   dbg : Debuginfo.t;
-  inline : Lambda.inline_attribute;
-  specialise : Lambda.specialise_attribute;
+  inline : Parse_attributes.inline_attribute;
+  specialise : Parse_attributes.specialise_attribute;
   is_a_functor : bool;
   body : Flambda.t;
-  poll: Lambda.poll_attribute;
+  poll: Parse_attributes.poll_attribute;
 }
 
 and function_declaration = private {

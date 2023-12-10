@@ -426,9 +426,15 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
       in
       if extra_args = [] then lam
       else begin
-        let tailcall = Translattribute.get_tailcall_attribute funct in
-        let inlined = Translattribute.get_inlined_attribute funct in
-        let specialised = Translattribute.get_specialised_attribute funct in
+        let tailcall =
+          Parse_attributes.get_tailcall_attribute funct.exp_attributes
+        in
+        let inlined =
+          Parse_attributes.get_inlined_attribute funct.exp_attributes
+        in
+        let specialised =
+          Parse_attributes.get_specialised_attribute funct.exp_attributes
+        in
         let position = transl_apply_position pos in
         let mode = transl_locality_mode ap_mode in
         let result_layout = layout_exp sort e in
@@ -437,9 +443,15 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
              ~result_layout lam extra_args (of_location ~scopes e.exp_loc))
       end
   | Texp_apply(funct, oargs, position, ap_mode) ->
-      let tailcall = Translattribute.get_tailcall_attribute funct in
-      let inlined = Translattribute.get_inlined_attribute funct in
-      let specialised = Translattribute.get_specialised_attribute funct in
+      let tailcall =
+        Parse_attributes.get_tailcall_attribute funct.exp_attributes
+      in
+      let inlined =
+        Parse_attributes.get_inlined_attribute funct.exp_attributes
+      in
+      let specialised =
+        Parse_attributes.get_specialised_attribute funct.exp_attributes
+      in
       let result_layout = layout_exp sort e in
       let position = transl_apply_position position in
       let mode = transl_locality_mode ap_mode in

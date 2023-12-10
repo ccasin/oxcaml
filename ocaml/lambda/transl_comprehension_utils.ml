@@ -1,4 +1,5 @@
 open Lambda
+open Parse_attributes
 
 module Let_binding = struct
   module Let_kind = struct

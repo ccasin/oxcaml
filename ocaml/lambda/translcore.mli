@@ -19,6 +19,7 @@
 open Asttypes
 open Typedtree
 open Lambda
+open Parse_attributes
 open Debuginfo.Scoped_location
 
 val pure_module : module_expr -> let_kind

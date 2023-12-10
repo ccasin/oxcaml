@@ -7043,7 +7043,8 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
              exp_desc =
                Texp_let (Nonrecursive,
                          [{vb_pat=let_pat; vb_expr=texp; vb_sort=arg_sort;
-                           vb_attributes=[]; vb_loc=Location.none;
+                           vb_attributes=[]; vb_check=Default_check;
+                           vb_loc=Location.none;
                           }],
                          func let_var) }
       end

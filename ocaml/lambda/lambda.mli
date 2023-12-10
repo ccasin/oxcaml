@@ -16,6 +16,7 @@
 (* The "lambda" intermediate code *)
 
 open Asttypes
+open Parse_attributes
 
 type constant = Typedtree.constant
 
@@ -359,79 +360,8 @@ type structured_constant =
   | Const_immstring of string
   | Const_float_block of string list
 
-type tailcall_attribute =
-  | Tailcall_expectation of bool
-    (* [@tailcall] and [@tailcall true] have [true],
-       [@tailcall false] has [false] *)
-  | Default_tailcall (* no [@tailcall] attribute *)
-
-(* Function declaration inlining annotations *)
-type inline_attribute =
-  | Always_inline (* [@inline] or [@inline always] *)
-  | Never_inline (* [@inline never] *)
-  | Available_inline (* [@inline available] *)
-  | Unroll of int (* [@unroll x] *)
-  | Default_inline (* no [@inline] attribute *)
-
-(* Call site inlining annotations *)
-type inlined_attribute =
-  | Always_inlined (* [@inlined] or [@inlined always] *)
-  | Never_inlined (* [@inlined never] *)
-  | Hint_inlined (* [@inlined hint] *)
-  | Unroll of int (* [@unroll x] *)
-  | Default_inlined (* no [@inlined] attribute *)
-
-val equal_inline_attribute : inline_attribute -> inline_attribute -> bool
-val equal_inlined_attribute : inlined_attribute -> inlined_attribute -> bool
-
 type probe_desc = { name: string; enabled_at_init: bool; }
 type probe = probe_desc option
-
-type specialise_attribute =
-  | Always_specialise (* [@specialise] or [@specialise always] *)
-  | Never_specialise (* [@specialise never] *)
-  | Default_specialise (* no [@specialise] attribute *)
-
-val equal_specialise_attribute
-   : specialise_attribute
-  -> specialise_attribute
-  -> bool
-
-type local_attribute =
-  | Always_local (* [@local] or [@local always] *)
-  | Never_local (* [@local never] *)
-  | Default_local (* [@local maybe] or no [@local] attribute *)
-
-type property =
-  | Zero_alloc
-
-type poll_attribute =
-  | Error_poll (* [@poll error] *)
-  | Default_poll (* no [@poll] attribute *)
-
-type check_attribute =
-  | Default_check
-  | Ignore_assert_all of property
-  | Check of { property: property;
-               strict: bool;
-               (* [strict=true] property holds on all paths.
-                  [strict=false] if the function returns normally,
-                  then the property holds (but property violations on
-                  exceptional returns or divering loops are ignored).
-                  This definition may not be applicable to new properties. *)
-               opt: bool;
-               loc: Location.t;
-             }
-  | Assume of { property: property;
-                strict: bool;
-                loc: Location.t;
-                never_returns_normally: bool;
-              }
-
-type loop_attribute =
-  | Always_loop (* [@loop] or [@loop always] *)
-  | Never_loop (* [@loop never] *)
-  | Default_loop (* no [@loop] attribute *)
 
 type function_kind = Curried of {nlocal: int} | Tupled
 (* [nlocal] determines how many arguments may be partially applied
@@ -547,9 +477,10 @@ and lambda_apply =
     ap_region_close : region_close;
     ap_mode : alloc_mode;
     ap_loc : scoped_location;
-    ap_tailcall : tailcall_attribute;
-    ap_inlined : inlined_attribute; (* [@inlined] attribute in code *)
-    ap_specialised : specialise_attribute;
+    ap_tailcall : Parse_attributes.tailcall_attribute;
+    ap_inlined : Parse_attributes.inlined_attribute;
+      (* [@inlined] attribute in code *)
+    ap_specialised : Parse_attributes.specialise_attribute;
     ap_probe : probe;
   }
 

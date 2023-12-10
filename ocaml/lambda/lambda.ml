@@ -15,6 +15,7 @@
 
 open Misc
 open Asttypes
+open Parse_attributes
 
 type constant = Typedtree.constant
 
@@ -512,37 +513,6 @@ let equal_specialise_attribute x y =
     true
   | (Always_specialise | Never_specialise | Default_specialise), _ ->
     false
-
-type local_attribute =
-  | Always_local (* [@local] or [@local always] *)
-  | Never_local (* [@local never] *)
-  | Default_local (* [@local maybe] or no [@local] attribute *)
-
-type property =
-  | Zero_alloc
-
-type poll_attribute =
-  | Error_poll (* [@poll error] *)
-  | Default_poll (* no [@poll] attribute *)
-
-type check_attribute =
-  | Default_check
-  | Ignore_assert_all of property
-  | Check of { property: property;
-               strict: bool;
-               opt: bool;
-               loc: Location.t;
-             }
-  | Assume of { property: property;
-                strict: bool;
-                loc: Location.t;
-                never_returns_normally: bool;
-              }
-
-type loop_attribute =
-  | Always_loop (* [@loop] or [@loop always] *)
-  | Never_loop (* [@loop never] *)
-  | Default_loop (* no [@loop] attribute *)
 
 type function_kind = Curried of {nlocal: int} | Tupled
 

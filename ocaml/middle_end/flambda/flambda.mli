@@ -41,10 +41,10 @@ type apply = {
   dbg : Debuginfo.t;
   reg_close : Lambda.region_close;
   mode : Lambda.alloc_mode;
-  inlined : Lambda.inlined_attribute;
+  inlined : Parse_attributes.inlined_attribute;
   (** Instructions from the source code as to whether the callee should
       be inlined. *)
-  specialise : Lambda.specialise_attribute;
+  specialise : Parse_attributes.specialise_attribute;
   (** Instructions from the source code as to whether the callee should
       be specialised. *)
   probe : Lambda.probe;
@@ -336,13 +336,13 @@ and function_declaration = private {
       through a stub.  Stubs will be unconditionally inlined. *)
   dbg : Debuginfo.t;
   (** Debug info for the function declaration. *)
-  inline : Lambda.inline_attribute;
+  inline : Parse_attributes.inline_attribute;
   (** Inlining requirements from the source code. *)
-  specialise : Lambda.specialise_attribute;
+  specialise : Parse_attributes.specialise_attribute;
   (** Specialising requirements from the source code. *)
   is_a_functor : bool;
   (** Whether the function is known definitively to be a functor. *)
-  poll: Lambda.poll_attribute;
+  poll: Parse_attributes.poll_attribute;
   (** Behaviour for polls *)
 }
 
@@ -573,11 +573,11 @@ val create_function_declaration
   -> stub:bool
   -> dbg:Debuginfo.t
   -> return_layout:Lambda.layout
-  -> inline:Lambda.inline_attribute
-  -> specialise:Lambda.specialise_attribute
+  -> inline:Parse_attributes.inline_attribute
+  -> specialise:Parse_attributes.specialise_attribute
   -> is_a_functor:bool
   -> closure_origin:Closure_origin.t
-  -> poll:Lambda.poll_attribute
+  -> poll:Parse_attributes.poll_attribute
   -> function_declaration
 
 (** Create a function declaration based on another function declaration *)

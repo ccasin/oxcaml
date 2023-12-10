@@ -540,7 +540,7 @@ let merge_functors ~scopes mexp coercion root_path =
     match mexp.mod_desc with
     | Tmod_functor (param, body) ->
       let inline_attribute' =
-        Translattribute.get_inline_attribute mexp.mod_attributes
+        Parse_attributes.get_inline_attribute mexp.mod_attributes
       in
       let arg_coercion, res_coercion =
         match coercion with
