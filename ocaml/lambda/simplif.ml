@@ -43,7 +43,11 @@ let rec eliminate_ref id = function
               eliminate_ref id e2)
   | Lprim(Pfield (0, _, _), [Lvar v], _) when Ident.same v id ->
       Lmutvar id
+  | Lprim(Pfloatfield (0, _, _), [Lvar v], _) when Ident.same v id ->
+      Lmutvar id
   | Lprim(Psetfield(0, _, _), [Lvar v; e], _) when Ident.same v id ->
+      Lassign(id, eliminate_ref id e)
+  | Lprim(Psetfloatfield(0, _), [Lvar v; e], _) when Ident.same v id ->
       Lassign(id, eliminate_ref id e)
   | Lprim(Poffsetref delta, [Lvar v], loc) when Ident.same v id ->
       Lassign(id, Lprim(Poffsetint delta, [Lmutvar id], loc))
@@ -592,6 +596,22 @@ let simplify_lets lam =
         mkmutlet kind v slinit (eliminate_ref v slbody)
       with Real_reference ->
         mklet Strict kind v (Lprim(prim, [slinit], loc)) slbody
+      end
+  | Llet(Strict, kind, v,
+         Lprim(Pmakefloatblock(Mutable, _mode) as prim, [linit], loc),
+         lbody)
+    when optimize ->
+      if !Clflags.debug_ocaml then
+        Printf.printf "In ref case\n%!";
+      let slinit = simplif linit in
+      let slbody = simplif lbody in
+      begin try
+        let kind = Punboxed_float in
+        mkmutlet kind v slinit (eliminate_ref v slbody)
+      with Real_reference ->
+        (if !Clflags.debug_ocaml then
+          Printf.printf "Real_reference\n%!";
+        mklet Strict kind v (Lprim(prim, [slinit], loc)) slbody)
       end
   | Llet(Alias, kind, v, l1, l2) ->
       begin match count_var v with
