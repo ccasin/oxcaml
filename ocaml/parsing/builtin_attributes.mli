@@ -162,6 +162,13 @@ val filter_attributes :
   ?mark:bool ->
   Attributes_filter.t -> Parsetree.attributes -> Parsetree.attributes
 
+(** [find_attribute] behaves like [filter_attribute], except that it returns at
+    most one matching attribute and issues a "duplicated attribute" warning if
+    there are multiple matches. *)
+val find_attribute :
+  ?mark_used:bool -> Attributes_filter.t -> Parsetree.attributes ->
+  Parsetree.attribute option
+
 val warn_on_literal_pattern: Parsetree.attributes -> bool
 val explicit_arity: Parsetree.attributes -> bool
 
@@ -208,3 +215,52 @@ val jkind_attribute_of_string : string -> jkind_attribute option
    as the attribute mechanism predates layouts.
 *)
 val jkind : Parsetree.attributes -> jkind_attribute Location.loc option
+
+(** [get_payload] is a helper function for working with attribute payloads.
+    Given a payload that consists of a structure containing a single
+    [Pstr_eval], it will call the given function on the inner expression.
+    Otherwise, it returns [Error ()]. *)
+val get_payload :
+  (Parsetree.expression -> ('a, unit) Result.t) -> Parsetree.payload ->
+  ('a, unit) Result.t
+
+(** [get_optional_payload] is like [get_payload], except that in the case that
+    the payload consists of an empty structure, it returns [Ok None] rather than
+    [Error ()] . *)
+val get_optional_payload :
+  (Parsetree.expression -> ('a, unit) Result.t) -> Parsetree.payload ->
+  ('a option, unit) Result.t
+
+(** [get_id_from_exp] extracts the string from an identifier expression.
+    Suitable for use with [get_payload]. *)
+val get_id_from_exp : Parsetree.expression -> (string, unit) Result.t
+
+(* Support for property attributes like zero_alloc *)
+type property =
+  | Zero_alloc
+
+type check_attribute =
+  | Default_check
+  | Ignore_assert_all of property
+  | Check of { property: property;
+               strict: bool;
+               (* [strict=true] property holds on all paths.
+                  [strict=false] if the function returns normally,
+                  then the property holds (but property violations on
+                  exceptional returns or divering loops are ignored).
+                  This definition may not be applicable to new properties. *)
+               opt: bool;
+               loc: Location.t;
+             }
+  | Assume of { property: property;
+                strict: bool;
+                loc: Location.t;
+                never_returns_normally: bool;
+              }
+
+val is_check_enabled : opt:bool -> property -> bool
+
+val get_property_attribute : Parsetree.attributes -> property -> check_attribute
+
+val get_assume_zero_alloc :
+  with_warnings:bool -> Parsetree.attributes -> Assume_info.t
