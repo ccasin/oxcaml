@@ -447,6 +447,20 @@ let filter_attributes ?(mark=true) (nms_and_conds : Attributes_filter.t) attrs =
       nms_and_conds
   ) attrs
 
+let find_attribute ?mark_used p attributes =
+  let inline_attribute =
+    filter_attributes ?mark:mark_used p attributes
+  in
+  let attr =
+    match inline_attribute with
+    | [] -> None
+    | [attr] -> Some attr
+    | attr :: {Parsetree.attr_name = {txt;loc}; _} :: _ ->
+      Location.prerr_warning loc (Warnings.Duplicated_attribute txt);
+      Some attr
+  in
+  attr
+
 let when_attribute_is nms attr ~f =
   if List.mem attr.attr_name.txt nms then begin
     mark_used attr.attr_name;
@@ -659,3 +673,158 @@ let error_message_attr l =
       end
     | _ -> None in
   List.find_map inner l
+
+type property =
+  | Zero_alloc
+
+type check_attribute =
+  | Default_check
+  | Ignore_assert_all of property
+  | Check of { property: property;
+               strict: bool;
+               opt: bool;
+               loc: Location.t;
+             }
+  | Assume of { property: property;
+                strict: bool;
+                loc: Location.t;
+                never_returns_normally: bool;
+              }
+
+let is_check_enabled ~opt property =
+  match property with
+  | Zero_alloc ->
+    match !Clflags.zero_alloc_check with
+    | No_check -> false
+    | Check_all -> true
+    | Check_default -> not opt
+    | Check_opt_only -> opt
+
+let is_property_attribute = function
+  | Zero_alloc -> [ ["zero_alloc"; "ocaml.zero_alloc"], true ]
+
+let get_payload get_from_exp =
+  let open Parsetree in
+  function
+  | PStr [{pstr_desc = Pstr_eval (exp, [])}] -> get_from_exp exp
+  | _ -> Result.Error ()
+
+let get_optional_payload get_from_exp =
+  let open Parsetree in
+  function
+  | PStr [] -> Result.Ok None
+  | other -> Result.map Option.some (get_payload get_from_exp other)
+
+let get_id_from_exp =
+  let open Parsetree in
+  function
+  | { pexp_desc = Pexp_ident { txt = Longident.Lident id } } -> Result.Ok id
+  | _ -> Result.Error ()
+
+let get_ids_from_exp exp =
+  let open Parsetree in
+  (match exp with
+   | { pexp_desc = Pexp_apply (exp, args) } ->
+     get_id_from_exp exp ::
+     List.map (function
+       | (Asttypes.Nolabel, arg) -> get_id_from_exp arg
+       | (_, _) -> Result.Error ())
+       args
+   | _ -> [get_id_from_exp exp])
+  |> List.fold_left (fun acc r ->
+    match acc, r with
+    | Result.Ok ids, Ok id -> Result.Ok (id::ids)
+    | (Result.Error _ | Ok _), _ -> Result.Error ())
+    (Ok [])
+  |> Result.map List.rev
+
+let parse_ids_payload txt loc ~default ~empty cases payload =
+  let[@local] warn () =
+    let ( %> ) f g x = g (f x) in
+    let msg =
+      cases
+      |> List.map (fst %> String.concat " " %> Printf.sprintf "'%s'")
+      |> String.concat ", "
+      |> Printf.sprintf "It must be either %s or empty"
+    in
+    Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+    default
+  in
+  match get_optional_payload get_ids_from_exp payload with
+  | Error () -> warn ()
+  | Ok None -> empty
+  | Ok (Some ids) ->
+      match List.assoc_opt (List.sort String.compare ids) cases with
+      | Some r -> r
+      | None -> warn ()
+
+let parse_property_attribute attr property =
+  match attr with
+  | None -> Default_check
+  | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload}->
+      parse_ids_payload txt loc
+        ~default:Default_check
+        ~empty:(Check { property; strict = false; opt = false; loc; } )
+        [
+          ["assume"],
+          Assume { property; strict = false; never_returns_normally = false; loc; };
+          ["strict"], Check { property; strict = true; opt = false; loc; };
+          ["opt"], Check { property; strict = false; opt = true; loc; };
+          ["opt"; "strict"; ], Check { property; strict = true; opt = true; loc; };
+          ["assume"; "strict"],
+          Assume { property; strict = true; never_returns_normally = false; loc; };
+          ["assume"; "never_returns_normally"],
+          Assume { property; strict = false; never_returns_normally = true; loc; };
+          ["assume"; "never_returns_normally"; "strict"],
+          Assume { property; strict = true; never_returns_normally = true; loc; };
+          ["ignore"], Ignore_assert_all property
+        ]
+        payload
+
+let get_property_attribute l p =
+  let attr = find_attribute (is_property_attribute p) l in
+  let res = parse_property_attribute attr p in
+  (match attr, res with
+   | None, Default_check -> ()
+   | _, Default_check -> ()
+   | None, (Check _ | Assume _ | Ignore_assert_all _) -> assert false
+   | Some _, Ignore_assert_all _ -> ()
+   | Some _, Assume _ -> ()
+   | Some attr, Check { opt; _ } ->
+     if is_check_enabled ~opt p && !Clflags.native_code then
+       (* The warning for unchecked functions will not trigger if the check is requested
+          through the [@@@zero_alloc all] top-level annotation rather than through the
+          function annotation [@zero_alloc]. *)
+       register_property attr.attr_name);
+   res
+
+let assume_zero_alloc ?mark_used attributes : Assume_info.t =
+  let p = Zero_alloc in
+  let attr = find_attribute ?mark_used (is_property_attribute p) attributes in
+  let res = parse_property_attribute attr p in
+  match res with
+  | Default_check -> Assume_info.none
+  | Ignore_assert_all _ -> Assume_info.none
+  | Assume { strict; never_returns_normally; } ->
+    Assume_info.create ~strict ~never_returns_normally
+  | Check { loc; _ } ->
+    let attr = Option.get attr in
+    let name = attr.attr_name.txt in
+    let msg = "Only the following combinations are supported in this context: \
+               'zero_alloc assume', \
+               `zero_alloc assume strict`, \
+               `zero_alloc assume never_returns_normally`,\
+               `zero_alloc assume never_returns_normally strict`."
+    in
+    Location.prerr_warning loc (Warnings.Attribute_payload (name, msg));
+    Assume_info.none
+
+let get_assume_zero_alloc ~with_warnings attributes =
+  if with_warnings then
+    assume_zero_alloc attributes
+  else
+    (* This function is used for "look-ahead" to find attributes
+     that affect [Scoped_location] settings before translation
+     of expressions in that scope.
+     Warnings will be produced by [add_check_attribute]. *)
+    Warnings.without_warnings (fun () -> assume_zero_alloc ~mark_used:false attributes)

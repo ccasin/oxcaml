@@ -439,7 +439,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         let inlined = Translattribute.get_inlined_attribute funct in
         let specialised = Translattribute.get_specialised_attribute funct in
         let assume_zero_alloc =
-          Translattribute.get_assume_zero_alloc ~with_warnings:true
+          Builtin_attributes.get_assume_zero_alloc ~with_warnings:true
             funct.exp_attributes
         in
         let position = transl_apply_position pos in
@@ -456,7 +456,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
       let inlined = Translattribute.get_inlined_attribute funct in
       let specialised = Translattribute.get_specialised_attribute funct in
       let assume_zero_alloc =
-        Translattribute.get_assume_zero_alloc ~with_warnings:true
+        Builtin_attributes.get_assume_zero_alloc ~with_warnings:true
           funct.exp_attributes
       in
       let result_layout = layout_exp sort e in
@@ -1509,7 +1509,7 @@ and transl_function ~in_new_scope ~scopes e params body
   let attrs = e.exp_attributes in
   let mode = transl_alloc_mode_r alloc_mode in
   let assume_zero_alloc =
-    Translattribute.get_assume_zero_alloc ~with_warnings:false attrs
+    Builtin_attributes.get_assume_zero_alloc ~with_warnings:false attrs
   in
   let scopes =
     if in_new_scope then
@@ -1558,7 +1558,7 @@ and transl_bound_exp ~scopes ~in_structure pat sort expr loc attrs =
     match pat_bound_idents pat with
     | (id :: _) when should_introduce_scope ->
       let assume_zero_alloc =
-        Translattribute.get_assume_zero_alloc ~with_warnings:false attrs
+        Builtin_attributes.get_assume_zero_alloc ~with_warnings:false attrs
       in
       let scopes = enter_value_definition ~scopes ~assume_zero_alloc id in
       transl_scoped_exp ~scopes sort expr
