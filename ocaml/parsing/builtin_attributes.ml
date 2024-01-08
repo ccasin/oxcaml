@@ -747,6 +747,34 @@ let get_optional_payload get_from_exp =
   | PStr [] -> Result.Ok None
   | other -> Result.map Option.some (get_payload get_from_exp other)
 
+let get_int_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc = Pexp_constant (Pconst_integer(s, None)) } ->
+        begin match Misc.Int_literal_converter.int s with
+        | n -> Result.Ok n
+        | exception (Failure _) -> Result.Error ()
+        end
+    | _ -> Result.Error ()
+
+let get_construct_from_exp =
+  let open Parsetree in
+  function
+    | { pexp_desc =
+          Pexp_construct ({ txt = Longident.Lident constr }, None) } ->
+        Result.Ok constr
+    | _ -> Result.Error ()
+
+let get_bool_from_exp exp =
+  Result.bind (get_construct_from_exp exp)
+    (function
+      | "true" -> Result.Ok true
+      | "false" -> Result.Ok false
+      | _ -> Result.Error ())
+
+let get_int_payload = get_payload get_int_from_exp
+let get_optional_bool_payload = get_optional_payload get_bool_from_exp
+
 let get_id_from_exp =
   let open Parsetree in
   function
@@ -769,6 +797,26 @@ let get_ids_from_exp exp =
     | (Result.Error _ | Ok _), _ -> Result.Error ())
     (Ok [])
   |> Result.map List.rev
+
+let parse_id_payload txt loc ~default ~empty cases payload =
+  let[@local] warn () =
+    let ( %> ) f g x = g (f x) in
+    let msg =
+      cases
+      |> List.map (fst %> Printf.sprintf "'%s'")
+      |> String.concat ", "
+      |> Printf.sprintf "It must be either %s or empty"
+    in
+    Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
+    default
+  in
+  match get_optional_payload get_id_from_exp payload with
+  | Error () -> warn ()
+  | Ok None -> empty
+  | Ok (Some id) ->
+      match List.assoc_opt id cases with
+      | Some r -> r
+      | None -> warn ()
 
 let parse_ids_payload txt loc ~default ~empty cases payload =
   let[@local] warn () =
