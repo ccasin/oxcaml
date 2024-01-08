@@ -216,24 +216,34 @@ val jkind_attribute_of_string : string -> jkind_attribute option
 *)
 val jkind : Parsetree.attributes -> jkind_attribute Location.loc option
 
-(** [get_payload] is a helper function for working with attribute payloads.
-    Given a payload that consists of a structure containing a single
-    [Pstr_eval], it will call the given function on the inner expression.
-    Otherwise, it returns [Error ()]. *)
-val get_payload :
-  (Parsetree.expression -> ('a, unit) Result.t) -> Parsetree.payload ->
-  ('a, unit) Result.t
+(** [get_int_payload] is a helper for working with attribute payloads.
+    Given a payload that consist of a structure containing exactly
+    {[
+      PStr [
+        {pstr_desc =
+           Pstr_eval (Pexp_constant (Pconst_integer(i, None)), [])
+        }
+      ]
+    ]}
+    it returns [i].
+  *)
+val get_int_payload : Parsetree.payload -> (int, unit) Result.t
 
-(** [get_optional_payload] is like [get_payload], except that in the case that
-    the payload consists of an empty structure, it returns [Ok None] rather than
-    [Error ()] . *)
-val get_optional_payload :
-  (Parsetree.expression -> ('a, unit) Result.t) -> Parsetree.payload ->
-  ('a option, unit) Result.t
+(** [get_optional_bool_payload] is a helper for working with attribute payloads.
+    It behaves like [get_int_payload], except that it looks for a boolean
+    constant rather than an int constant, and returns [None] rather than [Error]
+    if the payload is empty. *)
+val get_optional_bool_payload :
+    Parsetree.payload -> (bool option, unit) Result.t
 
-(** [get_id_from_exp] extracts the string from an identifier expression.
-    Suitable for use with [get_payload]. *)
-val get_id_from_exp : Parsetree.expression -> (string, unit) Result.t
+(** [parse_id_payload] is a helper for parsing information from an identifier
+    attribute payload. If the given payload consists of a single identifier,
+    that identifier is looked up in the association list.  The result is
+    returned, if it exists.  The [empty] value is used if the payload is empty.
+    Otherwise the [default] value is used an a warning is issued. *)
+val parse_id_payload :
+  string -> Location.t -> default:'a -> empty:'a -> (string * 'a) list ->
+  Parsetree.payload -> 'a
 
 (* Support for property attributes like zero_alloc *)
 type property =
