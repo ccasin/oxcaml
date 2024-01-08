@@ -58,54 +58,6 @@ let is_unrolled = function
   | {txt="inline"|"ocaml.inline"|"inlined"|"ocaml.inlined"} -> false
   | _ -> assert false
 
-(* CR ccasinghino: Some similar functionality has been moved to
-   builtin_attributes.  Should we move this too? *)
-let get_int_from_exp =
-  let open Parsetree in
-  function
-    | { pexp_desc = Pexp_constant (Pconst_integer(s, None)) } ->
-        begin match Misc.Int_literal_converter.int s with
-        | n -> Result.Ok n
-        | exception (Failure _) -> Result.Error ()
-        end
-    | _ -> Result.Error ()
-
-let get_construct_from_exp =
-  let open Parsetree in
-  function
-    | { pexp_desc =
-          Pexp_construct ({ txt = Longident.Lident constr }, None) } ->
-        Result.Ok constr
-    | _ -> Result.Error ()
-
-let get_bool_from_exp exp =
-  Result.bind (get_construct_from_exp exp)
-    (function
-      | "true" -> Result.Ok true
-      | "false" -> Result.Ok false
-      | _ -> Result.Error ())
-
-
-let parse_id_payload txt loc ~default ~empty cases payload =
-  let[@local] warn () =
-    let ( %> ) f g x = g (f x) in
-    let msg =
-      cases
-      |> List.map (fst %> Printf.sprintf "'%s'")
-      |> String.concat ", "
-      |> Printf.sprintf "It must be either %s or empty"
-    in
-    Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
-    default
-  in
-  match get_optional_payload get_id_from_exp payload with
-  | Error () -> warn ()
-  | Ok None -> empty
-  | Ok (Some id) ->
-      match List.assoc_opt id cases with
-      | Some r -> r
-      | None -> warn ()
-
 let parse_inline_attribute attr : inline_attribute =
   match attr with
   | None -> Default_inline
@@ -115,7 +67,7 @@ let parse_inline_attribute attr : inline_attribute =
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
       in
-      match get_payload get_int_from_exp payload with
+      match get_int_payload payload with
       | Ok n -> Unroll n
       | Error () ->
         Location.prerr_warning loc (warning txt);
@@ -140,7 +92,7 @@ let parse_inlined_attribute attr : inlined_attribute =
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
       in
-      match get_payload get_int_from_exp payload with
+      match get_int_payload payload with
       | Ok n -> Unroll n
       | Error () ->
         Location.prerr_warning loc (warning txt);
@@ -504,7 +456,7 @@ let get_tailcall_attribute e =
   match attr with
   | None -> Default_tailcall
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-    match get_optional_payload get_bool_from_exp payload with
+    match get_optional_bool_payload payload with
     | Ok (None | Some true) -> Tailcall_expectation true
     | Ok (Some false) -> Tailcall_expectation false
     | Error () ->
