@@ -2518,9 +2518,9 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
 let transl_package_constraint ~loc env jkind_annotation ty =
   (* We snapshot to keep this pure; see the mode crossing test that
      mentions snapshotting for an example. *)
-  (* let snap = Btype.snapshot () in *)
+  let snap = Btype.snapshot () in
   let jkind = Ctype.type_jkind env ty in
-  (* Btype.backtrack snap; *)
+  Btype.backtrack snap;
   { type_params = [];
     type_arity = 0;
     type_kind = Type_abstract Abstract_def;

@@ -102,3 +102,31 @@ Error: In the constrained signature, type P.t is defined to be M.t.
 |}];;
 
 
+(* This example demonstrates the need for the backtracking in [transl_package_constraint].
+   Without it, there is a scope escape error. *)
+module type S = sig
+  type t
+end
+
+type 'a s = (module S with type t = 'a)
+
+module S_int = struct type t = int end
+module S_bool = struct type t = bool end
+
+type 'a rep =
+  | Int : int rep
+  | Bool : bool rep
+
+let dispatch : type r . r rep -> r s =
+  fun (type r) (rep : r rep) ->
+  match rep with
+  | Int -> (module S_int : S with type t = r)
+  | Bool -> (module S_bool : S with type t = r);;
+[%%expect{|
+module type S = sig type t end
+type 'a s = (module S with type t = 'a)
+module S_int : sig type t = int end
+module S_bool : sig type t = bool end
+type 'a rep = Int : int rep | Bool : bool rep
+val dispatch : 'r rep -> 'r s = <fun>
+|}]
