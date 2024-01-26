@@ -13,6 +13,17 @@ module type S = sig type t end
 type m = (module S with type t = int)
 |}];;
 
+(* You may use variables in the current environment in the new definitions. *)
+module type S = sig
+  type t
+end
+
+type 'a m = (module S with type t = 'a);;
+[%%expect{|
+module type S = sig type t end
+type 'a m = (module S with type t = 'a)
+|}];;
+
 (* It works with non-trivial paths. *)
 module type S = sig
   module M : sig
@@ -26,7 +37,7 @@ module type S = sig module M : sig type t end end
 type m = (module S with type M.t = int)
 |}];;
 
-(* It respects immediacy. *)
+(* It should respect immediacy - [m1] should typecheck but not [m2]. *)
 module type S = sig
   type t [@@immediate]
 end
@@ -67,6 +78,7 @@ Error: In the constrained signature, type t is defined to be int.
 |}];;
 
 (* Even if your constraint would be satisfied. *)
+(* It would be nice if this worked. *)
 module type S = sig
   type t = int
 end
@@ -101,6 +113,81 @@ Error: In the constrained signature, type P.t is defined to be M.t.
        Package `with' constraints may only be used on abstract types.
 |}];;
 
+(* If writing a package constraint in a mutually recursive group of type decls,
+   checking that the constraint's immediacy may rely on the definitions of other
+   elements of the mutually recursive group. *)
+module type S = sig
+  type t [@@immediate]
+end
+
+type t1 = int
+and t2 = (module S with type t = t1);;
+[%%expect{|
+module type S = sig type t : immediate end
+type t1 = int
+and t2 = (module S with type t = t1)
+|}];;
+
+module type S = sig
+  type t [@@immediate]
+end
+
+type t1 = (module S with type t = string t2)
+and 'a t2 = 'a;;
+[%%expect{|
+module type S = sig type t : immediate end
+Line 6, characters 0-14:
+6 | and 'a t2 = 'a;;
+    ^^^^^^^^^^^^^^
+Error:
+       The layout of 'a t2 is value, because
+         it instantiates an unannotated type parameter of t2, defaulted to layout value.
+       But the layout of 'a t2 must be a sublayout of immediate, because
+         of the definition of t at line 2, characters 2-22.
+|}];;
+
+(* Though this sometimes fails if the check would require particularly clever
+   inference around typedecl parameters. See also Test 41 in
+   [tests/typing-layouts/basics.ml]. *)
+module type S = sig
+  type t [@@immediate]
+end
+
+type t1 = (module S with type t = int t2)
+and 'a t2 = 'a;;
+[%%expect{|
+module type S = sig type t : immediate end
+Line 6, characters 0-14:
+6 | and 'a t2 = 'a;;
+    ^^^^^^^^^^^^^^
+Error:
+       The layout of 'a t2 is value, because
+         it instantiates an unannotated type parameter of t2, defaulted to layout value.
+       But the layout of 'a t2 must be a sublayout of immediate, because
+         of the definition of t at line 2, characters 2-22.
+|}];;
+
+
+(* When using a package with constraint to give an abstract type a definition
+   that is immediate, that immediacy information should be usable after
+   unpacking. *)
+module type S = sig
+  type t
+end
+
+type m = (module S with type t = int)
+
+module F (X : sig val x : m end) = struct
+  module M = (val X.x)
+  type t = M.t [@@immediate]
+end;;
+[%%expect{|
+module type S = sig type t end
+type m = (module S with type t = int)
+module F :
+  functor (X : sig val x : m end) ->
+    sig module M : sig type t = int end type t = M.t end
+|}];;
 
 (* This example demonstrates the need for the backtracking in [transl_package_constraint].
    Without it, there is a scope escape error. *)

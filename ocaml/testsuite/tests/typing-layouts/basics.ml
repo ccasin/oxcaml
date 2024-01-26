@@ -1027,7 +1027,7 @@ Line 3, characters 2-27:
 Error:
        The layout of 'a s is float64, because
          of the annotation on 'a in the declaration of the type s.
-       But the layout of 'a s must overlap with value, because
+       But the layout of 'a s must be a sublayout of value, because
          it's the type of an object field.
 |}];;
 

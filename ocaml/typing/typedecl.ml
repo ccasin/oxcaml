@@ -1757,7 +1757,7 @@ let transl_type_decl env rec_flag sdecl_list =
      jkind checks *)
   List.iter (fun (checks,loc) ->
     List.iter (fun (ty,jkind) ->
-      match Ctype.constrain_type_jkind new_env ty jkind with
+      match Ctype.check_type_jkind new_env ty jkind with
       | Ok _ -> ()
       | Error err ->
         let err = Errortrace.unification_error ~trace:[Bad_jkind (ty,err)] in

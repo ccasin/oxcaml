@@ -825,6 +825,27 @@ let merge_package_constraint initial_env loc sg lid cty =
           Typedecl.transl_package_constraint ~loc outer_sig_env
             sig_decl.type_jkind_annotation cty.ctyp_type
         in
+        (* Here we constrain the jkind of "with type" manifest to be less the
+           jkind of the declaration from the original signature.  Note that this
+           is also checked in [check_type_decl], but there it is check, not
+           constrain, which we need here to deal with type variables in package
+           constraints (and not in typical type decl inclusion checks, where it
+           would be incorrect).  *)
+        begin match
+          Ctype.constrain_decl_jkind initial_env new_sig_decl
+            sig_decl.type_jkind
+        with
+        | Ok _-> ()
+        | Error v ->
+          let err =
+            Includemod.In_Type_declaration(id,
+              Type_declarations
+                {got=new_sig_decl;
+                 expected=sig_decl;
+                 symptom=Includecore.Jkind v}
+          in
+          raise Includemod.(Error(initial_env, err)
+        end;
         check_type_decl outer_sig_env sg_for_env loc id None
           new_sig_decl sig_decl;
         let new_sig_decl = { new_sig_decl with type_manifest = None } in
