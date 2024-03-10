@@ -302,43 +302,6 @@ let add_local_attribute expr loc attributes =
     end
   | _ -> expr
 
-let add_check_attribute expr loc attributes =
-  let to_string = function
-    | Zero_alloc -> "zero_alloc"
-  in
-  let to_string = function
-    | Check { property; strict; loc = _} ->
-      Printf.sprintf "assert %s%s"
-        (to_string property)
-        (if strict then " strict" else "")
-    | Assume { property; strict; loc = _} ->
-      Printf.sprintf "assume %s%s"
-        (to_string property)
-        (if strict then " strict" else "")
-    | Ignore_assert_all property ->
-      Printf.sprintf "ignore %s" (to_string property)
-    | Default_check -> assert false
-  in
-  match expr with
-  | Lfunction({ attr = { stub = false } as attr; } as funct) ->
-    begin match get_property_attribute attributes Zero_alloc with
-    | Default_check -> expr
-    | (Ignore_assert_all p | Check { property = p; _ } | Assume { property = p; _ })
-      as check ->
-      begin match attr.check with
-      | Default_check -> ()
-      | Ignore_assert_all p'
-      | Assume { property = p'; strict = _; loc = _; }
-      | Check { property = p'; strict = _; loc = _; } ->
-        if p = p' then
-          Location.prerr_warning loc
-            (Warnings.Duplicated_attribute (to_string check));
-      end;
-      let attr = { attr with check } in
-      lfunction_with_attr ~attr funct
-    end
-  | expr -> expr
-
 let add_loop_attribute expr loc attributes =
   match expr with
   | Lfunction({ attr = { stub = false } as attr } as funct) ->
@@ -473,9 +436,6 @@ let add_function_attributes lam loc attr =
   in
   let lam =
     add_local_attribute lam loc attr
-  in
-  let lam =
-    add_check_attribute lam loc attr
   in
   let lam =
     add_loop_attribute lam loc attr
