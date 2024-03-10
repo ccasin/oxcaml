@@ -881,34 +881,21 @@ let get_property_attribute l p =
        register_property attr.attr_name);
    res
 
-let assume_zero_alloc ?mark_used attributes : Assume_info.t =
-  let p = Zero_alloc in
-  let attr = find_attribute ?mark_used (is_property_attribute p) attributes in
-  let res = parse_property_attribute attr p in
-  match attr, res with
-  | None, Default_check -> Assume_info.none
-  | _, Default_check -> Assume_info.none
-  | None, (Check _ | Assume _ | Ignore_assert_all _) -> assert false
-  | Some _, Ignore_assert_all _ -> Assume_info.none
-  | Some _, Assume { strict; never_returns_normally; } ->
+let assume_zero_alloc ~check_allowed check : Assume_info.t =
+  match check with
+  | Default_check -> Assume_info.none
+  | Ignore_assert_all Zero_alloc -> Assume_info.none
+  | Assume { property=Zero_alloc; strict; never_returns_normally; } ->
     Assume_info.create ~strict ~never_returns_normally
-  | Some attr, Check { loc; _ } ->
-    let name = attr.attr_name.txt in
-    let msg = "Only the following combinations are supported in this context: \
-               'zero_alloc assume', \
-               `zero_alloc assume strict`, \
-               `zero_alloc assume never_returns_normally`,\
-               `zero_alloc assume never_returns_normally strict`."
-    in
-    Location.prerr_warning loc (Warnings.Attribute_payload (name, msg));
+  | Check { property=Zero_alloc; loc; _ } ->
+    if not check_allowed then begin
+      let name = "zero_alloc" in
+      let msg = "Only the following combinations are supported in this context: \
+                 'zero_alloc assume', \
+                 `zero_alloc assume strict`, \
+                 `zero_alloc assume never_returns_normally`,\
+                 `zero_alloc assume never_returns_normally strict`."
+      in
+      Location.prerr_warning loc (Warnings.Attribute_payload (name, msg))
+    end;
     Assume_info.none
-
-let get_assume_zero_alloc ~with_warnings attributes =
-  if with_warnings then
-    assume_zero_alloc attributes
-  else
-    (* This function is used for "look-ahead" to find attributes
-     that affect [Scoped_location] settings before translation
-     of expressions in that scope.
-     Warnings will be produced by [add_check_attribute]. *)
-    Warnings.without_warnings (fun () -> assume_zero_alloc ~mark_used:false attributes)
