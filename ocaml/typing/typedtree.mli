@@ -250,8 +250,10 @@ and expression_desc =
       (* Mode where the function allocates, ie local for a function of
          type 'a -> local_ 'b, and heap for a function of type 'a -> 'b *)
       ret_sort : Jkind.sort;
-      alloc_mode : Mode.Alloc.t
+      alloc_mode : Mode.Alloc.t;
       (* Mode at which the closure is allocated *)
+      zero_alloc : Builtin_attributes.check_attribute
+      (* zero-alloc attributes *)
     }
         (** [Pexp_fun] and [Pexp_function] both translate to [Texp_function].
             See {!Parsetree} for more details.
@@ -266,7 +268,9 @@ and expression_desc =
             partial_mode is the mode of the resulting closure if this function
             is partially applied to a single argument.
          *)
-  | Texp_apply of expression * (arg_label * apply_arg) list * apply_position * Mode.Locality.t
+  | Texp_apply of
+      expression * (arg_label * apply_arg) list * apply_position *
+      Mode.Locality.t * Assume_info.t
         (** E0 ~l1:E1 ... ~ln:En
 
             The expression can be Omitted if the expression is abstracted over
