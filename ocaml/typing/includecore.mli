@@ -35,6 +35,7 @@ type value_mismatch =
   | Primitive_mismatch of primitive_mismatch
   | Not_a_primitive
   | Type of Errortrace.moregen_error
+  | Check_attribute (* XXX ccasinghino: Provide more context here. *)
 
 exception Dont_match of value_mismatch
 

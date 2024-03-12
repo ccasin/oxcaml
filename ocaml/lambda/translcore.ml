@@ -220,6 +220,7 @@ let rec push_defaults loc bindings use_lhs arg_mode arg_sort cases
       let desc =
         {val_type = pat.pat_type; val_kind = Val_reg;
          val_attributes = []; Types.val_loc = Location.none;
+         val_zero_alloc = Builtin_attributes.Default_check;
          val_uid = Types.Uid.internal_not_actually_unique; }
       in
       let env = Env.add_value ~mode param desc exp.exp_env in
