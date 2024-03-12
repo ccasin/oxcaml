@@ -965,13 +965,20 @@ let rev_let_bound_idents_full bindings =
   List.iter (fun vb -> iter_bound_idents add vb.vb_pat) bindings;
   !idents_full
 
-let let_bound_idents_with_modes_and_sorts bindings =
+let let_bound_idents_with_modes_sorts_and_checks bindings =
   let modes_and_sorts = Ident.Tbl.create 3 in
   let f id sloc _ _uid mode sort =
-    Ident.Tbl.add modes_and_sorts id (sloc.loc, mode, sort)
+    Ident.Tbl.add modes_and_sorts id
+      (sloc.loc, mode, sort, Builtin_attributes.Default_check)
   in
   List.iter (fun vb ->
-    iter_pattern_full ~both_sides_of_or:true f vb.vb_sort vb.vb_pat)
+    iter_pattern_full ~both_sides_of_or:true f vb.vb_sort vb.vb_pat;
+     match vb.vb_pat.pat_desc, vb.vb_expr.exp_desc with
+     | Tpat_var (id, _, _, _), Texp_function fn ->
+       let (loc, mode, sort, _) = Ident.Tbl.find modes_and_sorts id in
+       Ident.Tbl.replace modes_and_sorts id (loc, mode, sort, fn.zero_alloc)
+     | _ -> ()
+  )
     bindings;
   List.rev_map
     (fun (id, _, _, _) -> id, List.rev (Ident.Tbl.find_all modes_and_sorts id))

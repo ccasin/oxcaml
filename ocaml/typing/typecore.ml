@@ -1029,11 +1029,13 @@ let iter_pattern_variables_type f : pattern_variable list -> unit =
 
 let add_pattern_variables ?check ?check_as env pv =
   List.fold_right
-    (fun {pv_id; pv_uid; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes} env ->
+    (fun {pv_id; pv_uid; pv_mode; pv_type; pv_loc; pv_as_var; pv_attributes}
+      env ->
        let check = if pv_as_var then check_as else check in
        Env.add_value ?check ~mode:pv_mode pv_id
          {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
           val_attributes = pv_attributes;
+          val_zero_alloc = Builtin_attributes.Default_check;
           val_uid = pv_uid
          } env
     )
@@ -2827,6 +2829,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             { val_type = pv_type
             ; val_kind = Val_reg
             ; val_attributes = pv_attributes
+            ; val_zero_alloc = Builtin_attributes.Default_check
             ; val_loc = pv_loc
             ; val_uid = pv_uid
             }
@@ -2837,6 +2840,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             { val_type = pv_type
             ; val_kind = Val_ivar (Immutable, cl_num)
             ; val_attributes = pv_attributes
+            ; val_zero_alloc = Builtin_attributes.Default_check
             ; val_loc = pv_loc
             ; val_uid = pv_uid
             }
@@ -7020,6 +7024,7 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
         let desc =
           { val_type = ty; val_kind = Val_reg;
             val_attributes = [];
+            val_zero_alloc = Builtin_attributes.Default_check;
             val_loc = Location.none;
             val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
           }
