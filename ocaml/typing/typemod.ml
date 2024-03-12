@@ -2817,7 +2817,7 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
           List.fold_left
             (fun (acc, shape_map) (id, modes) ->
               List.iter
-                (fun (loc, mode, sort) ->
+                (fun (loc, mode, sort, _) ->
                    Typecore.escape ~loc ~env:newenv ~reason:Other mode;
                    (* CR layouts v5: this jkind check has the effect of
                       defaulting the sort of top-level bindings to value, which
@@ -2827,17 +2827,23 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
                                    Toplevel_nonvalue (Ident.name id,sort)))
                 )
                 modes;
-              let (first_loc, _, _) = List.hd modes in
+              let zero_alloc =
+                match modes with
+                | [(_, _, _, zero_alloc)] -> zero_alloc
+                | _ -> Builtin_attributes.Default_check
+              in
+              let (first_loc, _, _, _) = List.hd modes in
               Signature_names.check_value names first_loc id;
               let vd =  Env.find_value (Pident id) newenv in
               let vd = Subst.Lazy.force_value_description vd in
+              let vd = { vd with val_zero_alloc = zero_alloc } in
               Env.register_uid vd.val_uid ~loc:vd.val_loc
                 ~attributes:vd.val_attributes;
               Sig_value(id, vd, Exported) :: acc,
               Shape.Map.add_value shape_map id vd.val_uid
             )
             ([], shape_map)
-            (let_bound_idents_with_modes_and_sorts defs)
+            (let_bound_idents_with_modes_sorts_and_checks defs)
         in
         Tstr_value(rec_flag, defs),
         List.rev items,

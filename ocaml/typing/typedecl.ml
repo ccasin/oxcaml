@@ -2467,8 +2467,15 @@ let transl_value_decl env loc valdecl =
   let v =
   match valdecl.pval_prim with
     [] when Env.is_in_signature env ->
+      let zero_alloc =
+        Builtin_attributes.get_property_attribute valdecl.pval_attributes
+          Zero_alloc
+      in
+      (* XXX ccasinghino: throw an error here if the attribute is Check or
+         Ignore_assert_all *)
       { val_type = ty; val_kind = Val_reg; Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes;
+        val_zero_alloc = zero_alloc;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
       }
   | [] ->
@@ -2508,6 +2515,7 @@ let transl_value_decl env loc valdecl =
       check_unboxable env loc ty;
       { val_type = ty; val_kind = Val_prim prim; Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes;
+        val_zero_alloc = Builtin_attributes.Default_check;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
       }
   in

@@ -1062,9 +1062,10 @@ val exists_pattern: (pattern -> bool) -> pattern -> bool
 val let_bound_idents: value_binding list -> Ident.t list
 val let_bound_idents_full:
     value_binding list -> (Ident.t * string loc * Types.type_expr * Uid.t) list
-val let_bound_idents_with_modes_and_sorts:
+val let_bound_idents_with_modes_sorts_and_checks:
   value_binding list
-  -> (Ident.t * (Location.t * Mode.Value.l * Jkind.sort) list) list
+  -> (Ident.t * (Location.t * Mode.Value.l * Jkind.sort
+                 * Builtin_attributes.check_attribute) list) list
 
 (** Alpha conversion of patterns *)
 val alpha_pat:

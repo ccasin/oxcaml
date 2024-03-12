@@ -40,6 +40,7 @@ type value_mismatch =
   | Primitive_mismatch of primitive_mismatch
   | Not_a_primitive
   | Type of Errortrace.moregen_error
+  | Check_attribute (* XXX ccasinghino: Provide more context here. *)
 
 exception Dont_match of value_mismatch
 
@@ -86,6 +87,17 @@ let primitive_descriptions pd1 pd2 =
   else
     native_repr_args pd1.prim_native_repr_args pd2.prim_native_repr_args
 
+let check_attributes ca1 ca2 =
+  (* XXX ccasinghino: the logic below is obviously wrong - just testing - update. *)
+  let open Builtin_attributes in
+  match ca1, ca2 with
+  | Check { property = property1; strict = strict1; opt = opt1 },
+    Check { property = property2; strict = strict2; opt = opt2 }
+    when property1 = property2 && strict1 = strict2 && opt1 = opt2 ->
+    ()
+  | _ ->
+    raise (Dont_match Check_attribute)
+
 let value_descriptions ~loc env name
     (vd1 : Types.value_description)
     (vd2 : Types.value_description) =
@@ -95,6 +107,7 @@ let value_descriptions ~loc env name
     loc
     vd1.val_attributes vd2.val_attributes
     name;
+  check_attributes vd1.val_zero_alloc vd2.val_zero_alloc;
   match vd1.val_kind with
   | Val_prim p1 -> begin
      match vd2.val_kind with
@@ -302,6 +315,8 @@ let report_value_mismatch first second env ppf err =
       Printtyp.report_moregen_error ppf Type_scheme env trace
         (fun ppf -> Format.fprintf ppf "The type")
         (fun ppf -> Format.fprintf ppf "is not compatible with the type")
+  | Check_attribute ->
+    pr "zero_alloc mismatch" (* XXX ccasinghino: more here *)
 
 let report_type_inequality env ppf err =
   Printtyp.report_equality_error ppf Type_scheme env err
