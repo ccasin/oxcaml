@@ -63,6 +63,9 @@ module Make (Witnesses : WS) : sig
 
     val relaxed : Witnesses.t -> t
 
+    val of_annotation :
+      strict:bool -> never_returns_normally:bool -> Witnesses.t -> t
+
     val print : witnesses:bool -> Format.formatter -> t -> unit
   end
 end
