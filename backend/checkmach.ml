@@ -262,12 +262,8 @@ end = struct
 
   let get_loc t = t.loc
 
-  let expected_value t w =
-    let res = if t.strict then Value.safe else Value.relaxed w in
-    let res =
-      if t.never_returns_normally then { res with nor = V.Bot } else res
-    in
-    res
+  let expected_value { strict; never_returns_normally; _ } w =
+    Value.of_annotation ~strict ~never_returns_normally w
 
   let is_assume t = t.assume
 

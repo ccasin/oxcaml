@@ -78,6 +78,9 @@ module Make (Witnesses : WS) : sig
         (i.e., [nor] component is Safe, others are Top.  *)
     val relaxed : Witnesses.t -> t
 
+    val of_annotation :
+      strict:bool -> never_returns_normally:bool -> Witnesses.t -> t
+
     val print : witnesses:bool -> Format.formatter -> t -> unit
 
     (** Use [compare] for structural comparison of terms, for example

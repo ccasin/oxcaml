@@ -78,19 +78,7 @@ let meet t1 t2 =
 let none = No_assume
 
 let create ~strict ~never_returns_normally =
-  let res =
-    if strict then
-      Value.safe
-    else
-      Value.relaxed Witnesses.empty
-  in
-  let res =
-    if never_returns_normally then
-      { res with nor = V.Bot }
-    else
-      res
-  in
-  Assume res
+  Assume (Value.of_annotation ~strict ~never_returns_normally Witnesses.empty)
 
 let get_value t =
   match t with
