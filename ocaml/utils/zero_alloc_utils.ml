@@ -92,6 +92,10 @@ module Make (Witnesses : WS) = struct
 
     let relaxed w = { nor = V.Safe; exn = V.Top w; div = V.Top w }
 
+    let of_annotation ~strict ~never_returns_normally w =
+      let res = if strict then safe else relaxed w in
+      if never_returns_normally then { res with nor = V.Bot } else res
+
     let print ~witnesses ppf { nor; exn; div } =
       let pp = V.print ~witnesses in
       Format.fprintf ppf "{ nor=%a; exn=%a; div=%a }" pp nor pp exn pp div
