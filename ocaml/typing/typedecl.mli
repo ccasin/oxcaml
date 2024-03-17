@@ -130,6 +130,7 @@ type error =
   | Nonrec_gadt
   | Invalid_private_row_declaration of type_expr
   | Local_not_enabled
+  | Unsupported_zero_alloc_attr of Builtin_attributes.check_attribute
 
 exception Error of Location.t * error
 

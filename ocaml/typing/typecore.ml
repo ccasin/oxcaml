@@ -7922,6 +7922,9 @@ and type_let ?check ?check_strict ?(force_toplevel = false)
       (fun (s, ((_,p,_), (e, _))) pvb ->
         (* We check for [zero_alloc] attributes written on the [let] and move
            them to the function. *)
+        (* XXX ccasinghino: Do we want to do this always?  E.g., for all cases
+           of [existential_context]?  Probably want top-level and internal lets
+           but maybe not classes? *)
         let e = add_check_attribute e pvb.pvb_attributes in
         {vb_pat=p; vb_expr=e; vb_sort = s; vb_attributes=pvb.pvb_attributes;
          vb_loc=pvb.pvb_loc;
