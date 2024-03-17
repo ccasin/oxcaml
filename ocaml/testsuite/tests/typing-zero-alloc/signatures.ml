@@ -240,10 +240,227 @@ Error: Signature mismatch:
        The former provides a weaker "zero_alloc" guarantee than the latter
 |}]
 
+module type S3_2 = sig
+  val[@zero_alloc opt] f : 'a -> 'a
+end
+
+module M3_3 : S3_2 = struct
+  let f x = x
+end;;
+
+[%%expect{|
+module type S3_2 = sig val f : 'a -> 'a [@@zero_alloc opt] end
+Lines 5-7, characters 21-3:
+5 | .....................struct
+6 |   let f x = x
+7 | end..
+Error: Signature mismatch:
+       Modules do not match: sig val f : 'a -> 'a end is not included in S3_2
+       Values do not match:
+         val f : 'a -> 'a
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc opt]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module type S3_3 = sig
+  val[@zero_alloc strict] f : 'a -> 'a
+end
+
+module M3_4 : S3_3= struct
+  let f x = x
+end;;
+
+[%%expect{|
+module type S3_3 = sig val f : 'a -> 'a [@@zero_alloc strict] end
+Lines 5-7, characters 20-3:
+5 | ....................struct
+6 |   let f x = x
+7 | end..
+Error: Signature mismatch:
+       Modules do not match: sig val f : 'a -> 'a end is not included in S3_3
+       Values do not match:
+         val f : 'a -> 'a
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_5 : S3_3 = struct
+  let[@zero_alloc assume] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 21-3:
+1 | .....................struct
+2 |   let[@zero_alloc assume] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc] end
+       is not included in
+         S3_3
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_6 : S3_3 = struct
+  let[@zero_alloc opt] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 21-3:
+1 | .....................struct
+2 |   let[@zero_alloc opt] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc opt] end
+       is not included in
+         S3_3
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc opt]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_7 : S3_3 = struct
+  let[@zero_alloc strict opt] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 21-3:
+1 | .....................struct
+2 |   let[@zero_alloc strict opt] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc strict opt] end
+       is not included in
+         S3_3
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc strict opt]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_8 : S3_3 = struct
+  let[@zero_alloc assume never_returns_normally] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 21-3:
+1 | .....................struct
+2 |   let[@zero_alloc assume never_returns_normally] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc] end
+       is not included in
+         S3_3
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module type S3_4 = sig
+  val[@zero_alloc strict opt] f : 'a -> 'a
+end
+
+module M3_9 : S3_4 = struct
+  let f x = x
+end;;
+
+[%%expect{|
+module type S3_4 = sig val f : 'a -> 'a [@@zero_alloc strict opt] end
+Lines 5-7, characters 21-3:
+5 | .....................struct
+6 |   let f x = x
+7 | end..
+Error: Signature mismatch:
+       Modules do not match: sig val f : 'a -> 'a end is not included in S3_4
+       Values do not match:
+         val f : 'a -> 'a
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict opt]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_10 : S3_4 = struct
+  let[@zero_alloc assume] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 22-3:
+1 | ......................struct
+2 |   let[@zero_alloc assume] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc] end
+       is not included in
+         S3_4
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict opt]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_11 : S3_4 = struct
+  let[@zero_alloc opt] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 22-3:
+1 | ......................struct
+2 |   let[@zero_alloc opt] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc opt] end
+       is not included in
+         S3_4
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc opt]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict opt]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
+module M3_12 : S3_4 = struct
+  let[@zero_alloc assume never_returns_normally] f x = x
+end;;
+
+[%%expect{|
+Lines 1-3, characters 22-3:
+1 | ......................struct
+2 |   let[@zero_alloc assume never_returns_normally] f x = x
+3 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : 'a -> 'a [@@zero_alloc] end
+       is not included in
+         S3_4
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc]
+       is not included in
+         val f : 'a -> 'a [@@zero_alloc strict opt]
+       The former provides a weaker "zero_alloc" guarantee than the latter
+|}]
+
 (* Tests to add:
    - disallowed inclusions
    - arity
    - doesn't work on externals
    - various misplaced attribute cases (no arrow)
+   - module type of
    ... *)
 

@@ -2764,21 +2764,18 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
                                    Toplevel_nonvalue (Ident.name id,sort)))
                 )
                 modes;
-              (* The below may be a [zero_alloc assume] or [ignore], which we
-                 are here including in a signature, but which a user can not
-                 otherwise write in a signature themselves.  This works fine in
-                 practice:
-                 - We simply ignore "ignore" annotations in signatures
-                 - Letting users write "assume" annotations in signatures feels
-                   like a misfeature if given their obvious meaning (treat all
-                   implementations as satisfying this).  But since we can only
-                   get them from structures, we instead can treat them just like
-                   normal non-assume annotations and everything works out.
-              *)
               let zero_alloc =
+                (* We only allow "Check" attributes in signatures.  Here we
+                   convert "Assume"s in structures to the equivalent "Check" for
+                   the signature. *)
+                let open Builtin_attributes in
                 match modes with
-                | [(_, _, _, zero_alloc)] -> zero_alloc
-                | _ -> Builtin_attributes.Default_check
+                | [(_, _, _, (Default_check | Ignore_assert_all _))] ->
+                  Default_check
+                | [(_, _, _, (Check _ as zero_alloc))] -> zero_alloc
+                | [(_, _, _, Assume { property; strict; loc; _ })] ->
+                  Check { strict; property; loc; opt = false }
+                | _ -> Default_check
               in
               let (first_loc, _, _, _) = List.hd modes in
               Signature_names.check_value names first_loc id;
