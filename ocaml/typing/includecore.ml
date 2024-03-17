@@ -40,7 +40,7 @@ type value_mismatch =
   | Primitive_mismatch of primitive_mismatch
   | Not_a_primitive
   | Type of Errortrace.moregen_error
-  | Check_attribute (* XXX ccasinghino: Provide more context here. *)
+  | Zero_alloc
 
 exception Dont_match of value_mismatch
 
@@ -88,15 +88,44 @@ let primitive_descriptions pd1 pd2 =
     native_repr_args pd1.prim_native_repr_args pd2.prim_native_repr_args
 
 let check_attributes ca1 ca2 =
-  (* XXX ccasinghino: the logic below is obviously wrong - just testing - update. *)
+  (* The core of the check here is that we translate both attributes into the
+     abstract domain and use the existing inclusion check from there, ensuring
+     what we do in the typechecker matches the backend.
+
+     There are a couple additional details:
+     - [opt] is not captured by the abstract domain, so we need a special check
+       for it.  But it doesn't interact at all with the abstract domain - it's
+       just about whether or not the check happens - so this special check can
+       be fully separate.
+     - [ignore] - ?
+
+     If we ever add more than one property, this should also take that into
+     account.  *)
+  (* XXX ccasinghino: ignoring [ignore] for now, but what is the right thing?
+     ask greta *)
   let open Builtin_attributes in
+  let abstract_value ca =
+    match ca with
+    | Default_check | Ignore_assert_all _ -> Assume_info.Value.top ()
+    | Check { strict; _ } ->
+      Assume_info.Value.of_annotation ~strict ~never_returns_normally:false ()
+    | Assume { strict; never_returns_normally } ->
+      Assume_info.Value.of_annotation ~strict ~never_returns_normally ()
+  in
+  let v1 = abstract_value ca1 in
+  let v2 = abstract_value ca2 in
+  if not (Assume_info.Value.lessequal v1 v2) then
+    (* begin
+     *   Format.printf "Abstract values were:\n %a\n %a\n%!"
+     *     (Assume_info.Value.print ~witnesses:false) v1
+     *     (Assume_info.Value.print ~witnesses:false) v2; *)
+    raise (Dont_match Zero_alloc);
+    (* end; *)
   match ca1, ca2 with
-  | Check { property = property1; strict = strict1; opt = opt1 },
-    Check { property = property2; strict = strict2; opt = opt2 }
-    when property1 = property2 && strict1 = strict2 && opt1 = opt2 ->
-    ()
-  | _ ->
-    raise (Dont_match Check_attribute)
+  | Check { opt = opt1; _ }, Check { opt = opt2; _ } ->
+    if opt1 && not opt2 then
+      raise (Dont_match Zero_alloc)
+  | (Check _ | Default_check | Assume _ | Ignore_assert_all _), _ -> ()
 
 let value_descriptions ~loc env name
     (vd1 : Types.value_description)
@@ -315,8 +344,8 @@ let report_value_mismatch first second env ppf err =
       Printtyp.report_moregen_error ppf Type_scheme env trace
         (fun ppf -> Format.fprintf ppf "The type")
         (fun ppf -> Format.fprintf ppf "is not compatible with the type")
-  | Check_attribute ->
-    pr "zero_alloc mismatch" (* XXX ccasinghino: more here *)
+  | Zero_alloc ->
+    pr "The former provides a weaker \"zero_alloc\" guarantee than the latter"
 
 let report_type_inequality env ppf err =
   Printtyp.report_equality_error ppf Type_scheme env err

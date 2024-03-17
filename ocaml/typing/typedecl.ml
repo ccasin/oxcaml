@@ -104,6 +104,7 @@ type error =
   | Modalities_on_value_description
   | Missing_unboxed_attribute_on_non_value_sort of Jkind.Sort.const
   | Non_value_sort_not_upstream_compatible of Jkind.Sort.const
+  | Unsupported_zero_alloc_attr of Builtin_attributes.check_attribute
 
 open Typedtree
 
@@ -2471,8 +2472,11 @@ let transl_value_decl env loc valdecl =
         Builtin_attributes.get_property_attribute valdecl.pval_attributes
           Zero_alloc
       in
-      (* XXX ccasinghino: throw an error here if the attribute is Check or
-         Ignore_assert_all *)
+      begin match zero_alloc with
+      | Default_check | Check _ -> ()
+      | Assume _ | Ignore_assert_all _ ->
+        raise (Error(valdecl.pval_loc, Unsupported_zero_alloc_attr zero_alloc))
+      end;
       { val_type = ty; val_kind = Val_reg; Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes;
         val_zero_alloc = zero_alloc;
@@ -3239,6 +3243,15 @@ let report_error ppf = function
          the use of -extension-universe (no_extensions|\
          upstream_compatible).@]"
       Jkind.Sort.format_const sort
+  | Unsupported_zero_alloc_attr ca ->
+      let variety = match ca with
+        | Default_check | Check _ -> assert false
+        | Assume _ -> "assume"
+        | Ignore_assert_all _ -> "ignore"
+      in
+      fprintf ppf
+        "@[zero_alloc \"%s\" attributes are not supported in signatures@]"
+        variety
 
 let () =
   Location.register_error_of_exn

@@ -148,6 +148,7 @@ type error =
   | Modalities_on_value_description
   | Missing_unboxed_attribute_on_non_value_sort of Jkind.Sort.const
   | Non_value_sort_not_upstream_compatible of Jkind.Sort.const
+  | Unsupported_zero_alloc_attr of Builtin_attributes.check_attribute
 
 exception Error of Location.t * error
 
