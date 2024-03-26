@@ -2836,8 +2836,8 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
                 | [(_, _, _, (Default_check | Ignore_assert_all _))] ->
                   Default_check
                 | [(_, _, _, (Check _ as zero_alloc))] -> zero_alloc
-                | [(_, _, _, Assume { property; strict; loc; _ })] ->
-                  Check { strict; property; loc; opt = false }
+                | [(_, _, _, Assume { property; strict; arity; loc; _ })] ->
+                  Check { strict; property; arity; loc; opt = false }
                 | _ -> Default_check
               in
               let (first_loc, _, _, _) = List.hd modes in
