@@ -2274,9 +2274,22 @@ let transl_value_decl env loc valdecl =
   let v =
   match valdecl.pval_prim with
     [] when Env.is_in_signature env ->
+      let arity =
+        (* In the future, we can consider expanding the type here, to allow
+           aliases of arrows. Though maybe we want to check for zero_alloc first
+           in that case, to avoid unnecessary expansions. *)
+        let rec count_arrows n = function
+          | Tarrow (_, _, t2, _) -> count_arrows (n+1) (get_desc t2)
+          | _ -> n
+        in
+        count_arrows 0 (get_desc ty)
+      in
       let zero_alloc =
-        Builtin_attributes.get_property_attribute valdecl.pval_attributes
-          Zero_alloc
+        if arity > 0 then
+          Builtin_attributes.get_property_attribute ~arity
+            valdecl.pval_attributes Zero_alloc
+        else
+          Default_check
       in
       begin match zero_alloc with
       | Default_check | Check _ -> ()

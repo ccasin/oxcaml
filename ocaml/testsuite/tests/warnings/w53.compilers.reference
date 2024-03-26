@@ -958,16 +958,6 @@ File "w53.ml", line 433, characters 19-29:
                          ^^^^^^^^^^
 Warning 53 [misplaced-attribute]: the "zero_alloc" attribute cannot appear in this context
 
-File "w53.ml", line 434, characters 17-27:
-434 |   val x : int [@@zero_alloc] (* rejected *)
-                       ^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "zero_alloc" attribute cannot appear in this context
-
-File "w53.ml", line 435, characters 24-34:
-435 |   val f : int -> int [@@zero_alloc] (* rejected *)
-                              ^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "zero_alloc" attribute cannot appear in this context
-
 File "w53.ml", line 437, characters 22-32:
 437 |   external y : (int [@zero_alloc]) -> (int [@zero_alloc]) = "x" (* rejected *)
                             ^^^^^^^^^^
