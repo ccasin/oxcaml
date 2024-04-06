@@ -248,7 +248,7 @@ type check_attribute =
                (* [strict=true] property holds on all paths.
                   [strict=false] if the function returns normally,
                   then the property holds (but property violations on
-                  exceptional returns or divering loops are ignored).
+                  exceptional returns or diverging loops are ignored).
                   This definition may not be applicable to new properties. *)
                opt: bool;
                loc: Location.t;
