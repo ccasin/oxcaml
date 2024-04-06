@@ -16,7 +16,6 @@
 open Typedtree
 open Lambda
 open Location
-open Builtin_attributes
 
 let is_inline_attribute =
   [ ["inline"; "ocaml.inline"],true ]
@@ -67,13 +66,13 @@ let parse_inline_attribute attr : inline_attribute =
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
       in
-      match get_int_payload payload with
+      match Builtin_attributes.get_int_payload payload with
       | Ok n -> Unroll n
       | Error () ->
         Location.prerr_warning loc (warning txt);
         Default_inline
     end else
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_inline
         ~empty:Always_inline
         [
@@ -92,13 +91,13 @@ let parse_inlined_attribute attr : inlined_attribute =
       let warning txt = Warnings.Attribute_payload
           (txt, "It must be an integer literal")
       in
-      match get_int_payload payload with
+      match Builtin_attributes.get_int_payload payload with
       | Ok n -> Unroll n
       | Error () ->
         Location.prerr_warning loc (warning txt);
         Default_inlined
     end else
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_inlined
         ~empty:Always_inlined
         [
@@ -112,7 +111,7 @@ let parse_specialise_attribute attr =
   match attr with
   | None -> Default_specialise
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_specialise
         ~empty:Always_specialise
         [
@@ -125,7 +124,7 @@ let parse_local_attribute attr =
   match attr with
   | None -> Default_local
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_local
         ~empty:Always_local
         [
@@ -139,7 +138,7 @@ let parse_poll_attribute attr =
   match attr with
   | None -> Default_poll
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_poll
         ~empty:Default_poll
         [
@@ -151,7 +150,7 @@ let parse_loop_attribute attr =
   match attr with
   | None -> Default_loop
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:Default_loop
         ~empty:Always_loop
         [
@@ -164,13 +163,14 @@ let parse_opaque_attribute attr =
   match attr with
   | None -> false
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      parse_id_payload txt loc
+      Builtin_attributes.parse_id_payload txt loc
         ~default:false
         ~empty:true
         []
         payload
 
-let find_attribute p l = find_attribute (Attributes_filter.create p) l
+let find_attribute p l =
+  Builtin_attributes.(find_attribute (Attributes_filter.create p) l)
 
 let get_inline_attribute l =
   let attr = find_attribute is_inline_attribute l in
@@ -419,7 +419,7 @@ let get_tailcall_attribute e =
   match attr with
   | None -> Default_tailcall
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-    match get_optional_bool_payload payload with
+    match Builtin_attributes.get_optional_bool_payload payload with
     | Ok (None | Some true) -> Tailcall_expectation true
     | Ok (Some false) -> Tailcall_expectation false
     | Error () ->

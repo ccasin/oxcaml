@@ -5343,11 +5343,11 @@ and type_expect_
         type_application env loc expected_mode pm funct funct_mode sargs rt
       in
       let assume_zero_alloc =
-        let open Builtin_attributes in
         let zero_alloc =
-          get_property_attribute sfunct.pexp_attributes Zero_alloc
+          Builtin_attributes.get_property_attribute sfunct.pexp_attributes
+            Zero_alloc
         in
-        assume_zero_alloc ~check_allowed:false zero_alloc
+        Builtin_attributes.assume_zero_alloc ~check_allowed:false zero_alloc
       in
 
       rue {
