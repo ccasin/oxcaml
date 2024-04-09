@@ -1547,17 +1547,17 @@ and transl_scoped_exp ~scopes sort expr =
 
 (* Decides whether a pattern binding should introduce a new scope. *)
 and transl_bound_exp ~scopes ~in_structure pat sort expr loc attrs =
-  let should_introduce_scope, zero_alloc =
+  let should_introduce_scope =
     match expr.exp_desc with
-    | Texp_function { zero_alloc } -> true, zero_alloc
-    | _ when in_structure -> true, Default_check
-    | _ -> false, Default_check in
+    | Texp_function _ -> true
+    | _ when in_structure -> true
+    | _ -> false in
   let lam =
     match pat_bound_idents pat with
     | (id :: _) when should_introduce_scope ->
-      let assume_zero_alloc =
-        Builtin_attributes.assume_zero_alloc ~is_check_allowed:true zero_alloc
-      in
+      let assume_zero_alloc = Zero_alloc_utils.Assume_info.none in
+      (* If this is a let-binding of a function, the scope will be updated
+         with zero_alloc info in [transl_function]. *)
       let scopes = enter_value_definition ~scopes ~assume_zero_alloc id in
       transl_scoped_exp ~scopes sort expr
     | _ -> transl_exp ~scopes sort expr
