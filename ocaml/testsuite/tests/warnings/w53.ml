@@ -515,6 +515,12 @@ module TestZeroAllocStruct = struct
       method[@zero_alloc] baz x = (f (z+10), x+1) (* rejected *)
     end)
 
+  let[@zero_alloc] f1 = fun x y -> (x,y) (* accepted *)
+  let f2 = fun [@zero_alloc] x y -> (x,y) (* accepted *)
+
+  let[@zero_alloc ignore] f3 = fun x y -> (x,y) (* accepted *)
+  let f4 = fun [@zero_alloc ignore] x y -> (x,y) (* accepted *)
+
   (* assume on calls goes on the function being called *)
   let[@inline never] boz x = (x,x)
   let[@zero_alloc] fiz x =
