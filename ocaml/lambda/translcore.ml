@@ -1505,7 +1505,7 @@ and transl_function ~in_new_scope ~scopes e params body
   let attrs = e.exp_attributes in
   let mode = transl_alloc_mode_r alloc_mode in
   let assume_zero_alloc =
-    Builtin_attributes.assume_zero_alloc ~check_allowed:true zero_alloc
+    Builtin_attributes.assume_zero_alloc ~is_check_allowed:true zero_alloc
   in
   let scopes =
     if in_new_scope then
@@ -1556,7 +1556,7 @@ and transl_bound_exp ~scopes ~in_structure pat sort expr loc attrs =
     match pat_bound_idents pat with
     | (id :: _) when should_introduce_scope ->
       let assume_zero_alloc =
-        Builtin_attributes.assume_zero_alloc ~check_allowed:true zero_alloc
+        Builtin_attributes.assume_zero_alloc ~is_check_allowed:true zero_alloc
       in
       let scopes = enter_value_definition ~scopes ~assume_zero_alloc id in
       transl_scoped_exp ~scopes sort expr

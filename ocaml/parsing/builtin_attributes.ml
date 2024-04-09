@@ -846,14 +846,14 @@ let get_property_attribute l p =
        register_property attr.attr_name);
    res
 
-let assume_zero_alloc ~check_allowed check : Assume_info.t =
+let assume_zero_alloc ~is_check_allowed check : Assume_info.t =
   match check with
   | Default_check -> Assume_info.none
   | Ignore_assert_all Zero_alloc -> Assume_info.none
   | Assume { property=Zero_alloc; strict; never_returns_normally; } ->
     Assume_info.create ~strict ~never_returns_normally
   | Check { property=Zero_alloc; loc; _ } ->
-    if not check_allowed then begin
+    if not is_check_allowed then begin
       let name = "zero_alloc" in
       let msg = "Only the following combinations are supported in this context: \
                  'zero_alloc assume', \

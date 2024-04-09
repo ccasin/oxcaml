@@ -5347,7 +5347,7 @@ and type_expect_
           Builtin_attributes.get_property_attribute sfunct.pexp_attributes
             Zero_alloc
         in
-        Builtin_attributes.assume_zero_alloc ~check_allowed:false zero_alloc
+        Builtin_attributes.assume_zero_alloc ~is_check_allowed:false zero_alloc
       in
 
       rue {
