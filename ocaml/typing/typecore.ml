@@ -7368,7 +7368,7 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
               |> Value.regionality
               |> regional_to_global
               |> Locality.disallow_right,
-              Assume_info.none)}
+              Zero_alloc_utils.Assume_info.none)}
         in
         let cases = [ case eta_pat e ] in
         let cases_loc = { texp.exp_loc with loc_ghost = true } in

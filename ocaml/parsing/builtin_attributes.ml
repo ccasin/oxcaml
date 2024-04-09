@@ -846,12 +846,12 @@ let get_property_attribute l p =
        register_property attr.attr_name);
    res
 
-let assume_zero_alloc ~is_check_allowed check : Assume_info.t =
+let assume_zero_alloc ~is_check_allowed check : Zero_alloc_utils.Assume_info.t =
   match check with
-  | Default_check -> Assume_info.none
-  | Ignore_assert_all Zero_alloc -> Assume_info.none
+  | Default_check -> Zero_alloc_utils.Assume_info.none
+  | Ignore_assert_all Zero_alloc -> Zero_alloc_utils.Assume_info.none
   | Assume { property=Zero_alloc; strict; never_returns_normally; } ->
-    Assume_info.create ~strict ~never_returns_normally
+    Zero_alloc_utils.Assume_info.create ~strict ~never_returns_normally
   | Check { property=Zero_alloc; loc; _ } ->
     if not is_check_allowed then begin
       let name = "zero_alloc" in
@@ -863,4 +863,4 @@ let assume_zero_alloc ~is_check_allowed check : Assume_info.t =
       in
       Location.prerr_warning loc (Warnings.Attribute_payload (name, msg))
     end;
-    Assume_info.none
+    Zero_alloc_utils.Assume_info.none

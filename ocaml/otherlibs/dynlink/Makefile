@@ -100,7 +100,6 @@ COMPILERLIBS_SOURCES=\
   utils/symbol.ml \
   utils/lazy_backtrack.ml \
   utils/zero_alloc_utils.ml \
-  utils/assume_info.ml \
   parsing/location.ml \
   parsing/longident.ml \
   parsing/docstrings.ml \

@@ -143,7 +143,7 @@ and expression_desc =
       }
   | Texp_apply of
       expression * (arg_label * apply_arg) list * apply_position *
-        Mode.Locality.l * Assume_info.t
+        Mode.Locality.l * Zero_alloc_utils.Assume_info.t
   | Texp_match of expression * Jkind.sort * computation case list * partial
   | Texp_try of expression * value case list
   | Texp_tuple of (string option * expression) list * Mode.Alloc.r

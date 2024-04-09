@@ -435,8 +435,9 @@ and expression i ppf x =
          | Nontail -> "Nontail"
          | Default -> "Default");
       locality_mode i ppf am;
-      if not (Assume_info.is_none za) then
-        line i ppf "assume_zero_alloc %a\n" Assume_info.print za;
+      if not (Zero_alloc_utils.Assume_info.is_none za) then
+        line i ppf "assume_zero_alloc %a\n"
+          Zero_alloc_utils.Assume_info.print za;
       expression i ppf e;
       list i label_x_apply_arg ppf l;
   | Texp_match (e, sort, l, _partial) ->

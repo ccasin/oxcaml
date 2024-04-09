@@ -55,8 +55,7 @@ UTILS = \
   utils/lazy_backtrack.cmo \
   utils/zero_alloc_utils.cmo \
   utils/diffing.cmo \
-  utils/diffing_with_keys.cmo \
-  utils/assume_info.cmo
+  utils/diffing_with_keys.cmo
 UTILS_CMI = \
 
 PARSING = \
