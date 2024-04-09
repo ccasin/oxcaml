@@ -227,14 +227,14 @@ val get_int_payload : Parsetree.payload -> (int, unit) Result.t
 val get_optional_bool_payload :
     Parsetree.payload -> (bool option, unit) Result.t
 
-(** [parse_id_payload] is a helper for parsing information from an identifier
-    attribute payload. If the given payload consists of a single identifier,
-    that identifier is looked up in the association list.  The result is
-    returned, if it exists.  The [empty] value is used if the payload is empty.
-    Otherwise the [default] value is used an a warning is issued. *)
-val parse_id_payload :
-  string -> Location.t -> default:'a -> empty:'a -> (string * 'a) list ->
-  Parsetree.payload -> 'a
+(** [parse_id_payload] is a helper for parsing information from an attribute
+   whose payload is an identifier. If the given payload consists of a single
+   identifier, that identifier is looked up in the association list.  The result
+   is returned, if it exists.  The [empty] value is returned if the payload is
+   empty.  Otherwise, [Error ()] is returned and a warning is issued. *)
+val parse_optional_id_payload :
+  string -> Location.t -> empty:'a -> (string * 'a) list ->
+  Parsetree.payload -> ('a,unit) Result.t
 
 (* Support for property attributes like zero_alloc *)
 type property =

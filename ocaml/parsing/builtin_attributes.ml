@@ -766,7 +766,7 @@ let get_ids_from_exp exp =
     (Ok [])
   |> Result.map List.rev
 
-let parse_id_payload txt loc ~default ~empty cases payload =
+let parse_optional_id_payload txt loc ~empty cases payload =
   let[@local] warn () =
     let ( %> ) f g x = g (f x) in
     let msg =
@@ -776,14 +776,14 @@ let parse_id_payload txt loc ~default ~empty cases payload =
       |> Printf.sprintf "It must be either %s or empty"
     in
     Location.prerr_warning loc (Warnings.Attribute_payload (txt, msg));
-    default
+    Error ()
   in
   match get_optional_payload get_id_from_exp payload with
   | Error () -> warn ()
-  | Ok None -> empty
+  | Ok None -> Ok empty
   | Ok (Some id) ->
       match List.assoc_opt id cases with
-      | Some r -> r
+      | Some r -> Ok r
       | None -> warn ()
 
 let parse_ids_payload txt loc ~default ~empty cases payload =

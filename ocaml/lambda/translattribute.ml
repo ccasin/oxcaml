@@ -57,6 +57,13 @@ let is_unrolled = function
   | {txt="inline"|"ocaml.inline"|"inlined"|"ocaml.inlined"} -> false
   | _ -> assert false
 
+let parse_id_payload txt loc options ~default ~empty payload =
+  match
+    Builtin_attributes.parse_optional_id_payload txt loc options ~empty payload
+  with
+  | Ok a -> a
+  | Error () -> default
+
 let parse_inline_attribute attr : inline_attribute =
   match attr with
   | None -> Default_inline
@@ -72,7 +79,7 @@ let parse_inline_attribute attr : inline_attribute =
         Location.prerr_warning loc (warning txt);
         Default_inline
     end else
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_inline
         ~empty:Always_inline
         [
@@ -97,7 +104,7 @@ let parse_inlined_attribute attr : inlined_attribute =
         Location.prerr_warning loc (warning txt);
         Default_inlined
     end else
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_inlined
         ~empty:Always_inlined
         [
@@ -111,7 +118,7 @@ let parse_specialise_attribute attr =
   match attr with
   | None -> Default_specialise
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_specialise
         ~empty:Always_specialise
         [
@@ -124,7 +131,7 @@ let parse_local_attribute attr =
   match attr with
   | None -> Default_local
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_local
         ~empty:Always_local
         [
@@ -138,7 +145,7 @@ let parse_poll_attribute attr =
   match attr with
   | None -> Default_poll
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_poll
         ~empty:Default_poll
         [
@@ -150,7 +157,7 @@ let parse_loop_attribute attr =
   match attr with
   | None -> Default_loop
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:Default_loop
         ~empty:Always_loop
         [
@@ -163,7 +170,7 @@ let parse_opaque_attribute attr =
   match attr with
   | None -> false
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload} ->
-      Builtin_attributes.parse_id_payload txt loc
+      parse_id_payload txt loc
         ~default:false
         ~empty:true
         []
