@@ -289,7 +289,11 @@ and expression_desc =
                         [(Nolabel, Omitted _);
                          (Labelled "y", Some (Texp_constant Const_int 3))
                         ])
-         *)
+
+            The [Zero_alloc_utils.Assume_info.t] records the optional
+            [@zero_alloc assume] attribute that may appear on applications.  If
+            that attribute is absent, it is [Assume_info.none].
+          *)
   | Texp_match of expression * Jkind.sort * computation case list * partial
         (** match E0 with
             | P1 -> E1

@@ -168,6 +168,9 @@ module Assume_info = struct
   type t =
     | No_assume
     | Assume of Value.t
+  (* CR ccasinghino: consider extending this time to also capture "check"
+     attributes, and using it everywhere in typed tree instead of sometimes
+     having a check_attribute and sometimes having this type. *)
 
   let compare t1 t2 =
     match t1, t2 with
