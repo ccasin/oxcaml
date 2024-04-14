@@ -685,12 +685,14 @@ type check_attribute =
   | Check of { property: property;
                strict: bool;
                opt: bool;
+               arity: int;
                loc: Location.t;
              }
   | Assume of { property: property;
                 strict: bool;
-                loc: Location.t;
                 never_returns_normally: bool;
+                arity: int;
+                loc: Location.t;
               }
 
 let is_check_enabled ~opt property =
@@ -808,32 +810,38 @@ let parse_ids_payload txt loc ~default ~empty cases payload =
       | Some r -> r
       | None -> warn ()
 
-let parse_property_attribute attr property =
+let parse_property_attribute ~arity attr property =
   match attr with
   | None -> Default_check
   | Some {Parsetree.attr_name = {txt; loc}; attr_payload = payload}->
       parse_ids_payload txt loc
         ~default:Default_check
-        ~empty:(Check { property; strict = false; opt = false; loc; } )
+        ~empty:(Check { property; strict = false; opt = false; arity; loc; } )
         [
-          ["assume"],
-          Assume { property; strict = false; never_returns_normally = false; loc; };
-          ["strict"], Check { property; strict = true; opt = false; loc; };
-          ["opt"], Check { property; strict = false; opt = true; loc; };
-          ["opt"; "strict"; ], Check { property; strict = true; opt = true; loc; };
-          ["assume"; "strict"],
-          Assume { property; strict = true; never_returns_normally = false; loc; };
-          ["assume"; "never_returns_normally"],
-          Assume { property; strict = false; never_returns_normally = true; loc; };
-          ["assume"; "never_returns_normally"; "strict"],
-          Assume { property; strict = true; never_returns_normally = true; loc; };
-          ["ignore"], Ignore_assert_all property
+          (["assume"],
+           Assume { property; strict = false; never_returns_normally = false;
+                    arity; loc; });
+          (["strict"],
+           Check { property; strict = true; opt = false; arity; loc; });
+          (["opt"], Check { property; strict = false; opt = true; arity; loc; });
+          (["opt"; "strict"; ],
+           Check { property; strict = true; opt = true; arity; loc; });
+          (["assume"; "strict"],
+           Assume { property; strict = true; never_returns_normally = false;
+                    arity; loc; });
+          (["assume"; "never_returns_normally"],
+           Assume { property; strict = false; never_returns_normally = true;
+                    arity; loc; });
+          (["assume"; "never_returns_normally"; "strict"],
+           Assume { property; strict = true; never_returns_normally = true;
+                    arity; loc; });
+          (["ignore"], Ignore_assert_all property)
         ]
         payload
 
-let get_property_attribute l p =
+let get_property_attribute ~arity l p =
   let attr = find_attribute (is_property_attribute p) l in
-  let res = parse_property_attribute attr p in
+  let res = parse_property_attribute ~arity attr p in
   (match attr, res with
    | None, Default_check -> ()
    | _, Default_check -> ()

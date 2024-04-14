@@ -117,6 +117,8 @@ type error =
   | Modalities_on_value_description
   | Missing_unboxed_attribute_on_non_value_sort of Jkind.Sort.const
   | Non_value_sort_not_upstream_compatible of Jkind.Sort.const
+  | Zero_alloc_attr_unsupported of Builtin_attributes.check_attribute
+  | Zero_alloc_attr_bad_arity
 
 open Typedtree
 
@@ -2619,8 +2621,36 @@ let transl_value_decl env loc valdecl =
   let v =
   match valdecl.pval_prim with
     [] when Env.is_in_signature env ->
+      let zero_alloc : Builtin_attributes.check_attribute =
+        (* First check if there is a zero_alloc attribute at all, just to avoid
+           a potentially costly expansion if not. *)
+        let has_zero_alloc =
+          Builtin_attributes.has_attribute ["zero_alloc"]
+            valdecl.pval_attributes
+        in
+        let rec count_arrows n ty =
+          match get_desc (Ctype.expand_head env ty) with
+          | Tarrow (_, _, t2, _) -> count_arrows (n+1) t2
+          | _ -> n
+        in
+        if has_zero_alloc then
+          let arity = count_arrows 0 ty in
+          Builtin_attributes.get_property_attribute ~arity
+            valdecl.pval_attributes Zero_alloc
+        else
+          Default_check
+      in
+      begin match zero_alloc with
+      | Default_check -> ()
+      | Check za ->
+        if za.arity = 0 then
+          raise (Error(valdecl.pval_loc, Zero_alloc_attr_bad_arity))
+      | Assume _ | Ignore_assert_all _ ->
+        raise (Error(valdecl.pval_loc, Zero_alloc_attr_unsupported zero_alloc))
+      end;
       { val_type = ty; val_kind = Val_reg; Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes;
+        val_zero_alloc = zero_alloc;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
       }
   | [] ->
@@ -2660,6 +2690,7 @@ let transl_value_decl env loc valdecl =
       check_unboxable env loc ty;
       { val_type = ty; val_kind = Val_prim prim; Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes;
+        val_zero_alloc = Builtin_attributes.Default_check;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
       }
   in
@@ -3412,6 +3443,20 @@ let report_error ppf = function
          the use of -extension-universe (no_extensions|\
          upstream_compatible).@]"
       Jkind.Sort.format_const sort
+  | Zero_alloc_attr_unsupported ca ->
+      let variety = match ca with
+        | Default_check | Check _ -> assert false
+        | Assume _ -> "assume"
+        | Ignore_assert_all _ -> "ignore"
+      in
+      fprintf ppf
+        "@[zero_alloc \"%s\" attributes are not supported in signatures@]"
+        variety
+  | Zero_alloc_attr_bad_arity ->
+    fprintf ppf
+      "@[In signatures, zero_alloc is only supported on function declarations.\
+         @ Found no arrows in this declaration's type.@]"
+
 
 let () =
   Location.register_error_of_exn

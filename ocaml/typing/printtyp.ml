@@ -1976,11 +1976,29 @@ let tree_of_value_description id decl =
   (* Important: process the fvs *after* the type; tree_of_type_scheme
      resets the naming context *)
   let qtvs = extract_qtvs [decl.val_type] in
+  let attrs =
+    match decl.val_zero_alloc with
+    | Default_check | Ignore_assert_all _ -> []
+    | Check { strict; opt } ->
+      [{ oattr_name =
+           String.concat ""
+             ["zero_alloc";
+              if strict then " strict" else "";
+              if opt then " opt" else ""] }]
+    | Assume { strict; never_returns_normally; _ } ->
+      [{ oattr_name =
+           String.concat ""
+             ["zero_alloc assume";
+              if strict then " strict" else "";
+              if never_returns_normally then " never_returns_normally" else ""]
+       }]
+  in
   let vd =
     { oval_name = id;
       oval_type = Otyp_poly(qtvs, ty);
       oval_prims = [];
-      oval_attributes = [] }
+      oval_attributes = attrs
+    }
   in
   let vd =
     match decl.val_kind with
