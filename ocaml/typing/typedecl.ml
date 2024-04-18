@@ -2621,24 +2621,17 @@ let transl_value_decl env loc valdecl =
   let v =
   match valdecl.pval_prim with
     [] when Env.is_in_signature env ->
-      let zero_alloc : Builtin_attributes.check_attribute =
-        (* First check if there is a zero_alloc attribute at all, just to avoid
-           a potentially costly expansion if not. *)
-        let has_zero_alloc =
-          Builtin_attributes.has_attribute ["zero_alloc"]
-            valdecl.pval_attributes
-        in
+      let default_arity =
         let rec count_arrows n ty =
-          match get_desc (Ctype.expand_head env ty) with
+          match get_desc ty with
           | Tarrow (_, _, t2, _) -> count_arrows (n+1) t2
           | _ -> n
         in
-        if has_zero_alloc then
-          let arity = count_arrows 0 ty in
-          Builtin_attributes.get_property_attribute ~arity
-            valdecl.pval_attributes Zero_alloc
-        else
-          Default_check
+        count_arrows 0 ty
+      in
+      let zero_alloc =
+        Builtin_attributes.get_property_attribute ~is_arity_allowed:true
+          ~default_arity valdecl.pval_attributes Zero_alloc
       in
       begin match zero_alloc with
       | Default_check -> ()
@@ -3455,7 +3448,8 @@ let report_error ppf = function
   | Zero_alloc_attr_bad_arity ->
     fprintf ppf
       "@[In signatures, zero_alloc is only supported on function declarations.\
-         @ Found no arrows in this declaration's type.@]"
+         @ Found no arrows in this declaration's type.\
+         @ Hint: You can add \"(arity n)\" to specify the arity of an alias.@]"
 
 
 let () =

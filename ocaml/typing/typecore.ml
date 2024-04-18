@@ -5061,8 +5061,12 @@ let add_check_attribute expr attributes =
   in
   match expr.exp_desc with
   | Texp_function fn ->
-    let arity = function_arity fn.params fn.body in
-    begin match get_property_attribute ~arity attributes Zero_alloc with
+    let default_arity = function_arity fn.params fn.body in
+    let za =
+      get_property_attribute ~is_arity_allowed:false ~default_arity attributes
+        Zero_alloc
+    in
+    begin match za with
     | Default_check -> expr
     | (Ignore_assert_all _ | Check _ | Assume _) as check ->
       begin match fn.zero_alloc with
@@ -5404,10 +5408,10 @@ and type_expect_
         type_application env loc expected_mode pm funct funct_mode sargs rt
       in
       let assume_zero_alloc =
-        let arity = List.length args in
+        let default_arity = List.length args in
         let zero_alloc =
-          Builtin_attributes.get_property_attribute ~arity
-            sfunct.pexp_attributes Zero_alloc
+          Builtin_attributes.get_property_attribute ~is_arity_allowed:false
+            ~default_arity sfunct.pexp_attributes Zero_alloc
         in
         Builtin_attributes.assume_zero_alloc ~is_check_allowed:false zero_alloc
       in
@@ -8874,8 +8878,8 @@ and type_n_ary_function
               (filter_ty_ret_exn ret_ty Nolabel ~force_tpoly:true : type_expr)
     end;
     let zero_alloc =
-      Builtin_attributes.get_property_attribute ~arity:syntactic_arity
-        attributes Zero_alloc
+      Builtin_attributes.get_property_attribute ~is_arity_allowed:false
+        ~default_arity:syntactic_arity attributes Zero_alloc
     in
     re
       { exp_desc =
