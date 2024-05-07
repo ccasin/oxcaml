@@ -21,7 +21,7 @@ module type Sort = sig
   type t
 
   (** These are the constant sorts -- fully determined and without variables *)
-  type const =
+  type base =
     | Void  (** No run time representation at all *)
     | Value  (** Standard ocaml value representation *)
     | Float64  (** Unboxed 64-bit floats *)
@@ -33,8 +33,14 @@ module type Sort = sig
   (** A sort variable that can be unified during type-checking. *)
   type var
 
+  type const =
+    | Const_base of base
+    | Const_product of const list
+
   module Const : sig
-    type t = const
+    type t = const =
+      | Const_base of base
+      | Const_product of t list
 
     val equal : t -> t -> bool
 
@@ -65,6 +71,8 @@ module type Sort = sig
 
   (** Create a new sort variable that can be unified. *)
   val new_var : unit -> t
+
+  val of_base : base -> t
 
   val of_const : Const.t -> t
 
@@ -167,6 +175,7 @@ module History = struct
     | Optional_arg_default
     | Layout_poly_in_external
     | Array_element
+    | Unboxed_tuple_element
 
   type annotation_context =
     | Type_declaration of Path.t
@@ -253,6 +262,8 @@ module History = struct
 
   type bits64_creation_reason = Primitive of Ident.t
 
+  type product_creation_reason = Unboxed_tuple
+
   type creation_reason =
     | Annotated of annotation_context * Location.t
     | Missing_cmi of Path.t
@@ -266,6 +277,7 @@ module History = struct
     | Word_creation of word_creation_reason
     | Bits32_creation of bits32_creation_reason
     | Bits64_creation of bits64_creation_reason
+    | Product_creation of product_creation_reason
     | Concrete_creation of concrete_jkind_reason
     | Imported
     | Imported_type_argument of

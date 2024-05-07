@@ -328,22 +328,36 @@ let print_jkind_with_modes ppf print_jkind base modes =
           (print_list (fun ppf -> fprintf ppf "%s") (fun ppf -> fprintf ppf "@ "))
           modes
 
-let print_out_jkind ppf = function
-  | Ojkind_const { base; modal_bounds=[] } ->
-    fprintf ppf "%s" base
-  | Ojkind_const { base; modal_bounds=_::_ as modal_bounds } ->
-    print_jkind_with_modes ppf (fun ppf -> fprintf ppf "%s") base modal_bounds
-  | Ojkind_var v -> fprintf ppf "%s" v
-  | Ojkind_user jkind ->
-    let rec print_out_jkind_user ppf = function
-      | Ojkind_user_default -> fprintf ppf "_"
-      | Ojkind_user_abbreviation abbrev -> fprintf ppf "%s" abbrev
-      | Ojkind_user_mod (base, modes) ->
-        print_jkind_with_modes ppf print_out_jkind_user base modes
-      | Ojkind_user_with _ | Ojkind_user_kind_of _ ->
-        failwith "XXX unimplemented jkind syntax"
-    in
-    print_out_jkind_user ppf jkind
+let print_out_jkind ppf k =
+  let rec print_out_jkind nested ppf k =
+    match k with
+    | Ojkind_const { base; modal_bounds=[] } ->
+      fprintf ppf "%s" base
+    | Ojkind_const { base; modal_bounds=_::_ as modal_bounds } ->
+      print_jkind_with_modes ppf (fun ppf -> fprintf ppf "%s") base modal_bounds
+    | Ojkind_var v -> fprintf ppf "%s" v
+    | Ojkind_user jkind ->
+      let rec print_out_jkind_user ppf = function
+        | Ojkind_user_default -> fprintf ppf "_"
+        | Ojkind_user_abbreviation abbrev -> fprintf ppf "%s" abbrev
+        | Ojkind_user_mod (base, modes) ->
+          print_jkind_with_modes ppf print_out_jkind_user base modes
+        | Ojkind_user_product ts ->
+           print_list print_out_jkind_user
+             (fun ppf -> Format.fprintf ppf "@ &@ ") ppf ts
+        | Ojkind_user_with _ | Ojkind_user_kind_of _ ->
+          failwith "XXX unimplemented jkind syntax"
+      in
+      print_out_jkind_user ppf jkind
+    | Ojkind_product kinds ->
+      fprintf ppf "@[%a@]"
+        (Misc.pp_parens_if nested
+          (pp_print_list
+             ~pp_sep:(fun ppf () -> Format.fprintf ppf " & ")
+             (print_out_jkind true)))
+        kinds
+  in
+  print_out_jkind false ppf k
 
 let print_out_jkind_annot ppf = function
   | None -> ()
@@ -548,6 +562,15 @@ and print_out_type_3 ppf =
       pp_open_box ppf 1;
       pp_print_char ppf '(';
       print_out_type_0 ppf ty;
+      pp_print_char ppf ')';
+      pp_close_box ppf ()
+  | Otyp_unboxed_tuple tyl ->
+      pp_open_box ppf 1;
+      fprintf ppf "#(";
+      fprintf
+        ppf "@[<0>%a@]"
+        (print_labeled_typlist print_simple_out_type " *")
+        tyl;
       pp_print_char ppf ')';
       pp_close_box ppf ()
   | Otyp_abstract | Otyp_open

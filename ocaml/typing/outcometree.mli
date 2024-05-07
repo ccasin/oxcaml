@@ -55,8 +55,8 @@ type out_value =
   | Oval_string of string * int * out_string (* string, size-to-print, kind *)
   | Oval_stuff of string
   | Oval_tuple of (string option * out_value) list
+  | Oval_unboxed_tuple of (string option * out_value) list
   | Oval_variant of string * out_value option
-
 
 type out_modality_legacy = Ogf_global
 
@@ -108,6 +108,7 @@ type out_jkind_user =
   | Ojkind_user_mod of out_jkind_user * string list
   | Ojkind_user_with of out_jkind_user * out_type
   | Ojkind_user_kind_of of out_type
+  | Ojkind_user_product of out_jkind_user list
 
 and out_jkind_const = { base : string; modal_bounds : string list }
 
@@ -115,6 +116,7 @@ and out_jkind =
   | Ojkind_user of out_jkind_user
   | Ojkind_const of out_jkind_const
   | Ojkind_var of string
+  | Ojkind_product of out_jkind list
 
 and out_type_param =
   { oparam_name : string;
@@ -140,6 +142,7 @@ and out_type =
   | Otyp_stuff of string
   | Otyp_sum of out_constructor list
   | Otyp_tuple of (string option * out_type) list
+  | Otyp_unboxed_tuple of (string option * out_type) list
   | Otyp_var of bool * string
   | Otyp_variant of out_variant * bool * (string list) option
   | Otyp_poly of out_vars_jkinds * out_type
