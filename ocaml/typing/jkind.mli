@@ -62,7 +62,7 @@ module Nullability : sig
   val print : Format.formatter -> t -> unit
 end
 
-module Sort : Jkind_intf.Sort with type const = Jkind_types.Sort.const
+module Sort : Jkind_intf.Sort with type base = Jkind_types.Sort.base
 
 type sort = Sort.t
 
@@ -91,6 +91,7 @@ module Layout : sig
         | Word
         | Bits32
         | Bits64
+        | Product of t list
     end
   end
 end
@@ -299,6 +300,11 @@ module Primitive : sig
   (** This is the jkind of unboxed 64-bit integers. They have sort Bits64. Does
     not mode-cross. *)
   val bits64 : why:History.bits64_creation_reason -> t
+
+  (** This is the jkind of unboxed products.  The layout will be the product of
+      the layouts of the input kinds, and the other components of the kind will
+      be the join relevant component of the inputs. *)
+  val product : why:History.product_creation_reason -> t list -> t
 end
 
 (** Take an existing [t] and add an ability to mode-cross along all the axes. *)
@@ -394,6 +400,9 @@ module Desc : sig
   type t =
     | Const of Const.t
     | Var of Sort.var
+    | Product of t list
+
+  val format : Format.formatter -> t -> unit
 end
 
 (** Extract the [const] from a [Jkind.t], looking through unified
@@ -494,8 +503,12 @@ val sub_with_history : t -> t -> (t, Violation.t) result
     mutation. *)
 val is_max : t -> bool
 
-(** Checks to see whether a jkind is has layout. Never does any mutation. *)
+(** Checks to see whether a jkind has layout any. Never does any mutation. *)
 val has_layout_any : t -> bool
+
+(** Checks whether a jkind's layout is an n-ary product, and returns the jkinds
+    of the components if so.  May update sort variables to make this true. *)
+val is_nary_product : int -> t -> t list option
 
 (*********************************)
 (* debugging *)

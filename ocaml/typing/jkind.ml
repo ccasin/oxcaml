@@ -36,50 +36,99 @@ module Layout = struct
 
   type nonrec 'sort layout = 'sort layout
 
+  module Debug_printers = struct
+    open Format
+
+    let rec t ppf = function
+      | Any -> fprintf ppf "Any"
+      | Sort s -> fprintf ppf "Sort %a" Sort.Debug_printers.t s
+      | Product ts ->
+        fprintf ppf "Product [ %a ]"
+          (pp_print_list ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ") t)
+          ts
+  end
+
   module Const = struct
-    type t = Sort.const layout
+    type t = Const.t =
+      | Any
+      | Base of Sort.base
+      | Product of t list
 
     let max = Any
 
-    let equal c1 c2 =
+    let rec equal c1 c2 =
       match c1, c2 with
-      | Sort s1, Sort s2 -> Sort.Const.equal s1 s2
+      | Base b1, Base b2 -> Sort.equal_base b1 b2
       | Any, Any -> true
-      | (Any | Sort _), _ -> false
+      | Product cs1, Product cs2 -> List.equal equal cs1 cs2
+      | (Base _ | Any | Product _), _ -> false
 
-    let sub (c1 : t) (c2 : t) : Misc.Le_result.t =
+    let rec sub (c1 : t) (c2 : t) : Misc.Le_result.t =
       match c1, c2 with
       | _ when equal c1 c2 -> Equal
       | _, Any -> Less
-      | Any, Sort _ | Sort _, Sort _ -> Not_le
+      | Product consts1, Product consts2 ->
+        if List.compare_lengths consts1 consts2 = 0
+        then Misc.Le_result.combine_list (List.map2 sub consts1 consts2)
+        else Not_le
+      | (Any | Base _ | Product _), _ -> Not_le
 
-    let value = Sort Sort.Value
+    module Static = struct
+      let value = Base Sort.Value
 
-    let void = Sort Sort.Void
+      let void = Base Sort.Void
 
-    let float64 = Sort Sort.Float64
+      let float64 = Base Sort.Float64
 
-    let float32 = Sort Sort.Float32
+      let float32 = Base Sort.Float32
 
-    let word = Sort Sort.Word
+      let word = Base Sort.Word
 
-    let bits32 = Sort Sort.Bits32
+      let bits32 = Base Sort.Bits32
 
-    let bits64 = Sort Sort.Bits64
+      let bits64 = Base Sort.Bits64
 
-    let get_sort : t -> Sort.Const.t option = function
-      | Sort s -> Some s
+      let of_base : Sort.base -> t = function
+        | Value -> value
+        | Void -> void
+        | Float64 -> float64
+        | Float32 -> float32
+        | Word -> word
+        | Bits32 -> bits32
+        | Bits64 -> bits64
+    end
+
+    include Static
+
+    let rec get_sort : t -> Sort.Const.t option = function
       | Any -> None
+      | Base b -> Some (Const_base b)
+      | Product ts ->
+        Option.map
+          (fun x -> Sort.Const_product x)
+          (Misc.Stdlib.List.map_option get_sort ts)
 
-    let to_string : t -> _ = function
-      | Any -> "any"
-      | Sort Void -> "void"
-      | Sort Value -> "value"
-      | Sort Float64 -> "float64"
-      | Sort Float32 -> "float32"
-      | Sort Word -> "word"
-      | Sort Bits32 -> "bits32"
-      | Sort Bits64 -> "bits64"
+    let rec of_sort s =
+      match Sort.get s with
+      | Var _ -> None
+      | Base b -> Some (Static.of_base b)
+      | Product sorts ->
+        Option.map
+          (fun x -> Product x)
+          (Misc.Stdlib.List.map_option of_sort sorts)
+
+    let to_string t =
+      let rec to_string nested (t : t) =
+        match t with
+        | Any -> "any"
+        | Base b -> Sort.to_string_base b
+        | Product ts ->
+          String.concat ""
+            [ (if nested then "(" else "");
+              String.concat " & " (List.map (to_string true) ts);
+              (if nested then ")" else "") ]
+      in
+      to_string false t
 
     module Legacy = struct
       (* CR layouts v2.8: get rid of this *)
@@ -96,58 +145,113 @@ module Layout = struct
         | Word
         | Bits32
         | Bits64
+        | Product of t list
     end
+
+    let rec of_sort_const : Sort.const -> t = function
+      | Const_base b -> Base b
+      | Const_product consts -> Product (List.map of_sort_const consts)
   end
 
   type t = Sort.t layout
 
-  let of_const const : t =
-    match const with Sort s -> Sort (Const s) | Any -> Any
+  let rec of_const (const : Const.t) : t =
+    match const with
+    | Any -> Any
+    | Base b -> Sort (Sort.of_base b)
+    | Product cs -> Product (List.map of_const cs)
 
-  let equate_or_equal ~allow_mutation t1 t2 =
+  let rec to_sort = function
+    | Any -> None
+    | Sort s -> Some s
+    | Product ts -> to_product_sort ts
+
+  and to_product_sort ts =
+    Option.map
+      (fun x -> Sort.Product x)
+      (Misc.Stdlib.List.map_option to_sort ts)
+
+  let sort_equal_result ~allow_mutation result =
+    match (result : Sort.equate_result) with
+    | (Equal_mutated_first | Equal_mutated_second | Equal_mutated_both)
+      when not allow_mutation ->
+      Misc.fatal_errorf "Jkind.equal: Performed unexpected mutation"
+    | Unequal -> false
+    | Equal_no_mutation | Equal_mutated_first | Equal_mutated_second
+    | Equal_mutated_both ->
+      true
+
+  let rec equate_or_equal ~allow_mutation t1 t2 =
     match t1, t2 with
-    | Sort s1, Sort s2 -> (
-      match Sort.equate_tracking_mutation s1 s2 with
-      | (Equal_mutated_first | Equal_mutated_second) when not allow_mutation ->
-        Misc.fatal_errorf "Jkind.equal: Performed unexpected mutation"
-      | Unequal -> false
-      | Equal_no_mutation | Equal_mutated_first | Equal_mutated_second -> true)
+    | Sort s1, Sort s2 ->
+      sort_equal_result ~allow_mutation (Sort.equate_tracking_mutation s1 s2)
+    | Product ts, Sort sort | Sort sort, Product ts -> (
+      match to_product_sort ts with
+      | None -> false
+      | Some sort' ->
+        sort_equal_result ~allow_mutation
+          (Sort.equate_tracking_mutation sort sort'))
+    | Product ts1, Product ts2 ->
+      List.equal (equate_or_equal ~allow_mutation) ts1 ts2
     | Any, Any -> true
-    | (Any | Sort _), _ -> false
+    | (Any | Sort _ | Product _), _ -> false
 
-  let sub t1 t2 : Misc.Le_result.t =
+  let rec sub t1 t2 : Misc.Le_result.t =
     match t1, t2 with
     | Any, Any -> Equal
     | _, Any -> Less
     | Any, _ -> Not_le
     | Sort s1, Sort s2 -> if Sort.equate s1 s2 then Equal else Not_le
+    | Product ts1, Product ts2 ->
+      if List.compare_lengths ts1 ts2 = 0
+      then Misc.Le_result.combine_list (List.map2 sub ts1 ts2)
+      else Not_le
+    | Product ts1, Sort s2 -> (
+      match to_product_sort ts1 with
+      | None -> Not_le
+      | Some s1 -> if Sort.equate s1 s2 then Equal else Not_le)
+    | Sort s1, Product ts2 -> (
+      match to_product_sort ts2 with
+      | None -> Not_le
+      | Some s2 -> if Sort.equate s1 s2 then Equal else Not_le)
 
-  let intersection t1 t2 =
+  let rec intersection t1 t2 =
     match t1, t2 with
     | _, Any -> Some t1
     | Any, _ -> Some t2
     | Sort s1, Sort s2 -> if Sort.equate s1 s2 then Some t1 else None
+    | Product ts1, Product ts2 ->
+      if List.compare_lengths ts1 ts2 = 0
+      then
+        let components = List.map2 intersection ts1 ts2 in
+        Option.map
+          (fun x -> Product x)
+          (Misc.Stdlib.List.some_if_all_elements_are_some components)
+      else None
+    | (Product ts as t), Sort sort | Sort sort, (Product ts as t) -> (
+      match to_product_sort ts with
+      | None -> None
+      | Some sort' -> if Sort.equate sort sort' then Some t else None)
 
   let of_new_sort_var () =
     let sort = Sort.new_var () in
     Sort sort, sort
 
-  let format ppf =
+  let rec default_to_value_and_get : Layout.t -> Const.t = function
+    | Any -> Any
+    | Sort s -> Const.of_sort_const (Sort.default_to_value_and_get s)
+    | Product p -> Product (List.map default_to_value_and_get p)
+
+  let format ppf layout =
     let open Format in
-    function
-    | Any -> fprintf ppf "any"
-    | Sort s -> (
-      match Sort.get s with
-      | Const s -> fprintf ppf "%a" Sort.Const.format s
-      | Var v -> fprintf ppf "%s" (Sort.Var.name v))
-
-  module Debug_printers = struct
-    open Format
-
-    let t ppf = function
-      | Any -> fprintf ppf "Any"
-      | Sort s -> fprintf ppf "Sort %a" Sort.Debug_printers.t s
-  end
+    let rec pp_element ~nested ppf : Layout.t -> unit = function
+      | Any -> fprintf ppf "any"
+      | Sort s -> Sort.format ppf s
+      | Product ts ->
+        let pp_sep ppf () = Format.fprintf ppf " & " in
+        Misc.pp_nested_list ~nested ~pp_element ~pp_sep ppf ts
+    in
+    pp_element ~nested:false ppf layout
 end
 
 module Externality = struct
@@ -187,6 +291,14 @@ module Externality = struct
     | External64, (External64 | Internal) | Internal, External64 -> External64
     | Internal, Internal -> Internal
 
+  let join t1 t2 =
+    match t1, t2 with
+    | Internal, (External | External64 | Internal)
+    | (External | External64), Internal ->
+      Internal
+    | External64, (External | External64) | External, External64 -> External64
+    | External, External -> External
+
   let print ppf = function
     | External -> Format.fprintf ppf "external_"
     | External64 -> Format.fprintf ppf "external64"
@@ -214,6 +326,11 @@ module Nullability = struct
     | Maybe_null, Maybe_null -> Equal
 
   let le n1 n2 = Misc.Le_result.is_le (less_or_equal n1 n2)
+
+  let join n1 n2 =
+    match n1, n2 with
+    | Maybe_null, (Non_null | Maybe_null) | Non_null, Maybe_null -> Maybe_null
+    | Non_null, Non_null -> Non_null
 
   let meet n1 n2 =
     match n1, n2 with
@@ -292,26 +409,29 @@ module Const = struct
 
   let get_externality_upper_bound const = const.externality_upper_bound
 
-  let get_legacy_layout
-      { layout;
-        modes_upper_bounds = _;
-        externality_upper_bound;
-        nullability_upper_bound
-      } : Layout.Const.Legacy.t =
+  let rec get_legacy_layout
+      ({ layout;
+         modes_upper_bounds = _;
+         externality_upper_bound;
+         nullability_upper_bound
+       } as k) : Layout.Const.Legacy.t =
     match layout, externality_upper_bound, nullability_upper_bound with
     | Any, _, Maybe_null -> Any
     | Any, _, Non_null -> Any_non_null
     (* CR layouts v3.0: support [Immediate(64)_or_null]. *)
-    | Sort Value, _, Maybe_null -> Value_or_null
-    | Sort Value, Internal, Non_null -> Value
-    | Sort Value, External64, Non_null -> Immediate64
-    | Sort Value, External, Non_null -> Immediate
-    | Sort Void, _, _ -> Void
-    | Sort Float64, _, _ -> Float64
-    | Sort Float32, _, _ -> Float32
-    | Sort Word, _, _ -> Word
-    | Sort Bits32, _, _ -> Bits32
-    | Sort Bits64, _, _ -> Bits64
+    | Base Value, _, Maybe_null -> Value_or_null
+    | Base Value, Internal, Non_null -> Value
+    | Base Value, External64, Non_null -> Immediate64
+    | Base Value, External, Non_null -> Immediate
+    | Base Void, _, _ -> Void
+    | Base Float64, _, _ -> Float64
+    | Base Float32, _, _ -> Float32
+    | Base Word, _, _ -> Word
+    | Base Bits32, _, _ -> Bits32
+    | Base Bits64, _, _ -> Bits64
+    | Product layouts, _, _ ->
+      Product
+        (List.map (fun layout -> get_legacy_layout { k with layout }) layouts)
 
   let equal
       { layout = lay1;
@@ -390,7 +510,7 @@ module Const = struct
 
     let immutable_data =
       { jkind =
-          { layout = Sort Value;
+          { layout = Base Value;
             modes_upper_bounds =
               { linearity = Linearity.Const.min;
                 contention = Contention.Const.min;
@@ -717,6 +837,29 @@ module Const = struct
       List.map parse_mode modes
   end
 
+  let jkind_of_product_annotations jkinds =
+    let folder (layouts, mode_ub, ext_ub, null_ub)
+        { layout;
+          modes_upper_bounds;
+          externality_upper_bound;
+          nullability_upper_bound
+        } =
+      ( layout :: layouts,
+        Modes.join mode_ub modes_upper_bounds,
+        Externality.join ext_ub externality_upper_bound,
+        Nullability.join null_ub nullability_upper_bound )
+    in
+    let layouts, mode_ub, ext_ub, null_ub =
+      List.fold_left folder
+        ([], Modes.min, Externality.min, Nullability.max)
+        jkinds
+    in
+    { layout = Product (List.rev layouts);
+      modes_upper_bounds = mode_ub;
+      externality_upper_bound = ext_ub;
+      nullability_upper_bound = null_ub
+    }
+
   let rec of_user_written_annotation_unchecked_level
       (jkind : Jane_syntax.Jkind.t) : t =
     match jkind with
@@ -809,6 +952,9 @@ module Const = struct
           }
       in
       List.fold_left meet_mode base parsed_modes
+    | Product ts ->
+      let jkinds = List.map of_user_written_annotation_unchecked_level ts in
+      jkind_of_product_annotations jkinds
     | Default | With _ | Kind_of _ -> Misc.fatal_error "XXX unimplemented"
 
   module Sort = Sort.Const
@@ -818,24 +964,38 @@ end
 module Desc = struct
   type t =
     | Const of Const.t
-    | Var of Sort.var (* all modes will be [max] *)
+    | Var of Sort.var
+    | Product of t list
 
   let format ppf =
-    let open Format in
-    function
-    | Const c -> fprintf ppf "%a" Const.format c
-    | Var v -> fprintf ppf "%s" (Sort.Var.name v)
+    let rec pp_element ~nested ppf =
+      let open Format in
+      function
+      | Const c -> fprintf ppf "%a" Const.format c
+      | Var v -> fprintf ppf "%s" (Sort.Var.name v)
+      | Product ts ->
+        let pp_sep ppf () = Format.fprintf ppf "@ & " in
+        Misc.pp_nested_list ~nested ~pp_element ~pp_sep ppf ts
+    in
+    pp_element ~nested:false ppf
 
   (* considers sort variables < Any. Two sort variables are in a [sub]
      relationship only when they are equal.
      Never does mutation.
-     Pre-condition: no filled-in sort variables. *)
-  let sub d1 d2 : Misc.Le_result.t =
+     Pre-condition: no filled-in sort variables. product must contain a var. *)
+  let rec sub d1 d2 : Misc.Le_result.t =
     match d1, d2 with
     | Const c1, Const c2 -> Const.sub c1 c2
     | Var _, Const c when Const.equal Const.max c -> Less
     | Var v1, Var v2 -> if v1 == v2 then Equal else Not_le
-    | Const _, Var _ | Var _, Const _ -> Not_le
+    | Product ds1, Product ds2 ->
+      if List.compare_lengths ds1 ds2 = 0
+      then Misc.Le_result.combine_list (List.map2 sub ds1 ds2)
+      else Not_le
+    | Const _, Product _ | Product _, Const _ | Const _, Var _ | Var _, Const _
+      ->
+      Not_le
+    | Var _, Product _ | Product _, Var _ -> Not_le
 end
 
 module Jkind_desc = struct
@@ -1005,13 +1165,63 @@ module Jkind_desc = struct
     let bits64 = of_const Const.Primitive.bits64.jkind
   end
 
+  let product jkinds =
+    (* CR layouts 7.1: Here we throw away the history of the component
+       jkinds. This is not great. We should, as part of a broader pass on error
+       messages around product kinds, zip them up into some kind of product
+       history. *)
+    let folder (layouts, mode_ub, ext_ub, null_ub)
+        { jkind =
+            { layout;
+              modes_upper_bounds;
+              externality_upper_bound;
+              nullability_upper_bound
+            };
+          history = _;
+          has_warned = _
+        } =
+      ( layout :: layouts,
+        Modes.join mode_ub modes_upper_bounds,
+        Externality.join ext_ub externality_upper_bound,
+        Nullability.join null_ub nullability_upper_bound )
+    in
+    let layouts, mode_ub, ext_ub, null_ub =
+      List.fold_left folder
+        ([], Modes.min, Externality.min, Nullability.max)
+        jkinds
+    in
+    { layout = Product (List.rev layouts);
+      modes_upper_bounds = mode_ub;
+      externality_upper_bound = ext_ub;
+      nullability_upper_bound = null_ub
+    }
+
   (* Post-condition: If the result is [Var v], then [!v] is [None]. *)
-  let get
-      { layout;
-        modes_upper_bounds;
-        externality_upper_bound;
-        nullability_upper_bound
-      } : Desc.t =
+  let rec get_sort modes_upper_bounds externality_upper_bound
+      nullability_upper_bound s : Desc.t =
+    match Sort.get s with
+    | Base b ->
+      Const
+        { layout = Base b;
+          modes_upper_bounds;
+          externality_upper_bound;
+          nullability_upper_bound
+        }
+    | Var v -> Var v
+    | Product sorts ->
+      Desc.Product
+        (List.map
+           (fun x ->
+             get_sort modes_upper_bounds externality_upper_bound
+               nullability_upper_bound x)
+           sorts)
+
+  let rec get
+      ({ layout;
+         modes_upper_bounds;
+         externality_upper_bound;
+         nullability_upper_bound
+       } as k) : Desc.t =
     match layout with
     | Any ->
       Const
@@ -1020,16 +1230,11 @@ module Jkind_desc = struct
           externality_upper_bound;
           nullability_upper_bound
         }
-    | Sort s -> (
-      match Sort.get s with
-      | Const s ->
-        Const
-          { layout = Sort s;
-            modes_upper_bounds;
-            externality_upper_bound;
-            nullability_upper_bound
-          }
-      | Var v -> Var v)
+    | Sort s ->
+      get_sort modes_upper_bounds externality_upper_bound
+        nullability_upper_bound s
+    | Product layouts ->
+      Product (List.map (fun layout -> get { k with layout }) layouts)
 
   module Debug_printers = struct
     open Format
@@ -1115,6 +1320,9 @@ module Primitive = struct
 
   let bits64 ~why =
     fresh_jkind Jkind_desc.Primitive.bits64 ~why:(Bits64_creation why)
+
+  let product ~why ts =
+    fresh_jkind (Jkind_desc.product ts) ~why:(Product_creation why)
 end
 
 let add_mode_crossing t =
@@ -1145,6 +1353,7 @@ let get_required_layouts_level (context : History.annotation_context)
        preserve compatibility with array arguments. *)
     Stable
   | _, (Value_or_null | Void) -> Alpha
+  | _, Product _ -> Beta
 
 (******************************)
 (* construction *)
@@ -1265,19 +1474,11 @@ let default_to_value_and_get
         };
       _
     } : Const.t =
-  match layout with
-  | Any ->
-    { layout = Any;
-      modes_upper_bounds;
-      externality_upper_bound;
-      nullability_upper_bound
-    }
-  | Sort s ->
-    { layout = Sort (Sort.default_to_value_and_get s);
-      modes_upper_bounds;
-      externality_upper_bound;
-      nullability_upper_bound
-    }
+  { layout = Layout.default_to_value_and_get layout;
+    modes_upper_bounds;
+    externality_upper_bound;
+    nullability_upper_bound
+  }
 
 let default_to_value t = ignore (default_to_value_and_get t)
 
@@ -1285,17 +1486,25 @@ let get t = Jkind_desc.get t.jkind
 
 (* CR layouts: this function is suspect; it seems likely to reisenberg
    that refactoring could get rid of it *)
-let sort_of_jkind l =
-  match get l with
-  | Const { layout = Sort s; _ } -> Sort.of_const s
-  | Const { layout = Any; _ } -> Misc.fatal_error "Jkind.sort_of_jkind"
-  | Var v -> Sort.of_var v
+let sort_of_jkind (t : t) : sort =
+  let rec sort_of_layout (t : Layout.t) =
+    match t with
+    | Any -> Misc.fatal_error "Jkind.sort_of_jkind"
+    | Sort s -> s
+    | Product ls -> Sort.Product (List.map sort_of_layout ls)
+  in
+  sort_of_layout t.jkind.layout
 
 let get_layout jk : Layout.Const.t option =
-  match jk.jkind.layout with
-  | Any -> Some Any
-  | Sort s -> (
-    match Sort.get s with Const s -> Some (Sort s) | Var _ -> None)
+  let rec aux : Layout.t -> Layout.Const.t option = function
+    | Any -> Some Any
+    | Sort s -> Layout.Const.of_sort s
+    | Product layouts ->
+      Option.map
+        (fun x -> Layout.Const.Product x)
+        (Misc.Stdlib.List.map_option aux layouts)
+  in
+  aux jk.jkind.layout
 
 let get_modal_upper_bounds jk = jk.jkind.modes_upper_bounds
 
@@ -1308,9 +1517,15 @@ let set_externality_upper_bound jk externality_upper_bound =
 (* pretty printing *)
 
 let format ppf jkind =
-  match get jkind with
-  | Const c -> Format.fprintf ppf "%a" Const.format c
-  | Var v -> Format.fprintf ppf "%s" (Sort.Var.name v)
+  let rec pp_element ~nested ppf (d : Desc.t) =
+    match d with
+    | Const c -> Format.fprintf ppf "%a" Const.format c
+    | Var v -> Format.fprintf ppf "%s" (Sort.Var.name v)
+    | Product p ->
+      let pp_sep ppf () = Format.fprintf ppf "@ & " in
+      Misc.pp_nested_list ~nested ~pp_element ~pp_sep ppf p
+  in
+  pp_element ~nested:false ppf (get jkind)
 
 let printtyp_path = ref (fun _ _ -> assert false)
 
@@ -1410,6 +1625,8 @@ module Format_history = struct
     | Statement -> fprintf ppf "it's the type of a statement"
     | Optional_arg_default ->
       fprintf ppf "it's the type of an optional argument default"
+    | Unboxed_tuple_element ->
+      fprintf ppf "it's the type of unboxed tuple element"
     | Layout_poly_in_external ->
       fprintf ppf
         "it's the layout polymorphic type in an external declaration@ \
@@ -1589,6 +1806,10 @@ module Format_history = struct
     | Primitive id ->
       fprintf ppf "it is the primitive bits64 type %s" (Ident.name id)
 
+  let format_product_creation_reason ppf : History.product_creation_reason -> _
+      = function
+    | Unboxed_tuple -> fprintf ppf "it is an unboxed tuple"
+
   let format_creation_reason ppf ~layout_or_kind :
       History.creation_reason -> unit = function
     | Annotated (ctx, _) ->
@@ -1613,6 +1834,7 @@ module Format_history = struct
     | Word_creation word -> format_word_creation_reason ppf word
     | Bits32_creation bits32 -> format_bits32_creation_reason ppf bits32
     | Bits64_creation bits64 -> format_bits64_creation_reason ppf bits64
+    | Product_creation product -> format_product_creation_reason ppf product
     | Concrete_creation concrete -> format_concrete_creation_reason ppf concrete
     | Concrete_legacy_creation concrete ->
       format_concrete_legacy_creation_reason ppf concrete
@@ -1733,7 +1955,7 @@ module Violation = struct
     let subjkind_format verb k2 =
       match get k2 with
       | Var _ -> dprintf "%s representable" verb
-      | Const _ ->
+      | Const _ | Product _ ->
         dprintf "%s a sub%s of %a" verb layout_or_kind format_layout_or_kind k2
     in
     let k1, k2, fmt_k1, fmt_k2, missing_cmi_option =
@@ -1773,9 +1995,9 @@ module Violation = struct
     then
       let connective =
         match t.violation, get k2 with
-        | Not_a_subjkind _, Const _ ->
+        | Not_a_subjkind _, (Const _ | Product _) ->
           dprintf "be a sub%s of %a" layout_or_kind format_layout_or_kind k2
-        | No_intersection _, Const _ ->
+        | No_intersection _, (Const _ | Product _) ->
           dprintf "overlap with %a" format_layout_or_kind k2
         | _, Var _ -> dprintf "be representable"
       in
@@ -1893,6 +2115,27 @@ let is_max jkind = sub Primitive.any_dummy_jkind jkind
 let has_layout_any jkind =
   match jkind.jkind.layout with Any -> true | _ -> false
 
+let is_nary_product n t =
+  let components =
+    List.init n (fun _ -> Jkind_types.Layout.Sort (Sort.new_var ()))
+  in
+  let bound =
+    { Jkind_desc.max with layout = Jkind_types.Layout.Product components }
+  in
+  if Misc.Le_result.is_le (Jkind_desc.sub t.jkind bound)
+  then
+    (* CR layouts 7.1: The histories here are wrong (we are giving each
+       component the history of the whole product).  They don't show up in
+       errors, so it's fine for now, but we'll probably need to fix this as
+       part of improving errors around products. A couple options: re-work the
+       relevant bits of [Ctype.type_jkind_sub] to just work on layouts, or
+       introduce product histories. *)
+    Some
+      (List.map
+         (fun l -> { t with jkind = { t.jkind with layout = l } })
+         components)
+  else None
+
 (*********************************)
 (* debugging *)
 
@@ -1917,6 +2160,7 @@ module Debug_printers = struct
     | Statement -> fprintf ppf "Statement"
     | Optional_arg_default -> fprintf ppf "Optional_arg_default"
     | Layout_poly_in_external -> fprintf ppf "Layout_poly_in_external"
+    | Unboxed_tuple_element -> fprintf ppf "Unboxed_tuple_element"
 
   let concrete_legacy_creation_reason ppf :
       History.concrete_legacy_creation_reason -> unit = function
@@ -2033,6 +2277,10 @@ module Debug_printers = struct
     function
     | Primitive id -> fprintf ppf "Primitive %s" (Ident.unique_name id)
 
+  let product_creation_reason ppf : History.product_creation_reason -> _ =
+    function
+    | Unboxed_tuple -> fprintf ppf "Unboxed_tuple"
+
   let creation_reason ppf : History.creation_reason -> unit = function
     | Annotated (ctx, loc) ->
       fprintf ppf "Annotated (%a,%a)" annotation_context ctx Location.print_loc
@@ -2065,6 +2313,8 @@ module Debug_printers = struct
       fprintf ppf "Bits32_creation %a" bits32_creation_reason bits32
     | Bits64_creation bits64 ->
       fprintf ppf "Bits64_creation %a" bits64_creation_reason bits64
+    | Product_creation product ->
+      fprintf ppf "Product_creation %a" product_creation_reason product
     | Concrete_creation concrete ->
       fprintf ppf "Concrete_creation %a" concrete_creation_reason concrete
     | Concrete_legacy_creation concrete ->
