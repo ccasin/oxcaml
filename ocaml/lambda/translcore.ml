@@ -31,6 +31,7 @@ type error =
   | Unreachable_reached
   | Bad_probe_layout of Ident.t
   | Illegal_void_record_field
+  | Illegal_product_record_field of Jkind.Sort.const
   | Void_sort of type_expr
 
 exception Error of Location.t * error
@@ -55,8 +56,9 @@ let layout_pat sort p = layout p.pat_env p.pat_loc sort p.pat_type
 
 let check_record_field_sort loc sort =
   match Jkind.Sort.get_default_value sort with
-  | Value | Float64 | Bits32 | Bits64 | Word -> ()
-  | Void -> raise (Error (loc, Illegal_void_record_field))
+  | Const_base (Value | Float64 | Bits32 | Bits64 | Word) -> ()
+  | Const_base Void -> raise (Error (loc, Illegal_void_record_field))
+  | Const_product _ as c -> raise (Error (loc, Illegal_product_record_field c))
 
 (* Forward declaration -- to be filled in by Translmod.transl_module *)
 let transl_module =
@@ -396,8 +398,9 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
         | ((_, arg_repr) :: prim_repr), ((_, Arg (x, _)) :: oargs) ->
           let arg_exps, extra_args = cut_args prim_repr oargs in
           let arg_sort =
-            Jkind.Sort.of_const
-              (Translprim.sort_of_native_repr arg_repr ~poly_sort:psort)
+            Jkind.Sort.of_base
+              (Translprim.sort_of_native_repr ~loc:x.exp_loc arg_repr
+                 ~poly_sort:psort)
           in
           (x, arg_sort) :: arg_exps, extra_args
         | _, ((_, Omitted _) :: _) -> assert false
@@ -470,6 +473,12 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
               ll,
               (of_location ~scopes e.exp_loc))
       end
+  | Texp_unboxed_tuple el ->
+      let shape = List.map (fun (_, e, s) -> layout_exp s e) el in
+      let ll = List.map (fun (_, e, s) -> transl_exp ~scopes s e) el in
+      Lprim(Pmake_unboxed_product shape,
+            ll,
+            of_location ~scopes e.exp_loc)
   | Texp_construct(_, cstr, args, alloc_mode) ->
       let args_with_sorts =
         List.mapi (fun i e ->
@@ -2112,6 +2121,11 @@ let report_error ppf = function
       fprintf ppf
         "Void sort detected where value was expected in a record field:@ Please \
          report this error to the Jane Street compilers team."
+  | Illegal_product_record_field c ->
+      fprintf ppf
+        "Product sort %a detected in a record field:@ Please \
+         report this error to the Jane Street compilers team."
+        Jkind.Sort.format_const c
   | Void_sort ty ->
       fprintf ppf
         "Void detected in translation for type %a:@ Please report this error \

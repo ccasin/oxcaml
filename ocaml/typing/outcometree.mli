@@ -54,11 +54,13 @@ type out_value =
   | Oval_string of string * int * out_string (* string, size-to-print, kind *)
   | Oval_stuff of string
   | Oval_tuple of (string option * out_value) list
+  | Oval_unboxed_tuple of (string option * out_value) list
   | Oval_variant of string * out_value option
 
 type out_jkind =
   | Olay_const of Jkind.const
   | Olay_var of string
+  | Olay_product of out_jkind list
 
 type out_type_param =
   { oparam_name : string;
@@ -115,6 +117,7 @@ type out_type =
   | Otyp_stuff of string
   | Otyp_sum of out_constructor list
   | Otyp_tuple of (string option * out_type) list
+  | Otyp_unboxed_tuple of (string option * out_type) list
   | Otyp_var of bool * string
   | Otyp_variant of out_variant * bool * (string list) option
   | Otyp_poly of out_vars_jkinds * out_type

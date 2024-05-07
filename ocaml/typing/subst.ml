@@ -105,19 +105,30 @@ let with_additional_action (config : additional_action_config) s =
         let bits32 = Jkind.of_const Bits32 ~why:reason in
         let bits64 = Jkind.of_const Bits64 ~why:reason in
         let non_null_value = Jkind.of_const Non_null_value ~why:reason in
-        let prepare_jkind loc lay =
-          match Jkind.get lay with
-          | Const Any -> any
-          | Const Void -> void
-          | Const Value -> value
-          | Const Immediate -> immediate
-          | Const Immediate64 -> immediate64
-          | Const Float64 -> float64
-          | Const Word -> word
-          | Const Bits32 -> bits32
-          | Const Bits64 -> bits64
-          | Const Non_null_value -> non_null_value
+        (* CR ccasinghino: reason *)
+        let product ks = Jkind.product ks ~why:Jkind.Unboxed_tuple in
+        let rec prepare_const (c : Jkind.const) : Jkind.t =
+          match c with
+          | Any -> any
+          | Void -> void
+          | Value -> value
+          | Immediate -> immediate
+          | Immediate64 -> immediate64
+          | Float64 -> float64
+          | Word -> word
+          | Bits32 -> bits32
+          | Bits64 -> bits64
+          | Non_null_value -> non_null_value
+          | (Product ks) -> product (List.map prepare_const ks)
+        in
+        let rec prepare_desc loc desc : Jkind.t =
+          match (desc : Jkind.desc) with
+          | Const c -> prepare_const c
           | Var _ -> raise(Error (loc, Unconstrained_jkind_variable))
+          | Product descs -> product (List.map (prepare_desc loc) descs)
+        in
+        let prepare_jkind loc lay : Jkind.t =
+          prepare_desc loc (Jkind.get lay)
         in
         Prepare_for_saving prepare_jkind
   in

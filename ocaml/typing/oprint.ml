@@ -315,9 +315,13 @@ let pr_var = Pprintast.tyvar
 let ty_var ~non_gen ppf s =
   pr_var ppf (if non_gen then "_" ^ s else s)
 
-let print_out_jkind ppf = function
+let rec print_out_jkind ppf = function
   | Olay_const jkind -> fprintf ppf "%s" (Jkind.string_of_const jkind)
   | Olay_var v     -> fprintf ppf "%s" v
+  | Olay_product kinds ->
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> pp_print_text ppf " * ")
+      print_out_jkind ppf kinds
 
 let print_out_jkind_annot ppf = function
   | None -> ()
@@ -479,6 +483,15 @@ and print_out_type_3 ppf =
       pp_open_box ppf 1;
       pp_print_char ppf '(';
       print_out_type_0 ppf ty;
+      pp_print_char ppf ')';
+      pp_close_box ppf ()
+  | Otyp_unboxed_tuple tyl ->
+      pp_open_box ppf 1;
+      fprintf ppf "#(";
+      fprintf
+        ppf "@[<0>%a@]"
+        (print_labeled_typlist print_simple_out_type " *")
+        tyl;
       pp_print_char ppf ')';
       pp_close_box ppf ()
   | Otyp_abstract | Otyp_open

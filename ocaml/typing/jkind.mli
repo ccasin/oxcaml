@@ -57,7 +57,7 @@ module Sort : sig
   type t
 
   (** These are the constant sorts -- fully determined and without variables *)
-  type const =
+  type base =
     | Void  (** No run time representation at all *)
     | Value  (** Standard ocaml value representation *)
     | Float64  (** Unboxed 64-bit floats *)
@@ -65,11 +65,17 @@ module Sort : sig
     | Bits32  (** Unboxed 32-bit integers *)
     | Bits64  (** Unboxed 64-bit integers *)
 
+  type const =
+    | Const_base of base
+    | Const_product of const list
+
   (** A sort variable that can be unified during type-checking. *)
   type var
 
   (** Create a new sort variable that can be unified. *)
   val new_var : unit -> t
+
+  val of_base : base -> t
 
   val of_const : const -> t
 
@@ -95,7 +101,7 @@ module Sort : sig
       equal, if possible *)
   val equate : t -> t -> bool
 
-  val equal_const : const -> const -> bool
+  val equal_base : base -> base -> bool
 
   val format : Format.formatter -> t -> unit
 
@@ -184,9 +190,10 @@ type sort = Sort.t
 module Layout : sig
   module Const : sig
     type t =
-      | Sort of Sort.const
+      | Base of Sort.base
       | Any
       | Non_null_value
+      | Product of t list
   end
 end
 
@@ -217,6 +224,7 @@ type concrete_jkind_reason =
   | Optional_arg_default
   | Layout_poly_in_external
   | Array_element
+  | Unboxed_tuple_element
 
 type annotation_context =
   | Type_declaration of Path.t
@@ -301,6 +309,8 @@ type bits32_creation_reason = Primitive of Ident.t
 
 type bits64_creation_reason = Primitive of Ident.t
 
+type product_creation_reason = Unboxed_tuple
+
 type creation_reason =
   | Annotated of annotation_context * Location.t
   | Missing_cmi of Path.t
@@ -313,6 +323,7 @@ type creation_reason =
   | Word_creation of word_creation_reason
   | Bits32_creation of bits32_creation_reason
   | Bits64_creation of bits64_creation_reason
+  | Product_creation of product_creation_reason
   | Concrete_creation of concrete_jkind_reason
   | Imported
   | Imported_type_argument of
@@ -383,6 +394,7 @@ type const =
   | Bits32
   | Bits64
   | Non_null_value
+  | Product of const list
 
 val const_of_user_written_annotation :
   context:annotation_context -> Jane_asttypes.jkind_annotation -> const
@@ -420,6 +432,9 @@ val bits32 : why:bits32_creation_reason -> t
 
 (** This is the jkind of unboxed 64-bit integers. They have sort Bits64. *)
 val bits64 : why:bits64_creation_reason -> t
+
+(** This is the jkind of unboxed products.  They have product sorts. *)
+val product : why:product_creation_reason -> t list -> t
 
 (******************************)
 (* construction *)
@@ -489,6 +504,7 @@ val for_boxed_variant : all_voids:bool -> t
 type desc =
   | Const of const
   | Var of Sort.var
+  | Product of desc list
 
 (** Extract the [const] from a [Jkind.t], looking through unified
     sort variables. Returns [Var] if the final, non-variable jkind has not
@@ -522,6 +538,14 @@ val get_modal_upper_bounds : t -> Mode.Alloc.Const.t
 
 (** Gets the maximum mode on the externality axis for types of this jkind. *)
 val get_externality_upper_bound : t -> Externality.t
+
+(* this will, for example, succeed on a sort variable, filling it in with a
+   product of sort variables, but fail on a base sort. *)
+
+(** CR ccasinghino *)
+val make_jkind_nary_product : int -> t -> t list option
+
+val set_externality_upper_bound : t -> Externality.t -> t
 
 (*********************************)
 (* pretty printing *)

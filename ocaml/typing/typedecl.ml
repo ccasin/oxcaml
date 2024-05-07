@@ -1115,10 +1115,12 @@ let check_representable ~why ~allow_unboxed env loc kloc typ =
       (* All calls to this are part of [update_decl_jkind], which happens after
          all the defaulting, so we don't expect this actually defaults the
          sort - we just want the [const]. *)
-      | Void | Value -> ()
-      | Float64 | Word | Bits32 | Bits64 as const ->
+      | Const_base (Void | Value) -> ()
+      | Const_base (Float64 | Word | Bits32 | Bits64) as const ->
           if not allow_unboxed then
             raise (Error (loc, Invalid_jkind_in_block (typ, const, kloc)))
+      | Const_product _ as const->
+        raise (Error (loc, Invalid_jkind_in_block (typ, const, kloc)))
     end
   | Error err -> raise (Error (loc,Jkind_sort {kloc; typ; err}))
 
@@ -1229,7 +1231,7 @@ module Element_repr = struct
       | Bits32 -> Unboxed_element Bits32
       | Bits64 -> Unboxed_element Bits64
       | Void -> Element_without_runtime_component { loc; ty }
-      | Any ->
+      | Any | Product _ -> (* CJC XXX check *)
           Misc.fatal_error "Element_repr.classify: unexpected Any"
 
   let unboxed_to_flat : unboxed_element -> flat_element = function
@@ -1245,7 +1247,8 @@ module Element_repr = struct
        updating some assumptions in lambda, e.g. the translation
        of [value_prefix_len]. *)
     | Element_without_runtime_component { loc; ty } ->
-        raise (Error (loc, Invalid_jkind_in_block (ty, Void, Mixed_product)))
+        raise (Error (loc, Invalid_jkind_in_block (ty, Const_base Void,
+                                                   Mixed_product)))
     | Float_element | Value_element -> None
 
   (* Compute the [flat_suffix] field of a mixed block record kind. *)
@@ -1287,7 +1290,8 @@ module Element_repr = struct
               | None -> None
               | Some _ ->
                   raise (Error (loc,
-                    Invalid_jkind_in_block (ty, Void, Mixed_product)))
+                    Invalid_jkind_in_block (ty, Const_base Void,
+                                            Mixed_product)))
             end
     in
     match find_flat_suffix ts with
@@ -1424,7 +1428,8 @@ let update_decl_jkind env dpath decl =
                   | Unboxed_element Float64 -> Float64
                   | Element_without_runtime_component { ty; loc } ->
                       raise (Error (loc,
-                        Invalid_jkind_in_block (ty, Void, Mixed_product)))
+                        Invalid_jkind_in_block (ty, Const_base Void,
+                                                Mixed_product)))
                   | Unboxed_element _ | Imm_element | Value_element ->
                       Misc.fatal_error "Expected only floats and float64s")
                 reprs
@@ -2642,24 +2647,28 @@ let make_native_repr env core_type ty ~global_repr ~is_layout_poly ~why =
         sort_or_poly with
   | Native_repr_attr_absent, Poly ->
     Repr_poly
-  | Native_repr_attr_absent, Sort (Value as sort) ->
-    Same_as_ocaml_repr sort
-  | Native_repr_attr_absent, (Sort sort) ->
+  | Native_repr_attr_absent, Sort (Const_base Value) ->
+    Same_as_ocaml_repr Value
+  | Native_repr_attr_absent, (Sort ((Const_base sort) as const)) ->
     if Language_extension.erasable_extensions_only ()
     then
       (* Non-value sorts without [@unboxed] are not erasable. *)
       raise (Error (core_type.ptyp_loc,
-              Missing_unboxed_attribute_on_non_value_sort sort))
+              Missing_unboxed_attribute_on_non_value_sort const))
     else
       Same_as_ocaml_repr sort
-  | Native_repr_attr_present kind, (Poly | Sort Value)
+  | Native_repr_attr_absent, (Sort (Const_product _)) ->
+    (* CR ccasinghino: just error here, but I thought already wrote this error
+       in the other case? *)
+    assert false
+  | Native_repr_attr_present kind, (Poly | Sort (Const_base Value))
   | Native_repr_attr_present (Untagged as kind), Sort _ ->
     begin match native_repr_of_type env kind ty with
     | None ->
       raise (Error (core_type.ptyp_loc, Cannot_unbox_or_untag_type kind))
     | Some repr -> repr
     end
-  | Native_repr_attr_present Unboxed, (Sort sort) ->
+  | Native_repr_attr_present Unboxed, (Sort ((Const_base sort) as const)) ->
     (* We allow [@unboxed] on non-value sorts.
 
        This is to enable upstream-compatibility. We want the code to
@@ -2685,9 +2694,13 @@ let make_native_repr env core_type ty ~global_repr ~is_layout_poly ~why =
       (* There are additional requirements if we are operating in
          upstream compatible mode. *)
       raise (Error (core_type.ptyp_loc,
-             Non_value_sort_not_upstream_compatible sort))
+             Non_value_sort_not_upstream_compatible const))
     else
       Same_as_ocaml_repr sort
+  | Native_repr_attr_present Unboxed, (Sort (Const_product _)) ->
+    (* CR ccasinghino: just error here, but I thought already wrote this error
+       in the other case? *)
+    assert false
 
 let prim_const_mode m =
   match Mode.Locality.Guts.check_const m with

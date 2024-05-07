@@ -643,6 +643,8 @@ and raw_type_desc ppf = function
         (if is_commu_ok c then "Cok" else "Cunknown")
   | Ttuple tl ->
       fprintf ppf "@[<1>Ttuple@,%a@]" labeled_type_list tl
+  | Tunboxed_tuple tl ->
+      fprintf ppf "@[<1>Tunboxed_tuple@,%a@]" labeled_type_list tl
   | Tconstr (p, tl, abbrev) ->
       fprintf ppf "@[<hov1>Tconstr(@,%a,@,%a,@,%a)@]" path p
         raw_type_list tl
@@ -1251,6 +1253,11 @@ let add_type_to_preparation = prepare_type
 (* Disabled in classic mode when printing an unification error *)
 let print_labels = ref true
 
+let rec desc_to_out_jkind : Jkind.desc -> _ = function
+  | Const clay -> Olay_const clay
+  | Var v      -> Olay_var (Jkind.Sort.var_name v)
+  | Product ls -> Olay_product (List.map desc_to_out_jkind ls)
+
 (* returns None for [value], according to (C2.1) from
    Note [When to print jkind annotations] *)
 let out_jkind_option_of_jkind jkind =
@@ -1261,6 +1268,8 @@ let out_jkind_option_of_jkind jkind =
     if !Clflags.verbose_types
     then Some (Olay_var (Jkind.Sort.var_name v))
     else None
+  | Product _ as desc ->
+    Some (desc_to_out_jkind desc)
 
 let alias_nongen_row mode px ty =
     match get_desc ty with
@@ -1337,6 +1346,8 @@ let rec tree_of_typexp mode alloc_mode ty =
         Otyp_arrow (lab, tree_of_modes arg_mode, t1, rm, t2)
     | Ttuple labeled_tyl ->
         Otyp_tuple (tree_of_labeled_typlist mode labeled_tyl)
+    | Tunboxed_tuple labeled_tyl ->
+        Otyp_unboxed_tuple (tree_of_labeled_typlist mode labeled_tyl)
     | Tconstr(p, tyl, _abbrev) ->
         let p', s = best_type_path p in
         let tyl' = apply_subst s tyl in
@@ -2599,10 +2610,7 @@ let trees_of_type_expansion'
     if var_jkinds then
       match get_desc ty with
       | Tvar { jkind; _ } | Tunivar { jkind; _ } ->
-          let olay = match Jkind.get jkind with
-            | Const clay -> Olay_const clay
-            | Var v      -> Olay_var (Jkind.Sort.var_name v)
-          in
+          let olay = desc_to_out_jkind (Jkind.get jkind) in
           Otyp_jkind_annot (out, olay)
       | _ ->
           out
