@@ -52,7 +52,7 @@ module Externality : sig
   val print : Format.formatter -> t -> unit
 end
 
-module Sort : Jkind_intf.Sort with type const = Jkind_types.Sort.const
+module Sort : Jkind_intf.Sort with type base = Jkind_types.Sort.base
 
 type sort = Sort.t
 
@@ -79,6 +79,7 @@ module Layout : sig
         | Word
         | Bits32
         | Bits64
+        | Product of t list
 
       val to_string : t -> string
     end
@@ -271,6 +272,9 @@ module Primitive : sig
   (** This is the jkind of unboxed 64-bit integers. They have sort Bits64. Does
     not mode-cross. *)
   val bits64 : why:History.bits64_creation_reason -> t
+
+  (** This is the jkind of unboxed products.  They have product sorts. *)
+  val product : why:History.product_creation_reason -> t list -> t
 end
 
 (** Take an existing [t] and add an ability to mode-cross along all the axes. *)
@@ -350,6 +354,7 @@ module Desc : sig
   type t =
     | Const of Const.t
     | Var of Sort.var
+    | Product of t list
 end
 
 (** Extract the [const] from a [Jkind.t], looking through unified
@@ -388,6 +393,12 @@ val get_externality_upper_bound : t -> Externality.t
 (** Computes a jkind that is the same as the input but with an updated maximum
     mode for the externality axis *)
 val set_externality_upper_bound : t -> Externality.t -> t
+
+(* (* this will, for example, succeed on a sort variable, filling it in with a
+ *    product of sort variables, but fail on a base sort. *)
+ *
+ * (** CR ccasinghino *)
+ * val make_jkind_nary_product : int -> t -> t list option *)
 
 (*********************************)
 (* pretty printing *)
@@ -452,6 +463,9 @@ val is_max : t -> bool
 
 (** Checks to see whether a jkind is has layout. Never does any mutation. *)
 val has_layout_any : t -> bool
+
+(* CR ccasinghino: delete *)
+val make_jkind_nary_product : int -> t -> t list option
 
 (*********************************)
 (* debugging *)

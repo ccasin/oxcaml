@@ -627,3 +627,5 @@ val is_principal : type_expr -> bool
 type global_state
 val global_state : global_state
 val print_global_state : Format.formatter -> global_state -> unit
+
+val ptyp : (Format.formatter -> Types.type_expr -> unit) ref

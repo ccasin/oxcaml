@@ -712,6 +712,26 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
         (List.map (fun t -> (None, t)) stl)
     in
     ctyp desc typ
+  | Ptyp_unboxed_tuple stl ->
+    let tl =
+      (* CR ccasinghino: check mode, but seems right. *)
+      List.map
+        (fun (label, t) -> label, transl_type env ~policy ~row_context mode t)
+        stl
+    in
+    List.iter (fun (_, {ctyp_type; _}) ->
+      (* CR ccasinghino: must we do this here? *)
+      match
+        Ctype.type_sort env ctyp_type ~why:Jkind.History.Unboxed_tuple_element
+      with
+      | Ok _ -> ()
+      | Error _ -> Misc.fatal_error "CJC: add nice error")
+      tl;
+    let ctyp_type =
+      newty (Tunboxed_tuple
+               (List.map (fun (label, ctyp) -> label, ctyp.ctyp_type) tl))
+    in
+    ctyp (Ttyp_unboxed_tuple tl) ctyp_type
   | Ptyp_constr(lid, stl) ->
       let (path, decl) = Env.lookup_type ~loc:lid.loc lid.txt env in
       let stl =
@@ -1464,7 +1484,9 @@ let report_error env ppf = function
           dprintf "But it was inferred to have %t"
             (fun ppf -> match Jkind.get inferred_jkind with
             | Const c -> fprintf ppf "layout %a" Jkind.Const.format c
-            | Var _ -> fprintf ppf "a representable layout")))
+            | Var _ -> fprintf ppf "a representable layout"
+            | Product _ -> fprintf ppf "a product layout"
+            (* CR ccasinghino: print actual product *))))
         inferred_jkind
   | Multiple_constraints_on_type s ->
       fprintf ppf "Multiple constraints for type %a" longident s

@@ -149,6 +149,17 @@ module Stdlib = struct
       in
       aux [] l
 
+    let map_option f l =
+      let rec aux l acc =
+        match l with
+        | [] -> Some (List.rev acc)
+        | x :: xs ->
+          match f x with
+          | None -> None
+          | Some x -> aux xs (x :: acc)
+      in
+      aux l []
+
     let split_at n l =
       let rec aux n acc l =
         if n = 0

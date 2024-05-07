@@ -106,6 +106,10 @@ open Types
 
 type sd = Value_rec_types.recursive_binding_kind
 
+let is_static : sd -> bool = function
+  | Static -> true
+  | Dynamic -> false
+
 let is_ref : Types.value_description -> bool = function
   | { Types.val_kind =
         Types.Val_prim { Primitive.prim_name = "%makemutable";
@@ -185,6 +189,13 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_constant _
     | Texp_src_pos ->
         Static
+
+    | Texp_unboxed_tuple lexps ->
+      if List.for_all
+           (fun (_, e, _) -> is_static (classify_expression env e))
+           lexps
+      then Static
+      else Dynamic
 
     | Texp_for _
     | Texp_setfield _
@@ -681,6 +692,8 @@ let rec expression : Typedtree.expression -> term_judg =
         join [expression e; list arg args] << app_mode
     | Texp_tuple (exprs, _) ->
       list expression (List.map snd exprs) << Guard
+    | Texp_unboxed_tuple exprs ->
+      list expression (List.map (fun (_, e, _) -> e) exprs) << Return
     | Texp_array (_, elt_sort, exprs, _) ->
       list expression exprs << array_mode exp elt_sort
     | Texp_list_comprehension { comp_body; comp_clauses } ->
@@ -1388,6 +1401,7 @@ and is_destructuring_pattern : type k . k general_pattern -> bool =
     | Tpat_alias (pat, _, _, _, _) -> is_destructuring_pattern pat
     | Tpat_constant _ -> true
     | Tpat_tuple _ -> true
+    | Tpat_unboxed_tuple _ -> true
     | Tpat_construct _ -> true
     | Tpat_variant _ -> true
     | Tpat_record (_, _) -> true
