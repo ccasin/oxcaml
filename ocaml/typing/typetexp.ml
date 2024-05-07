@@ -712,6 +712,7 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
         (List.map (fun t -> (None, t)) stl)
     in
     ctyp desc typ
+  | Ptyp_unboxed_tuple _stl -> Misc.fatal_error "CJC: unimplemented"
   | Ptyp_constr(lid, stl) ->
       let (path, decl) = Env.lookup_type ~loc:lid.loc lid.txt env in
       let stl =

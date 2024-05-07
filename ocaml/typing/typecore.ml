@@ -2266,6 +2266,7 @@ let rec has_literal_pattern p =
   | Ppat_tuple ps
   | Ppat_array ps ->
      List.exists has_literal_pattern ps
+  | Ppat_unboxed_tuple (ps, _) -> has_literal_pattern_labeled_tuple ps
   | Ppat_record (ps, _) ->
      List.exists (fun (_,p) -> has_literal_pattern p) ps
   | Ppat_or (p, q) ->
@@ -2274,7 +2275,8 @@ and has_literal_pattern_jane_syntax : Jane_syntax.Pattern.t -> _ = function
   | Jpat_immutable_array (Iapat_immutable_array ps) ->
      List.exists has_literal_pattern ps
   | Jpat_layout (Lpat_constant _) -> true
-  | Jpat_tuple (labeled_ps, _) ->
+  | Jpat_tuple (labeled_ps, _) -> has_literal_pattern_labeled_tuple labeled_ps
+and has_literal_pattern_labeled_tuple labeled_ps =
      List.exists (fun (_, p) -> has_literal_pattern p) labeled_ps
 
 let check_scope_escape loc env level ty =
@@ -2528,6 +2530,8 @@ and type_pat_aux
       raise (Error (loc, !env, Invalid_interval))
   | Ppat_tuple spl ->
       type_tuple_pat (List.map (fun sp -> None, sp) spl) Closed
+  | Ppat_unboxed_tuple (_spl, _oc) ->
+      Misc.fatal_error "CJC: unimplemented"
   | Ppat_construct(lid, sarg) ->
       let expected_type =
         match extract_concrete_variant !env expected_ty with
@@ -2925,6 +2929,7 @@ let rec pat_tuple_arity spat =
   | None      ->
   match spat.ppat_desc with
   | Ppat_tuple args -> Local_tuple (List.length args)
+  | Ppat_unboxed_tuple (_args,_c) -> Misc.fatal_error "CJC: unimplemented"
   | Ppat_any | Ppat_exception _ | Ppat_var _ -> Maybe_local_tuple
   | Ppat_constant _
   | Ppat_interval _ | Ppat_construct _ | Ppat_variant _
@@ -3937,6 +3942,7 @@ end = struct
                                                   None) } ->
           Either
       | Pexp_ident _ | Pexp_constant _ | Pexp_apply _ | Pexp_tuple _
+      | Pexp_unboxed_tuple _
       | Pexp_construct _ | Pexp_variant _ | Pexp_record _ | Pexp_field _
       | Pexp_setfield _ | Pexp_array _ | Pexp_while _ | Pexp_for _ | Pexp_send _
       | Pexp_new _ | Pexp_setinstvar _ | Pexp_override _ | Pexp_assert _
@@ -4469,10 +4475,12 @@ let contains_variant_either ty =
   try loop ty; unmark_type ty; false
   with Exit -> unmark_type ty; true
 
+let shallow_iter_labeled_tuple f lst = List.iter (fun (_,p) -> f p) lst
+
 let shallow_iter_ppat_jane_syntax f : Jane_syntax.Pattern.t -> _ = function
   | Jpat_immutable_array (Iapat_immutable_array pats) -> List.iter f pats
   | Jpat_layout (Lpat_constant _) -> ()
-  | Jpat_tuple (lst, _) ->  List.iter (fun (_,p) -> f p) lst
+  | Jpat_tuple (lst, _) -> shallow_iter_labeled_tuple f lst
 
 let shallow_iter_ppat f p =
   match Jane_syntax.Pattern.of_ast p with
@@ -4487,6 +4495,7 @@ let shallow_iter_ppat f p =
   | Ppat_or (p1,p2) -> f p1; f p2
   | Ppat_variant (_, arg) -> Option.iter f arg
   | Ppat_tuple lst -> List.iter f lst
+  | Ppat_unboxed_tuple (lst, _) -> shallow_iter_labeled_tuple f lst
   | Ppat_construct (_, Some (_, p))
   | Ppat_exception p | Ppat_alias (p,_)
   | Ppat_open (_,p)
@@ -5489,6 +5498,8 @@ and type_expect_
   | Pexp_tuple sexpl ->
       type_tuple ~loc ~env ~expected_mode ~ty_expected ~explanation
         ~attributes:sexp.pexp_attributes (List.map (fun e -> None, e) sexpl)
+  | Pexp_unboxed_tuple _ ->
+      Misc.fatal_error "CJC: unimplemented"
   | Pexp_construct(lid, sarg) ->
       type_construct env expected_mode loc lid
         sarg ty_expected_explained sexp.pexp_attributes
