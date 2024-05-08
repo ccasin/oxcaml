@@ -184,9 +184,10 @@ type sort = Sort.t
 module Layout : sig
   module Const : sig
     type t =
-      | Sort of Sort.const
+      | Base of Sort.const
       | Any
       | Non_null_value
+      | Product of t list
   end
 end
 

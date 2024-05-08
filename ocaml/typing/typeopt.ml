@@ -239,6 +239,7 @@ let value_kind_of_value_jkind jkind =
     if !Clflags.native_code && Sys.word_size = 64 then Pintval else Pgenval
   | Non_null_value -> Pgenval
   | Any | Void | Float64 | Word | Bits32 | Bits64 -> assert false
+  | Product _ -> Misc.fatal_error "unimplemented"
 
 (* [value_kind] has a pre-condition that it is only called on values.  With the
    current set of sort restrictions, there are two reasons this invariant may
