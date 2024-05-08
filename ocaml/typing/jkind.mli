@@ -383,6 +383,7 @@ type const =
   | Bits32
   | Bits64
   | Non_null_value
+  | Product of const list
 
 val const_of_user_written_annotation :
   context:annotation_context -> Jane_asttypes.jkind_annotation -> const

@@ -1229,7 +1229,7 @@ module Element_repr = struct
       | Bits32 -> Unboxed_element Bits32
       | Bits64 -> Unboxed_element Bits64
       | Void -> Element_without_runtime_component { loc; ty }
-      | Any ->
+      | Any | Product _ -> (* CJC XXX check *)
           Misc.fatal_error "Element_repr.classify: unexpected Any"
 
   let unboxed_to_flat : unboxed_element -> flat_element = function
