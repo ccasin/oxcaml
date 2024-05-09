@@ -39,7 +39,7 @@ module Legacy = struct
     it doesn't check whether the layouts extension is enabled.
     It should be inverse to [string_of_const].
   *)
-  let rec const_of_user_written_annotation_unchecked annot =
+  let const_of_user_written_annotation_unchecked annot =
     match Jane_asttypes.jkind_to_string annot with
     | "any" -> Some Any
     | "value" -> Some Value
@@ -51,18 +51,19 @@ module Legacy = struct
     | "bits32" -> Some Bits32
     | "bits64" -> Some Bits64
     | "non_null_value" -> Some Non_null_value
-    | s ->
-      let components = String.split_on_char '*' s in
-      let components =
-        List.map
-          (fun x ->
-            String.trim x |> Jane_asttypes.jkind_of_string
-            |> const_of_user_written_annotation_unchecked)
-          components
-      in
-      Option.map
-        (fun x -> Product x)
-        (Misc.Stdlib.List.some_if_all_elements_are_some components)
+    | _ -> None
+  (* CR ccasinghino: support product annotations.  The below is obviously wrong *)
+  (* let components = String.split_on_char '*' s in
+   * let components =
+   *   List.map
+   *     (fun x ->
+   *       String.trim x |> Jane_asttypes.jkind_of_string
+   *       |> const_of_user_written_annotation_unchecked)
+   *     components
+   * in
+   * Option.map
+   *   (fun x -> Product x)
+   *   (Misc.Stdlib.List.some_if_all_elements_are_some components) *)
 
   let rec string_of_const const =
     match const with
