@@ -1465,7 +1465,9 @@ let report_error env ppf = function
           dprintf "But it was inferred to have %t"
             (fun ppf -> match Jkind.get inferred_jkind with
             | Const c -> fprintf ppf "layout %s" (Jkind.string_of_const c)
-            | Var _ -> fprintf ppf "a representable layout")))
+            | Var _ -> fprintf ppf "a representable layout"
+            | Product _ -> fprintf ppf "a product layout"
+            (* CR ccasinghino: print actual product *))))
         inferred_jkind
   | Multiple_constraints_on_type s ->
       fprintf ppf "Multiple constraints for type %a" longident s

@@ -106,24 +106,28 @@ let with_additional_action (config : additional_action_config) s =
         let bits64 = Jkind.of_const Bits64 ~why:reason in
         let non_null_value = Jkind.of_const Non_null_value ~why:reason in
         let product _ks = assert false (* Jkind. (Product ks) ~why:reason *) in
-        let prepare_jkind loc lay =
-          let rec prepare_const (c : Jkind.const) : Jkind.t =
-            match c with
-            | Any -> any
-            | Void -> void
-            | Value -> value
-            | Immediate -> immediate
-            | Immediate64 -> immediate64
-            | Float64 -> float64
-            | Word -> word
-            | Bits32 -> bits32
-            | Bits64 -> bits64
-            | Non_null_value -> non_null_value
-            | (Product ks) -> product (List.map prepare_const ks)
-          in
-          match Jkind.get lay with
+        let rec prepare_const (c : Jkind.const) : Jkind.t =
+          match c with
+          | Any -> any
+          | Void -> void
+          | Value -> value
+          | Immediate -> immediate
+          | Immediate64 -> immediate64
+          | Float64 -> float64
+          | Word -> word
+          | Bits32 -> bits32
+          | Bits64 -> bits64
+          | Non_null_value -> non_null_value
+          | (Product ks) -> product (List.map prepare_const ks)
+        in
+        let rec prepare_desc loc desc : Jkind.t =
+          match (desc : Jkind.desc) with
           | Const c -> prepare_const c
           | Var _ -> raise(Error (loc, Unconstrained_jkind_variable))
+          | Product descs -> product (List.map (prepare_desc loc) descs)
+        in
+        let prepare_jkind loc lay : Jkind.t =
+          prepare_desc loc (Jkind.get lay)
         in
         Prepare_for_saving prepare_jkind
   in

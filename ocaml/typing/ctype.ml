@@ -2327,7 +2327,7 @@ let check_and_update_generalized_ty_jkind ?name ~loc ty =
          might turn out later to be value. This is the conservative choice. *)
       Jkind.(Externality.le (get_externality_upper_bound jkind) External64 &&
              match get_layout jkind with
-               | Some (Sort Value) | None -> true
+               | Some (Base Value) | None -> true
                | _ -> false)
     in
     if Language_extension.erasable_extensions_only ()

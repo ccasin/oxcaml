@@ -59,6 +59,7 @@ type out_value =
 type out_jkind =
   | Olay_const of Jkind.const
   | Olay_var of string
+  | Olay_product of out_jkind list
 
 type out_type_param =
   { oparam_name : string;

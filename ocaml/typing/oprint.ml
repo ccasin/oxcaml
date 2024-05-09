@@ -315,9 +315,13 @@ let pr_var = Pprintast.tyvar
 let ty_var ~non_gen ppf s =
   pr_var ppf (if non_gen then "_" ^ s else s)
 
-let print_out_jkind ppf = function
+let rec print_out_jkind ppf = function
   | Olay_const jkind -> fprintf ppf "%s" (Jkind.string_of_const jkind)
   | Olay_var v     -> fprintf ppf "%s" v
+  | Olay_product kinds ->
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> pp_print_text ppf " * ")
+      print_out_jkind ppf kinds
 
 let print_out_jkind_annot ppf = function
   | None -> ()

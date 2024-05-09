@@ -280,12 +280,12 @@ module Sort = struct
       true
     | (Void | Value | Float64 | Word | Bits32 | Bits64), _ -> false
 
-  let rec equal_const c1 c2 =
-    match c1, c2 with
-    | Const_base b1, Const_base b2 -> equal_base b1 b2
-    | Const_product consts1, Const_product consts2 ->
-      List.equal equal_const consts1 consts2
-    | (Const_base _ | Const_product _), _ -> false
+  (* let rec equal_const c1 c2 =
+   *   match c1, c2 with
+   *   | Const_base b1, Const_base b2 -> equal_base b1 b2
+   *   | Const_product consts1, Const_product consts2 ->
+   *     List.equal equal_const consts1 consts2
+   *   | (Const_base _ | Const_product _), _ -> false *)
 
   let rec equate_var_base v1 b2 =
     match !v1 with
@@ -659,6 +659,48 @@ module Layout = struct
     | Sort s -> Const.of_sort_const (Sort.get_default_value s)
     | Product layouts -> Product (List.map get_default_value layouts)
 
+  let rec format ppf =
+    let open Format in
+    function
+    | Sort s -> fprintf ppf "%s" (Sort.to_string s)
+    | Any -> fprintf ppf "any"
+    | Non_null_value -> fprintf ppf "non_null_value"
+    | Product ts ->
+      Format.pp_print_list
+        ~pp_sep:(fun ppf () -> pp_print_text ppf " * ")
+        format ppf ts
+
+  (* These assume they are run on the result of get - so any Var contains None
+     *)
+  let rec sort_is_constant : Sort.t -> Const.t option = function
+    | Base b -> Some (Base b)
+    | Var _ -> None
+    | Product sorts ->
+      Option.map (fun x -> Const.Product x) (sorts_are_constant sorts)
+
+  and sorts_are_constant : Sort.t list -> Const.t list option = function
+    | [] -> Some []
+    | sort :: sorts ->
+      Option.bind (sort_is_constant sort) (fun const ->
+          Option.bind (sorts_are_constant sorts) (fun consts ->
+              Some (const :: consts)))
+
+  (* CR ccasinghino: surely this can be abstracted out with the sort one *)
+  let rec layout_is_constant : t -> Const.t option = function
+    | Sort s -> sort_is_constant (Sort.get s)
+    | Any -> Some Any
+    | Non_null_value -> Some Non_null_value
+    | Product layouts ->
+      Option.map (fun x -> Const.Product x) (layouts_are_constant layouts)
+
+  and layouts_are_constant : t list -> Const.t list option = function
+    | [] -> Some []
+    | layout :: layouts ->
+      Option.bind (layout_is_constant layout) (fun const ->
+          Option.bind (layouts_are_constant layouts) (fun consts ->
+              Some (const :: consts)))
+
+  (* Post-condition: For any [Var v] in the result, [!v] is [None]. *)
   module Debug_printers = struct
     open Format
 
@@ -804,48 +846,41 @@ end
 module Desc = struct
   (* This type is used only for printing.  We use the mode upper bounds in the
      const case to print things like "immediate" nicely.  But we don't need
-     modes in the other cases, because they can only be (or contain) layouts -
-     not kinds *)
+     modes in the other cases, because they can only be (or contain) base
+     layouts, not more interesting kinds. *)
   type t =
     | Const of Const.t
-    | Var of Sort.var (* all modes will be [max] *)
-    | Non_const_product of Layout.Const.t list (* invariant: contains a var somewhere *)
+    | Var of Sort.var
+    | Product of Layout.t list
 
-  let rec format ppf =
+  let format ppf =
     let open Format in
     function
     | Const c -> fprintf ppf "%s" (Const.to_string c)
     | Var v -> fprintf ppf "%s" (Sort.var_name v)
-    | Non_const_product ts ->
-      Format.pp_print_list
-        ~pp_sep:(fun ppf () -> pp_print_text ppf " * ")
-        format ppf ts
+    | Product ts -> Layout.format ppf (Layout.Product ts)
 
   (* considers sort variables < Any. Two sort variables are in a [sub]
      relationship only when they are equal.
      Never does mutation.
      Pre-condition: no filled-in sort variables. *)
-  let rec sub d1 d2 : Misc.Le_result.t =
+  let sub d1 d2 : Misc.Le_result.t =
     match d1, d2 with
     | Const c1, Const c2 -> Const.sub c1 c2
     | Var _, Const c when Const.equal Const.max c -> Less
     | Var v1, Var v2 -> if v1 == v2 then Equal else Not_le
-    | Non_const_product ds1, Non_const_product ds2 ->
+    | Product ds1, Product ds2 ->
+      (* CR ccasinghino: The comment above says never does mutation but this
+         might do mutation. What is the right thing? *)
       if List.compare_lengths ds1 ds2 = 0
-      then Misc.Le_result.combine_list (List.map2 sub ds1 ds2)
+      then Misc.Le_result.combine_list (List.map2 Layout.sub ds1 ds2)
       else Not_le
-    | Const _, Non_const_product _ -> Not_le
-    | ( Non_const_product ds1,
-        Const ({ layout = Layout.Const.Product cs2; _ } as k) ) ->
-      (* CR ccasinghino: ??????????? *)
-      if List.compare_lengths ds1 cs2 = 0
-      then
-        let ds2 = List.map (fun s -> Const { k with layout = s }) cs2 in
-        Misc.Le_result.combine_list (List.map2 sub ds1 ds2)
-      else Not_le
-    | Non_const_product _, Const _ -> Not_le
+    | Const _, Product _ | Product _, Const _ ->
+      (* CR ccasinghino: I think this is just used for errors - it it worth
+         computing the sub here in the case the const is a product? *)
+      Not_le
     | Const _, Var _ | Var _, Const _ -> Not_le
-    | Var _, Non_const_product _ | Non_const_product _, Var _ ->
+    | Var _, Product _ | Product _, Var _ ->
       (* CR ccasinghino: This seems wrong. (surely a var can be less than
          product) but no more wrong than the previous cases. *)
       Not_le
@@ -995,74 +1030,21 @@ module Jkind_desc = struct
   (* CR ccasinghino: ?? *)
   let product layouts = { max with layout = Product layouts }
 
-  (* These assume they are run on the result of get - so any Var contains None
-     *)
-  let rec sort_is_constant : Sort.t -> Layout.Const.t option = function
-    | Base b -> Some (Base b)
-    | Var _ -> None
-    | Product sorts ->
-      Option.map (fun x -> Layout.Const.Product x) (sorts_are_constant sorts)
-
-  and sorts_are_constant : Sort.t list -> Layout.Const.t list option = function
-    | [] -> Some []
-    | sort :: sorts ->
-      Option.bind (sort_is_constant sort) (fun const ->
-          Option.bind (sorts_are_constant sorts) (fun consts ->
-              Some (const :: consts)))
-
-  let rec get_sort modes_upper_bounds externality_upper_bound s : Desc.t =
+  let get_sort modes_upper_bounds externality_upper_bound s : Desc.t =
     match (s : Sort.t) with
     | Base b ->
       Const { layout = Base b; modes_upper_bounds; externality_upper_bound }
     | Var v -> Var v
-    | Product sorts -> (
-      match sorts_are_constant sorts with
-      | None ->
-        Non_const_product
-          (List.map (get_sort modes_upper_bounds externality_upper_bound) sorts)
-      | Some cs ->
-        Const
-          { layout = Product cs; modes_upper_bounds; externality_upper_bound })
-  (* CR ccasinghino: ?? *)
+    | Product sorts -> Desc.Product (List.map (fun x -> Layout.Sort x) sorts)
 
-  (* CR ccasinghino: surely this can be abstracted out with the sort one *)
-  (* CR ccasinghino: and move both functions elsewhere *)
-  let rec layout_is_constant : Layout.t -> Layout.Const.t option = function
-    | Sort s -> sort_is_constant s
-    | Any -> Some Any
-    | Non_null_value -> Some Non_null_value
-    | Product layouts ->
-      Option.map
-        (fun x -> Layout.Const.Product x)
-        (layouts_are_constant layouts)
-
-  and layouts_are_constant : Layout.t list -> Layout.Const.t list option =
-    function
-    | [] -> Some []
-    | layout :: layouts ->
-      Option.bind (layout_is_constant layout) (fun const ->
-          Option.bind (layouts_are_constant layouts) (fun consts ->
-              Some (const :: consts)))
-
-  (* Post-condition: For any [Var v] in the result, [!v] is [None]. *)
-  let rec get { layout; modes_upper_bounds; externality_upper_bound } : Desc.t =
+  let get { layout; modes_upper_bounds; externality_upper_bound } : Desc.t =
     match layout with
     | Any -> Const { layout = Any; modes_upper_bounds; externality_upper_bound }
     | Non_null_value ->
       Const
         { layout = Non_null_value; modes_upper_bounds; externality_upper_bound }
     | Sort s -> get_sort modes_upper_bounds externality_upper_bound (Sort.get s)
-    | Product layouts -> (
-      match layouts_are_constant layouts with
-      | None ->
-        Non_const_product
-          (List.map
-             (fun layout ->
-               get { layout; modes_upper_bounds; externality_upper_bound })
-             layouts)
-      | Some c ->
-        Const
-          { layout = Product c; modes_upper_bounds; externality_upper_bound })
+    | Product layouts -> Product layouts
 
   module Debug_printers = struct
     open Format
@@ -1419,19 +1401,25 @@ let get t = Jkind_desc.get t.jkind
 let sort_of_jkind l =
   (* CR ccasinghino: probably there is a more efficient way, but unsure if we
      need the property of "get" where all vars are empty *)
-  let rec desc_to_sort desc =
+  let rec const_to_sort : Layout.Const.t -> Sort.t = function
+    | Base b -> Sort.Base b
+    | Non_null_value -> Sort.value
+    | Any -> Misc.fatal_error "Jkind.sort_of_jkind"
+    | Product l -> Product (List.map const_to_sort l)
+  in
+  let desc_to_sort desc =
     match (desc : Desc.t) with
-    | Const { layout = Base b; _ } -> Sort.Base b
-    | Const { layout = Non_null_value; _ } -> Sort.value
-    | Const { layout = Any; _ } -> Misc.fatal_error "Jkind.sort_of_jkind"
-    | Const { layout = Product l; _ } ->
+    | Const { layout = const; _ } -> const_to_sort const
     | Var v -> Sort.of_var v
-    | Non_const_product l -> Sort.Product (List.map desc_to_sort l)
+    | Product l -> (
+      match Layout.to_product_sort_lub l with
+      | None -> Misc.fatal_error "Jkind.sort_of_jkind"
+      | Some (sort, _) -> sort)
   in
   desc_to_sort (get l)
 
 let get_layout jk : Layout.Const.t option =
-  Jkind_desc.layout_is_constnat jk.jkind.layout
+  Layout.layout_is_constant jk.jkind.layout
 
 let get_modal_upper_bounds jk = jk.jkind.modes_upper_bounds
 
@@ -1440,10 +1428,9 @@ let get_externality_upper_bound jk = jk.jkind.externality_upper_bound
 (*********************************)
 (* pretty printing *)
 
-let to_string jkind =
-  match get jkind with Const c -> Const.to_string c | Var v -> Sort.var_name v
+let to_string jkind = Format.asprintf "%a" Desc.format (get jkind)
 
-let format ppf t = Format.fprintf ppf "%s" (to_string t)
+let format ppf t = Format.fprintf ppf "%a" Desc.format (get t)
 
 (***********************************)
 (* jkind histories *)
@@ -1817,6 +1804,8 @@ module Violation = struct
       match get l2 with
       | Var _ -> dprintf "%s representable" verb
       | Const _ -> dprintf "%s a sublayout of %a" verb format l2
+      | Product _ -> dprintf "idk some error man"
+      (* CR ccasinghino *)
     in
     let l1, l2, fmt_l1, fmt_l2, missing_cmi_option =
       match t with
@@ -1858,6 +1847,7 @@ module Violation = struct
         | Not_a_subjkind _, Const _ -> dprintf "be a sublayout of %a" format l2
         | No_intersection _, Const _ -> dprintf "overlap with %a" format l2
         | _, Var _ -> dprintf "be representable"
+        | _, Product _ -> dprintf "idk some error man 2" (* CR ccasinghino *)
       in
       fprintf ppf "@[<v>%a@;%a@]"
         (format_history
@@ -2176,6 +2166,7 @@ type const = Legacy.const =
   | Bits32
   | Bits64
   | Non_null_value
+  | Product of const list
 
 type annotation = const * Jane_asttypes.jkind_annotation
 
@@ -2183,13 +2174,41 @@ let string_of_const = Legacy.string_of_const
 
 let equal_const = Legacy.equal_const
 
+(* CR ccasinghino: possibly here we could have const be base instead, and if
+   anybody cares bout the constness they can scan the product. *)
 type desc =
   | Const of const
   | Var of Sort.var
+  | Product of desc list
+
+let base_to_legacy_desc : Sort.base -> desc =
+ fun base ->
+  let const =
+    match base with
+    | Void -> Void
+    | Value -> Value
+    | Float64 -> Float64
+    | Word -> Word
+    | Bits32 -> Bits32
+    | Bits64 -> Bits64
+  in
+  Const const
+
+let rec sort_to_legacy_desc : Sort.t -> desc = function
+  | Base b -> base_to_legacy_desc b
+  | Var v -> Var v
+  | Product sorts -> Product (List.map sort_to_legacy_desc sorts)
+
+let rec layout_to_legacy_desc : Layout.t -> desc = function
+  | Sort s -> sort_to_legacy_desc s
+  | Non_null_value -> Const Non_null_value
+  | Any -> Const Any
+  | Product layouts -> Product (List.map layout_to_legacy_desc layouts)
 
 let to_legacy_desc : Desc.t -> desc = function
   | Const c -> Const (Const.to_legacy_jkind c)
   | Var v -> Var v
+  | Product layouts -> Product (List.map layout_to_legacy_desc layouts)
 
 let get t = to_legacy_desc (get t)
 

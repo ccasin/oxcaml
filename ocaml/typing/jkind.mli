@@ -57,7 +57,7 @@ module Sort : sig
   type t
 
   (** These are the constant sorts -- fully determined and without variables *)
-  type const =
+  type base =
     | Void  (** No run time representation at all *)
     | Value  (** Standard ocaml value representation *)
     | Float64  (** Unboxed 64-bit floats *)
@@ -65,11 +65,17 @@ module Sort : sig
     | Bits32  (** Unboxed 32-bit integers *)
     | Bits64  (** Unboxed 64-bit integers *)
 
+  type const =
+    | Const_base of base
+    | Const_product of const list
+
   (** A sort variable that can be unified during type-checking. *)
   type var
 
   (** Create a new sort variable that can be unified. *)
   val new_var : unit -> t
+
+  val of_base : base -> t
 
   val of_const : const -> t
 
@@ -95,7 +101,7 @@ module Sort : sig
       equal, if possible *)
   val equate : t -> t -> bool
 
-  val equal_const : const -> const -> bool
+  val equal_base : base -> base -> bool
 
   val format : Format.formatter -> t -> unit
 
@@ -184,7 +190,7 @@ type sort = Sort.t
 module Layout : sig
   module Const : sig
     type t =
-      | Base of Sort.const
+      | Base of Sort.base
       | Any
       | Non_null_value
       | Product of t list
@@ -491,6 +497,7 @@ val for_boxed_variant : all_voids:bool -> t
 type desc =
   | Const of const
   | Var of Sort.var
+  | Product of desc list
 
 (** Extract the [const] from a [Jkind.t], looking through unified
     sort variables. Returns [Var] if the final, non-variable jkind has not

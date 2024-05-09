@@ -1251,6 +1251,11 @@ let add_type_to_preparation = prepare_type
 (* Disabled in classic mode when printing an unification error *)
 let print_labels = ref true
 
+let rec desc_to_out_jkind : Jkind.desc -> _ = function
+  | Const clay -> Olay_const clay
+  | Var v      -> Olay_var (Jkind.Sort.var_name v)
+  | Product ls -> Olay_product (List.map desc_to_out_jkind ls)
+
 (* returns None for [value], according to (C2.1) from
    Note [When to print jkind annotations] *)
 let out_jkind_option_of_jkind jkind =
@@ -1261,6 +1266,8 @@ let out_jkind_option_of_jkind jkind =
     if !Clflags.verbose_types
     then Some (Olay_var (Jkind.Sort.var_name v))
     else None
+  | Product _ as desc ->
+    Some (desc_to_out_jkind desc)
 
 let alias_nongen_row mode px ty =
     match get_desc ty with
@@ -2599,10 +2606,7 @@ let trees_of_type_expansion'
     if var_jkinds then
       match get_desc ty with
       | Tvar { jkind; _ } | Tunivar { jkind; _ } ->
-          let olay = match Jkind.get jkind with
-            | Const clay -> Olay_const clay
-            | Var v      -> Olay_var (Jkind.Sort.var_name v)
-          in
+          let olay = desc_to_out_jkind (Jkind.get jkind) in
           Otyp_jkind_annot (out, olay)
       | _ ->
           out
