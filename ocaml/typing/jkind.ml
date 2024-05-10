@@ -1150,6 +1150,8 @@ type bits32_creation_reason = Primitive of Ident.t
 
 type bits64_creation_reason = Primitive of Ident.t
 
+type product_creation_reason = Unboxed_tuple
+
 type annotation_context =
   | Type_declaration of Path.t
   | Type_parameter of Path.t * string option
@@ -1172,6 +1174,7 @@ type creation_reason =
   | Word_creation of word_creation_reason
   | Bits32_creation of bits32_creation_reason
   | Bits64_creation of bits64_creation_reason
+  | Product_creation of product_creation_reason
   | Concrete_creation of concrete_jkind_reason
   | Imported
   | Imported_type_argument of
@@ -1248,6 +1251,13 @@ let word ~why = fresh_jkind Jkind_desc.word ~why:(Word_creation why)
 let bits32 ~why = fresh_jkind Jkind_desc.bits32 ~why:(Bits32_creation why)
 
 let bits64 ~why = fresh_jkind Jkind_desc.bits64 ~why:(Bits64_creation why)
+
+(* CR ccasinghino: we probably want to do something with the histories and modes
+   of the components *)
+let product ~why ts =
+  fresh_jkind
+    (Jkind_desc.product (List.map (fun t -> t.jkind.layout) ts))
+    ~why:(Product_creation why)
 
 (******************************)
 (*** user errors ***)
@@ -1695,6 +1705,10 @@ end = struct
     | Primitive id ->
       fprintf ppf "it is the primitive bits64 type %s" (Ident.name id)
 
+  let format_product_creation_reason ppf : product_creation_reason -> _ =
+    function
+    | Unboxed_tuple -> fprintf ppf "it is an unboxed tuple"
+
   let format_creation_reason ppf : creation_reason -> unit = function
     | Annotated (ctx, _) ->
       fprintf ppf "of the annotation on %a" format_annotation_context ctx
@@ -1711,6 +1725,7 @@ end = struct
     | Word_creation word -> format_word_creation_reason ppf word
     | Bits32_creation bits32 -> format_bits32_creation_reason ppf bits32
     | Bits64_creation bits64 -> format_bits64_creation_reason ppf bits64
+    | Product_creation product -> format_product_creation_reason ppf product
     | Concrete_creation concrete -> format_concrete_jkind_reason ppf concrete
     | Imported ->
       fprintf ppf "of layout requirements from an imported definition"
@@ -2063,6 +2078,9 @@ module Debug_printers = struct
   let bits64_creation_reason ppf : bits64_creation_reason -> _ = function
     | Primitive id -> fprintf ppf "Primitive %s" (Ident.unique_name id)
 
+  let product_creation_reason ppf : product_creation_reason -> _ = function
+    | Unboxed_tuple -> fprintf ppf "Unboxed_tuple"
+
   let creation_reason ppf : creation_reason -> unit = function
     | Annotated (ctx, loc) ->
       fprintf ppf "Annotated (%a,%a)" annotation_context ctx Location.print_loc
@@ -2085,6 +2103,8 @@ module Debug_printers = struct
       fprintf ppf "Bits32_creation %a" bits32_creation_reason bits32
     | Bits64_creation bits64 ->
       fprintf ppf "Bits64_creation %a" bits64_creation_reason bits64
+    | Product_creation product ->
+      fprintf ppf "Product_creation %a" product_creation_reason product
     | Concrete_creation concrete ->
       fprintf ppf "Concrete_creation %a" concrete_jkind_reason concrete
     | Imported -> fprintf ppf "Imported"

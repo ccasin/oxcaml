@@ -309,6 +309,8 @@ type bits32_creation_reason = Primitive of Ident.t
 
 type bits64_creation_reason = Primitive of Ident.t
 
+type product_creation_reason = Unboxed_tuple
+
 type creation_reason =
   | Annotated of annotation_context * Location.t
   | Missing_cmi of Path.t
@@ -321,6 +323,7 @@ type creation_reason =
   | Word_creation of word_creation_reason
   | Bits32_creation of bits32_creation_reason
   | Bits64_creation of bits64_creation_reason
+  | Product_creation of product_creation_reason
   | Concrete_creation of concrete_jkind_reason
   | Imported
   | Imported_type_argument of
@@ -429,6 +432,9 @@ val bits32 : why:bits32_creation_reason -> t
 
 (** This is the jkind of unboxed 64-bit integers. They have sort Bits64. *)
 val bits64 : why:bits64_creation_reason -> t
+
+(** This is the jkind of unboxed products.  They have product sorts. *)
+val product : why:product_creation_reason -> t list -> t
 
 (******************************)
 (* construction *)

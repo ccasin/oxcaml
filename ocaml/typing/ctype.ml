@@ -2060,14 +2060,20 @@ let get_unboxed_type_approximation env ty =
    want to update the jkind.
    - Jkind: We compute the jkind, and the type wasn't a variable.
    - Var: The type was a var, we return the jkind and the type_expr it was in,
-     in case the caller wants to update it. *)
+     in case the caller wants to update it.
+   - Product: The type was an unboxed tuple, these are the components.
+*)
 type jkind_result =
   | Jkind of Jkind.t
   | TyVar of Jkind.t * type_expr
+  | Product of jkind_result list
+  (* CR ccasinghino: maybe the Product constructor should carry the reason *)
 
-let jkind_of_result = function
+let rec jkind_of_result : jkind_result -> Jkind.t = function
   | Jkind l -> l
   | TyVar (l,_) -> l
+  | Product results ->
+    Jkind.product ~why:Unboxed_tuple (List.map jkind_of_result results)
 
 let tvariant_not_immediate row =
   (* if all labels are devoid of arguments, not a pointer *)
@@ -2089,18 +2095,17 @@ let tvariant_not_immediate row =
    or when the type is a Tconstr that is missing from the Env due to a missing
    cmi). *)
 let rec estimate_type_jkind env ty =
-  let open Jkind in
   match get_desc ty with
   | Tconstr(p, _, _) -> begin
     try
       Jkind (Env.find_type p env).type_jkind
     with
-      Not_found -> Jkind (any ~why:(Missing_cmi p))
+      Not_found -> Jkind (Jkind.any ~why:(Missing_cmi p))
   end
   | Tvariant row ->
       if tvariant_not_immediate row
-      then Jkind (value ~why:Polymorphic_variant)
-      else Jkind (immediate ~why:Immediate_polymorphic_variant)
+      then Jkind (Jkind.value ~why:Polymorphic_variant)
+      else Jkind (Jkind.immediate ~why:Immediate_polymorphic_variant)
   | Tvar { jkind } when get_level ty = generic_level ->
     (* Once a Tvar gets generalized with a jkind, it should be considered
        as fixed (similar to the Tunivar case below).
@@ -2112,18 +2117,17 @@ let rec estimate_type_jkind env ty =
        This, however, still allows sort variables to get instantiated. *)
     Jkind jkind
   | Tvar { jkind } -> TyVar (jkind, ty)
-  | Tarrow _ -> Jkind (value ~why:Arrow)
-  | Ttuple _ -> Jkind (value ~why:Tuple)
-  | Tunboxed_tuple ltys -> ()
-  (* CR ccasinghino: this case will require some thought.  Can a caller want to
-     update a var inside the product?  Probably? *)
-  | Tobject _ -> Jkind (value ~why:Object)
-  | Tfield _ -> Jkind (value ~why:Tfield)
-  | Tnil -> Jkind (value ~why:Tnil)
+  | Tarrow _ -> Jkind (Jkind.value ~why:Arrow)
+  | Ttuple _ -> Jkind (Jkind.value ~why:Tuple)
+  | Tunboxed_tuple ltys ->
+    Product (List.map (fun (_, ty) -> estimate_type_jkind env ty) ltys)
+  | Tobject _ -> Jkind (Jkind.value ~why:Object)
+  | Tfield _ -> Jkind (Jkind.value ~why:Tfield)
+  | Tnil -> Jkind (Jkind.value ~why:Tnil)
   | (Tlink _ | Tsubst _) -> assert false
   | Tunivar { jkind } -> Jkind jkind
   | Tpoly (ty, _) -> estimate_type_jkind env ty
-  | Tpackage _ -> Jkind (value ~why:First_class_module)
+  | Tpackage _ -> Jkind (Jkind.value ~why:First_class_module)
 
 (**** checking jkind relationships ****)
 
