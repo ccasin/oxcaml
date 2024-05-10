@@ -116,6 +116,7 @@ type out_type =
   | Otyp_stuff of string
   | Otyp_sum of out_constructor list
   | Otyp_tuple of (string option * out_type) list
+  | Otyp_unboxed_tuple of (string option * out_type) list
   | Otyp_var of bool * string
   | Otyp_variant of out_variant * bool * (string list) option
   | Otyp_poly of out_vars_jkinds * out_type

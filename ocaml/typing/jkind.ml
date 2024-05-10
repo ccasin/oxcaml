@@ -1079,6 +1079,7 @@ type concrete_jkind_reason =
   | Optional_arg_default
   | Layout_poly_in_external
   | Array_element
+  | Unboxed_tuple_element
 
 type value_creation_reason =
   | Class_let_binding
@@ -1552,6 +1553,8 @@ end = struct
          ([@@layout_poly] forces all variables of layout 'any' to be@ \
          representable at call sites)"
     | Array_element -> fprintf ppf "it's the type of an array element"
+    | Unboxed_tuple_element ->
+      fprintf ppf "it's the type of unboxed tuple element"
 
   let rec format_annotation_context ppf : annotation_context -> unit = function
     | Type_declaration p ->
@@ -1971,6 +1974,7 @@ module Debug_printers = struct
     | Optional_arg_default -> fprintf ppf "Optional_arg_default"
     | Layout_poly_in_external -> fprintf ppf "Layout_poly_in_external"
     | Array_element -> fprintf ppf "Array_element"
+    | Unboxed_tuple_element -> fprintf ppf "Unboxed_tuple_element"
 
   let rec annotation_context ppf : annotation_context -> unit = function
     | Type_declaration p -> fprintf ppf "Type_declaration %a" Path.print p

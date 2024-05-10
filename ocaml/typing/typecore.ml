@@ -7746,6 +7746,45 @@ and type_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     exp_attributes = attributes;
     exp_env = env }
 
+(* CR ccasinghino: Contemplate if any of this can be shared with the above. *)
+(* and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
+ *       ~explanation ~attributes sexpl =
+ *   let arity = List.length sexpl in
+ *   assert (arity >= 2);
+ *   (* elements must be representable *)
+ *   let labeled_subtypes =
+ *     List.map (fun (label, _) ->
+ *       label, newgenvar (Jkind.of_new_sort ~why:Unboxed_tuple_element))
+ *     sexpl
+ *   in
+ *   let to_unify = newgenty (Tunboxed_tuple labeled_subtypes) in
+ *   with_explanation explanation (fun () ->
+ *     unify_exp_types loc env to_unify (generic_instance ty_expected));
+ *
+ *   let argument_modes =
+ *     (* CR ccasinghino: ??? *)
+ *     if List.compare_length_with expected_mode.tuple_modes arity = 0 then
+ *       expected_mode.tuple_modes
+ *     else List.init arity (fun _ -> expected_mode)
+ *   in
+ *   let types_and_modes = List.combine labeled_subtypes argument_modes in
+ *   let expl =
+ *     List.map2
+ *       (fun (label, body) ((_, ty), argument_mode) ->
+ *         let argument_mode = mode_default argument_mode in
+ *         let argument_mode = expect_mode_cross env ty argument_mode in
+ *           (label, type_expect env argument_mode body (mk_expected ty)))
+ *       sexpl types_and_modes
+ *   in
+ *   re {
+ *     exp_desc = Texp_tuple (expl, alloc_mode);
+ *     exp_loc = loc; exp_extra = [];
+ *     (* Keep sharing *)
+ *     exp_type = newty (Ttuple (List.map (fun (label, e) -> label, e.exp_type) expl));
+ *     exp_attributes = attributes;
+ *     exp_env = env } *)
+
+
 and type_construct env (expected_mode : expected_mode) loc lid sarg
       ty_expected_explained attrs =
   let { ty = ty_expected; explanation } = ty_expected_explained in

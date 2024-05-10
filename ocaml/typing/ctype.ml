@@ -1973,7 +1973,7 @@ let rec extract_concrete_typedecl env ty =
           end
       end
   | Tpoly(ty, _) -> extract_concrete_typedecl env ty
-  | Tarrow _ | Ttuple _ | Tobject _ | Tfield _ | Tnil
+  | Tarrow _ | Ttuple _ | Tunboxed_tuple _ | Tobject _ | Tfield _ | Tnil
   | Tvariant _ | Tpackage _ -> Has_no_typedecl
   | Tvar _ | Tunivar _ -> May_have_typedecl
   | Tlink _ | Tsubst _ -> assert false
@@ -2114,6 +2114,9 @@ let rec estimate_type_jkind env ty =
   | Tvar { jkind } -> TyVar (jkind, ty)
   | Tarrow _ -> Jkind (value ~why:Arrow)
   | Ttuple _ -> Jkind (value ~why:Tuple)
+  | Tunboxed_tuple ltys -> ()
+  (* CR ccasinghino: this case will require some thought.  Can a caller want to
+     update a var inside the product?  Probably? *)
   | Tobject _ -> Jkind (value ~why:Object)
   | Tfield _ -> Jkind (value ~why:Tfield)
   | Tnil -> Jkind (value ~why:Tnil)

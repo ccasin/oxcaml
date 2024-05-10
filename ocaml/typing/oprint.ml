@@ -485,6 +485,15 @@ and print_out_type_3 ppf =
       print_out_type_0 ppf ty;
       pp_print_char ppf ')';
       pp_close_box ppf ()
+  | Otyp_unboxed_tuple tyl ->
+      pp_open_box ppf 1;
+      fprintf ppf "#(";
+      fprintf
+        ppf "@[<0>%a@]"
+        (print_labeled_typlist print_simple_out_type " *")
+        tyl;
+      pp_print_char ppf ')';
+      pp_close_box ppf ()
   | Otyp_abstract | Otyp_open
   | Otyp_sum _ | Otyp_manifest (_, _) -> ()
   | Otyp_record lbls -> print_record_decl ppf lbls

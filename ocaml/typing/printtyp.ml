@@ -643,6 +643,8 @@ and raw_type_desc ppf = function
         (if is_commu_ok c then "Cok" else "Cunknown")
   | Ttuple tl ->
       fprintf ppf "@[<1>Ttuple@,%a@]" labeled_type_list tl
+  | Tunboxed_tuple tl ->
+      fprintf ppf "@[<1>Tunboxed_tuple@,%a@]" labeled_type_list tl
   | Tconstr (p, tl, abbrev) ->
       fprintf ppf "@[<hov1>Tconstr(@,%a,@,%a,@,%a)@]" path p
         raw_type_list tl
@@ -1344,6 +1346,8 @@ let rec tree_of_typexp mode alloc_mode ty =
         Otyp_arrow (lab, tree_of_modes arg_mode, t1, rm, t2)
     | Ttuple labeled_tyl ->
         Otyp_tuple (tree_of_labeled_typlist mode labeled_tyl)
+    | Tunboxed_tuple labeled_tyl ->
+        Otyp_unboxed_tuple (tree_of_labeled_typlist mode labeled_tyl)
     | Tconstr(p, tyl, _abbrev) ->
         let p', s = best_type_path p in
         let tyl' = apply_subst s tyl in
