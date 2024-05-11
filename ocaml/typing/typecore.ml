@@ -3754,6 +3754,8 @@ let rec is_nonexpansive exp =
   | Texp_probe {handler} -> is_nonexpansive handler
   | Texp_tuple (el, _) ->
       List.for_all (fun (_,e) -> is_nonexpansive e) el
+  | Texp_unboxed_tuple el ->
+      List.for_all (fun (_,e,_) -> is_nonexpansive e) el
   | Texp_construct(_, _, el, _) ->
       List.for_all is_nonexpansive el
   | Texp_variant(_, arg) -> is_nonexpansive_opt (Option.map fst arg)
@@ -4390,6 +4392,7 @@ let check_partial_application ~statement exp =
           else begin
             match exp_desc with
             | Texp_ident _ | Texp_constant _ | Texp_tuple _
+            | Texp_unboxed_tuple _
             | Texp_construct _ | Texp_variant _ | Texp_record _
             | Texp_field _ | Texp_setfield _ | Texp_array _
             | Texp_list_comprehension _ | Texp_array_comprehension _
@@ -5498,8 +5501,9 @@ and type_expect_
   | Pexp_tuple sexpl ->
       type_tuple ~loc ~env ~expected_mode ~ty_expected ~explanation
         ~attributes:sexp.pexp_attributes (List.map (fun e -> None, e) sexpl)
-  | Pexp_unboxed_tuple _ ->
-      Misc.fatal_error "CJC: unimplemented"
+  | Pexp_unboxed_tuple sexpl ->
+      type_unboxed_tuple ~loc ~env ~expected_mode ~ty_expected ~explanation
+        ~attributes:sexp.pexp_attributes sexpl
   | Pexp_construct(lid, sarg) ->
       type_construct env expected_mode loc lid
         sarg ty_expected_explained sexp.pexp_attributes
@@ -7747,42 +7751,50 @@ and type_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     exp_env = env }
 
 (* CR ccasinghino: Contemplate if any of this can be shared with the above. *)
-(* and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
- *       ~explanation ~attributes sexpl =
- *   let arity = List.length sexpl in
- *   assert (arity >= 2);
- *   (* elements must be representable *)
- *   let labeled_subtypes =
- *     List.map (fun (label, _) ->
- *       label, newgenvar (Jkind.of_new_sort ~why:Unboxed_tuple_element))
- *     sexpl
- *   in
- *   let to_unify = newgenty (Tunboxed_tuple labeled_subtypes) in
- *   with_explanation explanation (fun () ->
- *     unify_exp_types loc env to_unify (generic_instance ty_expected));
- *
- *   let argument_modes =
- *     (* CR ccasinghino: ??? *)
- *     if List.compare_length_with expected_mode.tuple_modes arity = 0 then
- *       expected_mode.tuple_modes
- *     else List.init arity (fun _ -> expected_mode)
- *   in
- *   let types_and_modes = List.combine labeled_subtypes argument_modes in
- *   let expl =
- *     List.map2
- *       (fun (label, body) ((_, ty), argument_mode) ->
- *         let argument_mode = mode_default argument_mode in
- *         let argument_mode = expect_mode_cross env ty argument_mode in
- *           (label, type_expect env argument_mode body (mk_expected ty)))
- *       sexpl types_and_modes
- *   in
- *   re {
- *     exp_desc = Texp_tuple (expl, alloc_mode);
- *     exp_loc = loc; exp_extra = [];
- *     (* Keep sharing *)
- *     exp_type = newty (Ttuple (List.map (fun (label, e) -> label, e.exp_type) expl));
- *     exp_attributes = attributes;
- *     exp_env = env } *)
+and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
+      ~explanation ~attributes sexpl =
+  let arity = List.length sexpl in
+  assert (arity >= 2);
+  (* elements must be representable *)
+  let labels_types_and_sorts =
+    List.map (fun (label, _) ->
+      let jkind, sort = Jkind.of_new_sort_var ~why:Unboxed_tuple_element in
+      label, newgenvar jkind, sort)
+    sexpl
+  in
+  let labeled_subtypes =
+    List.map (fun (l, t, _) -> (l, t)) labels_types_and_sorts
+  in
+  let to_unify = newgenty (Tunboxed_tuple labeled_subtypes) in
+  with_explanation explanation (fun () ->
+    unify_exp_types loc env to_unify (generic_instance ty_expected));
+
+  let argument_modes =
+    (* CR ccasinghino: seems right, but check *)
+    if List.compare_length_with expected_mode.tuple_modes arity = 0 then
+      expected_mode.tuple_modes
+    else List.init arity (fun _ -> expected_mode.mode)
+  in
+  let types_sorts_and_modes =
+    List.combine labels_types_and_sorts argument_modes
+  in
+  let expl =
+    List.map2
+      (fun (label, body) ((_, ty, sort), argument_mode) ->
+        let argument_mode = mode_default argument_mode in
+        let argument_mode = expect_mode_cross env ty argument_mode in
+          (label, type_expect env argument_mode body (mk_expected ty), sort))
+      sexpl types_sorts_and_modes
+  in
+  re {
+    exp_desc = Texp_unboxed_tuple expl;
+    exp_loc = loc; exp_extra = [];
+    (* Keep sharing *)
+    exp_type =
+      newty (Tunboxed_tuple
+               (List.map (fun (label, e, _) -> label, e.exp_type) expl));
+    exp_attributes = attributes;
+    exp_env = env }
 
 
 and type_construct env (expected_mode : expected_mode) loc lid sarg

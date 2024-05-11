@@ -2136,16 +2136,33 @@ type type_jkind_sub_result =
     (* The [Type_var] case might still be "success"; caller should check.
        We don't just report success here because if the caller unifies the
        tyvar, error messages improve. *)
-  | Type_var of Jkind.t * type_expr
+  | Type_vars of (Jkind.t * type_expr) list
   | Missing_cmi of Jkind.t * Path.t
   | Failure of Jkind.t
 
 let type_jkind_sub env ty ~check_sub =
+  (* This is shallow in the sense of not expanding tconstrs, but may still
+     traverse the type deeply. *)
   let shallow_check ty =
-    match estimate_type_jkind env ty with
-    | Jkind ty_jkind -> if check_sub ty_jkind then Success else Failure ty_jkind
-    | TyVar (ty_jkind, ty) -> Type_var (ty_jkind, ty)
+    let rec check_one result =
+      match result with
+      | Jkind ty_jkind ->
+        if check_sub ty_jkind then Success else Failure ty_jkind
+      | TyVar (ty_jkind, ty) -> Type_vars [ty_jkind, ty]
+      | Product results -> check_product results []
+
+    and check_product results vars =
+      match results with
+      | [] -> if vars = [] then Success else Type_vars vars
+      | result :: results ->
+        match check_one result with
+        | Success -> check_product results vars
+        | Type_vars vars' -> Type_vars (vars @ vars')
+        | (Failure _ | Missing_cmi _) as fail -> fail
+    in
+    check_one (estimate_type_jkind env ty)
   in
+
   (* The "fuel" argument here is used because we're duplicating the loop of
      `get_unboxed_type_representation`, but performing jkind checking at each
      step.  This allows to check examples like:
@@ -2183,6 +2200,15 @@ let type_jkind_sub env ty ~check_sub =
   in
   loop ty 100
 
+(* CR ccasinghino: move this to misc? *)
+let rec iter_until_error ~f l =
+  match l with
+  | [] -> Ok ()
+  | x :: xs ->
+    match f x with
+    | Ok () -> iter_until_error ~f xs
+    | Error _ as e -> e
+
 (* The ~fixed argument controls what effects this may have on `ty`.  If false,
    then we will update the jkind of type variables to make the check true, if
    possible.  If true, we won't (but will still instantiate sort variables).
@@ -2195,13 +2221,16 @@ let constrain_type_jkind ~fixed env ty jkind =
   match type_jkind_sub env ty
           ~check_sub:(fun ty_jkind -> Jkind.sub ty_jkind jkind) with
   | Success -> Ok ()
-  | Type_var (ty_jkind, ty) ->
-    if fixed then Jkind.sub_or_error ty_jkind jkind else
-    let jkind_inter =
-      Jkind.intersection ~reason:Tyvar_refinement_intersection
-        ty_jkind jkind
+  | Type_vars tvs ->
+    let constrain_one_var (ty_jkind, ty) =
+      if fixed then Jkind.sub_or_error ty_jkind jkind else
+      let jkind_inter =
+        Jkind.intersection ~reason:Tyvar_refinement_intersection
+          ty_jkind jkind
+      in
+      Result.map (set_var_jkind ty) jkind_inter
     in
-    Result.map (set_var_jkind ty) jkind_inter
+    iter_until_error ~f:constrain_one_var tvs
   | Missing_cmi (ty_jkind, missing_cmi) ->
     Error Jkind.(Violation.of_ ~missing_cmi
       (Not_a_subjkind
@@ -2230,7 +2259,8 @@ let check_type_externality env ty ext =
   in
   match type_jkind_sub env ty ~check_sub with
   | Success -> true
-  | Type_var (ty_jkind, _) -> check_sub ty_jkind
+  | Type_vars tvs ->
+    List.for_all (fun (ty_jkind, _) -> check_sub ty_jkind) tvs
   | Missing_cmi _ -> false (* safe answer *)
   | Failure _ -> false
 
@@ -4635,6 +4665,9 @@ let rec moregen inst_nongen variance type_pairs env t1 t2 =
           | (Ttuple labeled_tl1, Ttuple labeled_tl2) ->
               moregen_labeled_list inst_nongen variance type_pairs env
                 labeled_tl1 labeled_tl2
+          | (Tunboxed_tuple labeled_tl1, Tunboxed_tuple labeled_tl2) ->
+              moregen_labeled_list inst_nongen variance type_pairs env
+                labeled_tl1 labeled_tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
                 when Path.same p1 p2 -> begin
               match variance with
@@ -5661,17 +5694,11 @@ let rec build_subtype env (visited : transient_expr list)
       then (newty (Tarrow((l,a',r'), t1', t2', commu_ok)), c)
       else (t, Unchanged)
   | Ttuple labeled_tlist ->
-      let tt = Transient_expr.repr t in
-      if memq_warn tt visited then (t, Unchanged) else
-      let visited = tt :: visited in
-      let labels, tlist = List.split labeled_tlist in
-      let tlist' =
-        List.map (build_subtype env visited loops posi level) tlist
-      in
-      let c = collect tlist' in
-      if c > Unchanged then
-        (newty (Ttuple (List.combine labels (List.map fst tlist'))), c)
-      else (t, Unchanged)
+      build_subtype_tuple env visited loops posi level t labeled_tlist
+        (fun x -> Ttuple x)
+  | Tunboxed_tuple labeled_tlist ->
+      build_subtype_tuple env visited loops posi level t labeled_tlist
+        (fun x -> Tunboxed_tuple x)
   | Tconstr(p, tl, abbrev)
     when level > 0 && generic_abbrev env p && safe_abbrev env t
     && not (has_constr_row' env t) ->
@@ -5814,6 +5841,21 @@ let rec build_subtype env (visited : transient_expr list)
       else (t, Unchanged)
   | Tunivar _ | Tpackage _ ->
       (t, Unchanged)
+
+and build_subtype_tuple env visited loops posi level t labeled_tlist
+      constructor =
+  let tt = Transient_expr.repr t in
+  if memq_warn tt visited then (t, Unchanged) else
+  let visited = tt :: visited in
+  let labels, tlist = List.split labeled_tlist in
+  let tlist' =
+    List.map (build_subtype env visited loops posi level) tlist
+  in
+  let c = collect tlist' in
+  if c > Unchanged then
+    (newty (constructor (List.combine labels (List.map fst tlist'))), c)
+  else (t, Unchanged)
+
 
 let enlarge_type env ty =
   warn := false;

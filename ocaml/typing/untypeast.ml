@@ -607,6 +607,9 @@ let expression sub exp =
         Jane_syntax.Labeled_tuples.expr_of ~loc
           (List.map (fun (lbl, e) -> lbl, sub.expr sub e) list)
         |> add_jane_syntax_attributes
+    | Texp_unboxed_tuple list ->
+        Pexp_unboxed_tuple
+          (List.map (fun (lbl, e, _) -> lbl, sub.expr sub e) list)
     | Texp_construct (lid, _, args, _) ->
         Pexp_construct (map_loc sub lid,
           (match args with

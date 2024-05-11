@@ -473,6 +473,12 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
               ll,
               (of_location ~scopes e.exp_loc))
       end
+  | Texp_unboxed_tuple el ->
+      let shape = List.map (fun (_, e, s) -> layout_exp s e) el in
+      let ll = List.map (fun (_, e, s) -> transl_exp ~scopes s e) el in
+      Lprim(Pmake_unboxed_product shape,
+            ll,
+            of_location ~scopes e.exp_loc)
   | Texp_construct(_, cstr, args, alloc_mode) ->
       let args_with_sorts =
         List.mapi (fun i e ->

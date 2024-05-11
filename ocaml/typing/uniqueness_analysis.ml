@@ -1251,6 +1251,8 @@ let rec check_uniqueness_exp (ienv : Ienv.t) exp : UF.t =
     UF.seq uf_body uf_cases
   | Texp_tuple (es, _) ->
     UF.pars (List.map (fun (_, e) -> check_uniqueness_exp ienv e) es)
+  | Texp_unboxed_tuple es ->
+    UF.pars (List.map (fun (_, e, _) -> check_uniqueness_exp ienv e) es)
   | Texp_construct (_, _, es, _) ->
     UF.pars (List.map (fun e -> check_uniqueness_exp ienv e) es)
   | Texp_variant (_, None) -> UF.unused

@@ -294,6 +294,9 @@ module Make(O : OBJ)(EVP : EVALPATH with type valu = O.t) = struct
               Oval_stuff "<fun>"
           | Ttuple(labeled_tys) ->
               Oval_tuple (tree_of_labeled_val_list 0 depth obj labeled_tys)
+          | Tunboxed_tuple(labeled_tys) ->
+              Oval_unboxed_tuple
+                (tree_of_labeled_val_list 0 depth obj labeled_tys)
           | Tconstr(path, [ty_arg], _)
             when Path.same path Predef.path_list ->
               if O.is_block obj then

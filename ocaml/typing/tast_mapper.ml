@@ -464,6 +464,9 @@ let expr sub x =
         )
     | Texp_tuple (list, am) ->
         Texp_tuple (List.map (fun (label, e) -> label, sub.expr sub e) list, am)
+    | Texp_unboxed_tuple list ->
+        Texp_unboxed_tuple
+          (List.map (fun (label, e, s) -> label, sub.expr sub e, s) list)
     | Texp_construct (lid, cd, args, am) ->
         Texp_construct (map_loc sub lid, cd, List.map (sub.expr sub) args, am)
     | Texp_variant (l, expo) ->

@@ -54,6 +54,7 @@ type out_value =
   | Oval_string of string * int * out_string (* string, size-to-print, kind *)
   | Oval_stuff of string
   | Oval_tuple of (string option * out_value) list
+  | Oval_unboxed_tuple of (string option * out_value) list
   | Oval_variant of string * out_value option
 
 type out_jkind =

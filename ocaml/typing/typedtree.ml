@@ -153,6 +153,7 @@ and expression_desc =
   | Texp_match of expression * Jkind.sort * computation case list * partial
   | Texp_try of expression * value case list
   | Texp_tuple of (string option * expression) list * Mode.Alloc.r
+  | Texp_unboxed_tuple of (string option * expression * Jkind.sort) list
   | Texp_construct of
       Longident.t loc * constructor_description * expression list * Mode.Alloc.r option
   | Texp_variant of label * (expression * Mode.Alloc.r) option

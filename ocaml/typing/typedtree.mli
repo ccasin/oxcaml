@@ -317,6 +317,15 @@ and expression_desc =
             - [(L1:E1, ..., Ln:En)] when [el] is [(Some L1, E1);...;(Some Ln, En)],
             - Any mix, e.g. [(L1: E1, E2)] when [el] is [(Some L1, E1); (None, E2)]
           *)
+  | Texp_unboxed_tuple of (string option * expression * Jkind.sort) list
+        (** [Texp_unboxed_tuple(el)] represents
+            - [#(E1, ..., En)]       when [el] is
+              [(None, E1, s1);...;(None, En, sn)],
+            - [#(L1:E1, ..., Ln:En)] when [el] is
+              [(Some L1, E1, s1);...;(Some Ln, En, sn)],
+            - Any mix, e.g. [#(L1: E1, E2)] when [el] is
+              [(Some L1, E1, s1); (None, E2, s2)]
+          *)
   | Texp_construct of
       Longident.t loc * Types.constructor_description *
       expression list * Mode.Alloc.r option

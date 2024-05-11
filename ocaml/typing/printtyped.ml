@@ -469,6 +469,9 @@ and expression i ppf x =
       line i ppf "Texp_tuple\n";
       alloc_mode i ppf am;
       list i labeled_expression ppf l;
+  | Texp_unboxed_tuple l ->
+      line i ppf "Texp_unboxed_tuple\n";
+      list i labeled_sorted_expression ppf l;
   | Texp_construct (li, _, eo, am) ->
       line i ppf "Texp_construct %a\n" fmt_longident li;
       alloc_mode_option i ppf am;
@@ -1147,6 +1150,12 @@ and labeled_expression i ppf (l, e) =
   line i ppf "<tuple component>\n";
   tuple_component_label i ppf l;
   expression (i+1) ppf e;
+
+and labeled_sorted_expression i ppf (l, e, s) =
+  line i ppf "<tuple component>\n";
+  tuple_component_label i ppf l;
+  expression (i+1) ppf e;
+  line i ppf "%a\n" Jkind.Sort.format s;
 
 and ident_x_expression_def i ppf (l, e) =
   line i ppf "<def> \"%a\"\n" fmt_ident l;
