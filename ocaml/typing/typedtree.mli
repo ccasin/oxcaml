@@ -133,6 +133,15 @@ and 'k pattern_desc =
 
             Invariant: n >= 2
          *)
+  | Tpat_unboxed_tuple :
+      (string option * value general_pattern * Jkind.sort) list ->
+      value pattern_desc
+        (** #(P1, ..., Pn)              [(None,P1,s1); ...; (None,Pn,sn)])
+            #(L1:P1, ... Ln:Pn)         [(Some L1,P1,s1); ...; (Some Ln,Pn,sn)])
+            Any mix, e.g. #(L1:P1, P2)  [(Some L1,P1,s1); ...; (None,P2,s2)])
+
+            Invariant: n >= 2
+         *)
   | Tpat_construct :
       Longident.t loc * Types.constructor_description *
         value general_pattern list * (Ident.t loc list * core_type) option ->

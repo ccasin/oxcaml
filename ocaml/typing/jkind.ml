@@ -120,7 +120,12 @@ module Sort = struct
     | Base of base
     | Product of t list
 
-  and var = t option ref
+  and var =
+    { mutable contents : t option;
+      uid : int
+    }
+
+  let next_uid = ref 0
 
   (* To record changes to sorts, for use with `Types.{snapshot, backtrack}` *)
   type change = var * t option
@@ -129,25 +134,15 @@ module Sort = struct
 
   let log_change change = !change_log change
 
-  let undo_change (v, t_op) = v := t_op
+  let undo_change (v, t_op) = v.contents <- t_op
 
   let var_name : var -> string =
-    let next_id = ref 1 in
-    let named = ref [] in
-    fun v ->
-      match List.assq_opt v !named with
-      | Some name -> name
-      | None ->
-        let id = !next_id in
-        let name = "'_representable_layout_" ^ Int.to_string id in
-        next_id := id + 1;
-        named := (v, name) :: !named;
-        name
+   fun v -> "'_representable_layout_" ^ Int.to_string v.uid
 
   let set : var -> t option -> unit =
    fun v t_op ->
-    log_change (v, !v);
-    v := t_op
+    log_change (v, v.contents);
+    v.contents <- t_op
 
   let void = Base Void
 
@@ -178,7 +173,10 @@ module Sort = struct
 
   let of_var v = Var v
 
-  let new_var () = Var (ref None)
+  let new_var () =
+    let uid = !next_uid in
+    incr next_uid;
+    Var { contents = None; uid }
 
   (* Post-condition: For any [Var v] in the result, [!v] is [None]. *)
   let rec get : t -> t = function
@@ -188,7 +186,7 @@ module Sort = struct
       if List.for_all2 (fun t1 t2 -> t1 == t2) ts ts' then t else Product ts'
       (* CR ccasinghino: should I care about this optimization? *)
     | Var r as t -> (
-      match !r with
+      match r.contents with
       | None -> t
       | Some s ->
         let result = get s in
@@ -243,7 +241,7 @@ module Sort = struct
     | Base b -> get_memoized_const b
     | Product ts -> Const_product (List.map get_default_value ts)
     | Var r -> (
-      match !r with
+      match r.contents with
       | None ->
         set r memoized_value;
         memoized_value_const
@@ -289,14 +287,14 @@ module Sort = struct
    *   | (Const_base _ | Const_product _), _ -> false *)
 
   let rec equate_var_base v1 b2 =
-    match !v1 with
+    match v1.contents with
     | Some s1 -> equate_sort_base s1 b2
     | None ->
       set v1 (Some (of_base b2));
       Equal_mutated_first
 
   and equate_var_product v1 sorts2 =
-    match !v1 with
+    match v1.contents with
     | Some s1 -> equate_sort_product s1 sorts2
     | None ->
       (* CR ccasinghino: XXX do dynamic memoization of the products? *)
@@ -313,7 +311,7 @@ module Sort = struct
     if v1 == v2
     then Equal_no_mutation
     else
-      match !v1, !v2 with
+      match v1.contents, v2.contents with
       | Some s1, _ -> swap_equate_result (equate_var v2 s1)
       | _, Some s2 -> equate_var v1 s2
       | None, None ->
@@ -379,7 +377,7 @@ module Sort = struct
   let rec is_void_defaulting = function
     | Base Void -> true
     | Var v -> (
-      match !v with
+      match v.contents with
       (* CR layouts v5: this should probably default to void now *)
       | None ->
         set v some_value;
@@ -439,7 +437,8 @@ module Sort = struct
       | Some s -> fprintf ppf "Some %a" t s
       | None -> fprintf ppf "None"
 
-    and var ppf v = fprintf ppf "{ contents = %a }" opt_t !v
+    and var ppf v =
+      fprintf ppf "{@[@ contents = %a;@ uid = %d@ @]}" opt_t v.contents v.uid
   end
 
   let for_function = value
@@ -1211,6 +1210,7 @@ type t =
   { jkind : Jkind_desc.t;
     history : history
   }
+(* CR ccasinghino: probably want a history for each component. *)
 
 let fresh_jkind jkind ~why = { jkind; history = Creation why }
 
@@ -2238,3 +2238,36 @@ let to_legacy_desc : Desc.t -> desc = function
 let get t = to_legacy_desc (get t)
 
 let get_default_value t = Const.to_legacy_jkind (get_default_value t)
+
+(* CR ccasinghino: move these to the appropriate places in the unlikely event we
+   keep them.  Also is this just layout.sub on some new sort variables now? Or
+   at least the sort one is sort.equate? *)
+let make_sort_nary_product n (s : Sort.t) =
+  match Sort.get s with
+  | Base _ -> None
+  | Var v ->
+    let vars = List.init n (fun _ -> Sort.new_var ()) in
+    Sort.set v (Some (Sort.Product vars));
+    Some vars
+  | Product sorts ->
+    if List.compare_length_with sorts n = 0 then Some sorts else None
+
+let make_layout_nary_product n (layout : Layout.t) =
+  match layout with
+  | Any | Non_null_value -> None
+  | Sort s ->
+    Option.map (List.map (fun x -> Layout.Sort x)) (make_sort_nary_product n s)
+  | Product ts -> if List.compare_length_with ts n = 0 then Some ts else None
+
+let make_jkind_nary_product n t =
+  match make_layout_nary_product n t.jkind.layout with
+  | None -> None
+  | Some layouts ->
+    (* CR ccasinghino: obviously wrong *)
+    Some
+      (List.map
+         (fun layout -> { t with jkind = { t.jkind with layout } })
+         layouts)
+
+let set_externality_upper_bound (t : t) externality =
+  { t with jkind = { t.jkind with externality_upper_bound = externality } }

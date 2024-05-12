@@ -1248,6 +1248,10 @@ and build_as_type_aux ~refine ~mode (env : Env.t ref) p =
       let labeled_tyl =
         List.map (fun (label, p) -> label, build_as_type env p) pl in
       newty (Ttuple labeled_tyl), mode
+  | Tpat_unboxed_tuple pl ->
+      let labeled_tyl =
+        List.map (fun (label, p, _) -> label, build_as_type env p) pl in
+      newty (Tunboxed_tuple labeled_tyl), mode
   | Tpat_construct(_, cstr, pl, vto) ->
       let priv = (cstr.cstr_private = Private) in
       let mode =
@@ -1425,6 +1429,40 @@ let solve_Ppat_tuple ~refine ~alloc_mode loc env args expected_ty =
   let expected_ty = generic_instance expected_ty in
   unify_pat_types ~refine loc env ty expected_ty;
   ann
+
+(* This assumes the [args] have already been reordered according to the
+   [expected_ty], if needed.  *)
+(* CR ccasinghino: see if we can abstract out with above *)
+let solve_Ppat_unboxed_tuple ~refine ~alloc_mode loc env args expected_ty =
+  let arity = List.length args in
+  let arg_modes =
+    (* CR ccasinghino: just ignore tuple modes? *)
+    if List.compare_length_with alloc_mode.tuple_modes arity = 0 then
+      alloc_mode.tuple_modes
+    else
+      List.init arity (fun _ -> alloc_mode.mode)
+  in
+  let ann =
+    List.map2
+      (fun (label, p) mode ->
+         let jkind, sort =
+           Jkind.of_new_sort_var ~why:Jkind.Unboxed_tuple_element
+         in
+        ( label,
+          p,
+          newgenvar jkind,
+          simple_pat_mode mode,
+          sort
+        ))
+      args arg_modes
+  in
+  let ty =
+    newgenty (Tunboxed_tuple (List.map (fun (lbl, _, t, _, _) -> lbl, t) ann))
+  in
+  let expected_ty = generic_instance expected_ty in
+  unify_pat_types ~refine loc env ty expected_ty;
+  ann
+
 
 let solve_constructor_annotation tps env name_list sty ty_args ty_ex =
   let expansion_scope = get_gadt_equations_level () in
@@ -2421,6 +2459,37 @@ and type_pat_aux
       pat_attributes = sp.ppat_attributes;
       pat_env = !env }
   in
+  (* CR ccasinghino: see how much of this can be shared *)
+  let type_unboxed_tuple_pat spl closed =
+    let args =
+      match get_desc (expand_head !env expected_ty) with
+      (* If it's a principally-known tuple pattern, try to reorder *)
+      | Tunboxed_tuple labeled_tl when is_principal expected_ty ->
+        reorder_pat loc env spl closed labeled_tl expected_ty
+      (* If not, it's not allowed to be open (partial) *)
+      | _ ->
+        match closed with
+        | Open -> raise (Error (loc, !env, Partial_tuple_pattern_bad_type))
+        | Closed -> spl
+    in
+    let spl_ann =
+      solve_Ppat_unboxed_tuple ~refine ~alloc_mode loc env args expected_ty
+    in
+    let pl =
+      List.map (fun (lbl, p, t, alloc_mode, sort) ->
+        lbl, type_pat tps Value ~alloc_mode p t, sort)
+        spl_ann
+    in
+    let ty =
+      newty (Tunboxed_tuple (List.map (fun (lbl, p, _) -> lbl, p.pat_type) pl))
+    in
+    rvp {
+      pat_desc = Tpat_unboxed_tuple pl;
+      pat_loc = loc; pat_extra=[];
+      pat_type = ty;
+      pat_attributes = sp.ppat_attributes;
+      pat_env = !env }
+  in
   match Jane_syntax.Mode_expr.maybe_of_attrs sp.ppat_attributes with
   | Some modes, _ -> raise (Error (modes.loc, !env, Modes_on_pattern))
   | None, _ ->
@@ -2530,8 +2599,8 @@ and type_pat_aux
       raise (Error (loc, !env, Invalid_interval))
   | Ppat_tuple spl ->
       type_tuple_pat (List.map (fun sp -> None, sp) spl) Closed
-  | Ppat_unboxed_tuple (_spl, _oc) ->
-      Misc.fatal_error "CJC: unimplemented"
+  | Ppat_unboxed_tuple (spl, oc) ->
+      type_unboxed_tuple_pat spl oc
   | Ppat_construct(lid, sarg) ->
       let expected_type =
         match extract_concrete_variant !env expected_ty with
@@ -2929,7 +2998,8 @@ let rec pat_tuple_arity spat =
   | None      ->
   match spat.ppat_desc with
   | Ppat_tuple args -> Local_tuple (List.length args)
-  | Ppat_unboxed_tuple (_args,_c) -> Misc.fatal_error "CJC: unimplemented"
+  (* CR ccasinghino: can I get away with this? *)
+  | Ppat_unboxed_tuple (args,_c) -> Local_tuple (List.length args)
   | Ppat_any | Ppat_exception _ | Ppat_var _ -> Maybe_local_tuple
   | Ppat_constant _
   | Ppat_interval _ | Ppat_construct _ | Ppat_variant _
@@ -3166,6 +3236,24 @@ let rec check_counter_example_pat
            mkp k (Tpat_tuple pl)
              ~pat_type:(newty (Ttuple (List.map (fun (l,p) -> (l,p.pat_type))
                                          pl))))
+  | Tpat_unboxed_tuple tpl ->
+      let tpl_ann =
+        solve_Ppat_unboxed_tuple ~refine ~alloc_mode loc env
+          (List.map (fun (l,t,_) -> l, t) tpl)
+          expected_ty
+      in
+      List.iter2
+        (fun (_, _, orig_sort) (_, _, _, _, sort) ->
+           assert (Jkind.Sort.equate orig_sort sort))
+        tpl tpl_ann;
+      map_fold_cont
+        (fun (l,p,t,_,sort) k -> check_rec p t (fun p -> k (l, p, sort)))
+        tpl_ann
+        (fun pl ->
+           mkp k (Tpat_unboxed_tuple pl)
+             ~pat_type:(newty (Tunboxed_tuple
+                                 (List.map (fun (l,p,_) -> (l,p.pat_type))
+                                    pl))))
   | Tpat_construct(cstr_lid, constr, targs, _) ->
       if constr.cstr_generalized && must_backtrack_on_gadt then
         raise Need_backtrack;

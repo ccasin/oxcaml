@@ -306,6 +306,9 @@ and pattern : type k . _ -> _ -> k general_pattern -> unit = fun i ppf x ->
   | Tpat_tuple (l) ->
       line i ppf "Tpat_tuple\n";
       list i labeled_pattern ppf l;
+  | Tpat_unboxed_tuple (l) ->
+      line i ppf "Tpat_unboxed_tuple\n";
+      list i labeled_pattern_with_sorts ppf l;
   | Tpat_construct (li, _, po, vto) ->
       line i ppf "Tpat_construct %a\n" fmt_longident li;
       list i pattern ppf po;
@@ -343,6 +346,13 @@ and labeled_pattern : type k . _ -> _ -> string option * k general_pattern -> un
   fun i ppf (label, x) ->
     tuple_component_label i ppf label;
     pattern i ppf x
+
+and labeled_pattern_with_sorts :
+  type k . _ -> _ -> string option * k general_pattern * Jkind.sort -> unit =
+  fun i ppf (label, x, sort) ->
+    tuple_component_label i ppf label;
+    pattern i ppf x;
+    line i ppf "%a\n" Jkind.Sort.format sort
 
 and pattern_extra i ppf (extra_pat, _, attrs) =
   match extra_pat with

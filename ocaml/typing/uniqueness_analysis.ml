@@ -1089,6 +1089,18 @@ and pattern_match_single pat paths : Ienv.Extension.t * UF.t =
       |> conjuncts_pattern_match
     in
     ext, UF.par uf_read uf_args
+  | Tpat_unboxed_tuple args ->
+    (* CR ccasinghino: check *)
+    let uf_read = Paths.mark_implicit_borrow_memory_address Read occ paths in
+    let ext, uf_args =
+      List.mapi
+        (fun i (_, arg, _) ->
+          let paths = Paths.tuple_field i paths in
+          pattern_match_single arg paths)
+        args
+      |> conjuncts_pattern_match
+    in
+    ext, UF.par uf_read uf_args
 
 let pattern_match pat = function
   | Match_tuple values -> pattern_match_tuple pat values

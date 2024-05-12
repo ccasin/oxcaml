@@ -376,6 +376,10 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
         Jane_syntax.Labeled_tuples.pat_of ~loc
           (List.map (fun (label, p) -> label, sub.pat sub p) list, Closed)
         |> add_jane_syntax_attributes
+    | Tpat_unboxed_tuple list ->
+        Ppat_unboxed_tuple
+          (List.map (fun (label, p, _) -> label, sub.pat sub p) list,
+           Closed)
     | Tpat_construct (lid, _, args, vto) ->
         let tyo =
           match vto with

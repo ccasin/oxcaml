@@ -539,6 +539,14 @@ val get_modal_upper_bounds : t -> Mode.Alloc.Const.t
 (** Gets the maximum mode on the externality axis for types of this jkind. *)
 val get_externality_upper_bound : t -> Externality.t
 
+(* this will, for example, succeed on a sort variable, filling it in with a
+   product of sort variables, but fail on a base sort. *)
+
+(** CR ccasinghino *)
+val make_jkind_nary_product : int -> t -> t list option
+
+val set_externality_upper_bound : t -> Externality.t -> t
+
 (*********************************)
 (* pretty printing *)
 

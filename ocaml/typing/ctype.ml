@@ -2072,8 +2072,12 @@ type jkind_result =
 let rec jkind_of_result : jkind_result -> Jkind.t = function
   | Jkind l -> l
   | TyVar (l,_) -> l
-  | Product results ->
-    Jkind.product ~why:Unboxed_tuple (List.map jkind_of_result results)
+  | Product results -> jkind_of_results results
+
+and jkind_of_results results =
+  (* CR ccasinghino wrong *)
+  Jkind.product ~why:Unboxed_tuple (List.map jkind_of_result results)
+
 
 let tvariant_not_immediate row =
   (* if all labels are devoid of arguments, not a pointer *)
@@ -2130,37 +2134,65 @@ let rec estimate_type_jkind env ty =
   | Tpackage _ -> Jkind (Jkind.value ~why:First_class_module)
 
 (**** checking jkind relationships ****)
+type type_jkind_sub_var_result =
+  { orig : Jkind.t;
+    bound : Jkind.t;
+    var : type_expr }
 
 type type_jkind_sub_result =
   | Success
     (* The [Type_var] case might still be "success"; caller should check.
        We don't just report success here because if the caller unifies the
-       tyvar, error messages improve. *)
-  | Type_vars of (Jkind.t * type_expr) list
+       tyvar, error messages improve.
+
+       The *)
+  | Type_vars of type_jkind_sub_var_result list
   | Missing_cmi of Jkind.t * Path.t
   | Failure of Jkind.t
+  (* CR ccasinghino: failure no longer carries enough info for good errors -
+     need component type we reached. *)
 
-let type_jkind_sub env ty ~check_sub =
+let type_jkind_sub env ty jkind ~check_sub =
   (* This is shallow in the sense of not expanding tconstrs, but may still
      traverse the type deeply. *)
   let shallow_check ty =
-    let rec check_one result =
-      match result with
+    (* CR ccasinghino: The whole approach here is wrong if I need to expand
+       tconstrs deep in the ty.  the loop around check_product needs to include
+       expansion. *)
+    let rec check_one ty_jkind jkind =
+      match ty_jkind with
       | Jkind ty_jkind ->
-        if check_sub ty_jkind then Success else Failure ty_jkind
-      | TyVar (ty_jkind, ty) -> Type_vars [ty_jkind, ty]
-      | Product results -> check_product results []
+        if check_sub ty_jkind jkind then Success else Failure ty_jkind
+      | TyVar (ty_jkind, ty) ->
+        Type_vars [{ orig = ty_jkind; bound = jkind; var = ty }]
+      | Product component_jkinds ->
+        (* CR ccasinghino: This is horrible - do some kind of refactor. *)
+        let jkinds =
+          Jkind.make_jkind_nary_product (List.length component_jkinds) jkind
+        in
+        match jkinds with
+        | None -> Failure jkind
+        | Some jkinds -> check_product [] component_jkinds jkinds
 
-    and check_product results vars =
-      match results with
-      | [] -> if vars = [] then Success else Type_vars vars
-      | result :: results ->
-        match check_one result with
-        | Success -> check_product results vars
-        | Type_vars vars' -> Type_vars (vars @ vars')
+    and check_product acc ty_jkinds jkinds =
+      match ty_jkinds, jkinds with
+      | [], _ :: _ | _ :: _, [] ->
+        Misc.fatal_error "type_jkind_sub: mismatched jkind lengths"
+      | [], [] -> if acc = [] then Success else Type_vars acc
+      | ty_jkind :: ty_jkinds, jkind :: jkinds ->
+        (* Note - it is not sensible here to try to constrain the type's jkind
+           by a computed product jkind.  The type might be [#('a : any *
+           string)] and the jkind a product of sort variables.  This can succeed
+           if we're allowed to constrain tvars but the naive check would
+           fail. *)
+
+        match check_one ty_jkind jkind with
+        | Success -> check_product acc ty_jkinds jkinds
+        | Type_vars vars ->
+          check_product (vars @ acc) ty_jkinds jkinds
         | (Failure _ | Missing_cmi _) as fail -> fail
     in
-    check_one (estimate_type_jkind env ty)
+    check_one (estimate_type_jkind env ty) jkind
   in
 
   (* The "fuel" argument here is used because we're duplicating the loop of
@@ -2186,7 +2218,7 @@ let type_jkind_sub env ty ~check_sub =
           try (Env.find_type p env).type_jkind
           with Not_found -> Jkind.any ~why:(Missing_cmi p)
         in
-        if check_sub jkind_bound
+        if check_sub jkind_bound jkind
         then Success
         else if fuel < 0 then Failure jkind_bound
         else begin match unbox_once env ty with
@@ -2218,15 +2250,15 @@ let rec iter_until_error ~f l =
    correct on [any].)
 *)
 let constrain_type_jkind ~fixed env ty jkind =
-  match type_jkind_sub env ty
-          ~check_sub:(fun ty_jkind -> Jkind.sub ty_jkind jkind) with
+  match type_jkind_sub env ty jkind
+           ~check_sub:(fun ty_jkind jkind -> Jkind.sub ty_jkind jkind) with
   | Success -> Ok ()
   | Type_vars tvs ->
-    let constrain_one_var (ty_jkind, ty) =
-      if fixed then Jkind.sub_or_error ty_jkind jkind else
+    let constrain_one_var { orig; bound; var = ty } =
+      if fixed then Jkind.sub_or_error orig bound else
       let jkind_inter =
         Jkind.intersection ~reason:Tyvar_refinement_intersection
-          ty_jkind jkind
+          orig bound
       in
       Result.map (set_var_jkind ty) jkind_inter
     in
@@ -2257,10 +2289,16 @@ let check_type_externality env ty ext =
   let check_sub ty_jkind =
     Jkind.(Externality.le (get_externality_upper_bound ty_jkind) ext)
   in
-  match type_jkind_sub env ty ~check_sub with
+  let jkind =
+    (* CR ccasinghino: Horrifying. *)
+    Jkind.set_externality_upper_bound (Jkind.any ~why:Jkind.Dummy_jkind) ext
+  in
+  match type_jkind_sub env ty jkind ~check_sub:(fun tj _j -> check_sub tj) with
   | Success -> true
   | Type_vars tvs ->
-    List.for_all (fun (ty_jkind, _) -> check_sub ty_jkind) tvs
+    (* CR ccasinghino: Here we are assuming we want to apply the same ext bound
+       to all sub pieces.  big if true. *)
+    List.for_all (fun {orig; bound = _; var = _} -> check_sub orig) tvs
   | Missing_cmi _ -> false (* safe answer *)
   | Failure _ -> false
 
@@ -3570,6 +3608,8 @@ and unify3 env t1 t1' t2 t2' =
           | true, true -> ()
           end
       | (Ttuple labeled_tl1, Ttuple labeled_tl2) ->
+          unify_labeled_list env labeled_tl1 labeled_tl2
+      | (Tunboxed_tuple labeled_tl1, Tunboxed_tuple labeled_tl2) ->
           unify_labeled_list env labeled_tl1 labeled_tl2
       | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _)) when Path.same p1 p2 ->
           if not (can_generate_equations ()) then

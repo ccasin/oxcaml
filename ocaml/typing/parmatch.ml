@@ -169,6 +169,8 @@ let all_coherent column =
           | Const_string _), _ -> false
       end
     | Tuple l1, Tuple l2 -> l1 = l2
+    | Unboxed_tuple l1, Unboxed_tuple l2 ->
+      List.for_all2 (fun (lbl1, _) (lbl2, _) -> lbl1 = lbl2) l1 l2
     | Record (lbl1 :: _), Record (lbl2 :: _) ->
       Array.length lbl1.lbl_all = Array.length lbl2.lbl_all
     | Array (am1, _, _), Array (am2, _, _) -> am1 = am2
@@ -177,7 +179,8 @@ let all_coherent column =
     | Record [], Record []
     | Variant _, Variant _
     | Lazy, Lazy -> true
-    | _, _ -> false
+    | ( Construct _ | Constant _ | Tuple _ | Unboxed_tuple _ | Record _
+      | Array _ | Variant _ | Lazy ), _ -> false
   in
   match
     List.find
@@ -438,6 +441,7 @@ let simple_match_args discr head args =
   | Construct _
   | Variant _
   | Tuple _
+  | Unboxed_tuple _
   | Array _
   | Lazy -> args
   | Record lbls ->  extract_fields (record_arg discr) (List.combine lbls args)
@@ -449,6 +453,7 @@ let simple_match_args discr head args =
       | Record lbls ->  omega_list lbls
       | Array (_, _, len) -> Patterns.omegas len
       | Tuple lbls -> omega_list lbls
+      | Unboxed_tuple lbls -> omega_list lbls
       | Variant { has_arg = false }
       | Any
       | Constant _ -> []
@@ -832,6 +837,7 @@ let full_match closing env =  match env with
   | Constant _
   | Array _ -> false
   | Tuple _
+  | Unboxed_tuple _
   | Record _
   | Lazy -> true
 
@@ -848,7 +854,7 @@ let should_extend ext env = match ext with
           let path = get_constructor_type_path p.pat_type p.pat_env in
           Path.same path ext
       | Construct {cstr_tag=Extension _} -> false
-      | Constant _ | Tuple _ | Variant _ | Record _
+      | Constant _ | Tuple _ | Unboxed_tuple _ | Variant _ | Record _
       | Array _ | Lazy -> false
       | Any -> assert false
       end
@@ -1131,6 +1137,8 @@ let rec has_instance p = match p.pat_desc with
   | Tpat_construct (_,_,ps, _) | Tpat_array (_, _, ps) ->
       has_instances ps
   | Tpat_tuple labeled_ps -> has_instances (List.map snd labeled_ps)
+  | Tpat_unboxed_tuple labeled_ps ->
+      has_instances (List.map (fun (_, p, _) -> p) labeled_ps)
   | Tpat_record (lps,_) -> has_instances (List.map (fun (_,_,x) -> x) lps)
   | Tpat_lazy p
     -> has_instance p
@@ -2021,6 +2029,8 @@ let rec collect_paths_from_pat r p = match p.pat_desc with
 | Tpat_any|Tpat_var _|Tpat_constant _| Tpat_variant (_,None,_) -> r
 | Tpat_tuple ps ->
     List.fold_left (fun r (_, p) -> collect_paths_from_pat r p) r ps
+| Tpat_unboxed_tuple ps ->
+    List.fold_left (fun r (_, p, _) -> collect_paths_from_pat r p) r ps
 | Tpat_array (_, _, ps) | Tpat_construct (_, {cstr_tag=Extension _}, ps, _)->
     List.fold_left collect_paths_from_pat r ps
 | Tpat_record (lps,_) ->
@@ -2162,6 +2172,8 @@ let inactive ~partial pat =
           end
         | Tpat_tuple ps ->
             List.for_all (fun (_,p) -> loop p) ps
+        | Tpat_unboxed_tuple ps ->
+            List.for_all (fun (_,p,_) -> loop p) ps
         | Tpat_construct (_, _, ps, _) | Tpat_array (Immutable, _, ps) ->
             List.for_all (fun p -> loop p) ps
         | Tpat_alias (p,_,_,_,_) | Tpat_variant (_, Some p, _) ->
