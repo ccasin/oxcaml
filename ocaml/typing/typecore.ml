@@ -1113,7 +1113,7 @@ let add_pattern_variables ?check ?check_as env pv =
        Env.add_value ?check ~mode:pv_mode pv_id
          {val_type = pv_type; val_kind = Val_reg; Types.val_loc = pv_loc;
           val_attributes = pv_attributes;
-          val_zero_alloc = Builtin_attributes.Default_zero_alloc;
+          val_zero_alloc = Zero_alloc.default;
           val_uid = pv_uid
          } env
     )
@@ -2906,7 +2906,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             { val_type = pv_type
             ; val_kind = Val_reg
             ; val_attributes = pv_attributes
-            ; val_zero_alloc = Builtin_attributes.Default_zero_alloc
+            ; val_zero_alloc = Zero_alloc.default
             ; val_loc = pv_loc
             ; val_uid = pv_uid
             }
@@ -2917,7 +2917,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             { val_type = pv_type
             ; val_kind = Val_ivar (Immutable, cl_num)
             ; val_attributes = pv_attributes
-            ; val_zero_alloc = Builtin_attributes.Default_zero_alloc
+            ; val_zero_alloc = Zero_alloc.default
             ; val_loc = pv_loc
             ; val_uid = pv_uid
             }
@@ -5077,14 +5077,17 @@ let add_check_attribute expr attributes =
     in
     begin match za with
     | Default_zero_alloc -> expr
-    | (Ignore_assert_all | Check _ | Assume _) as check ->
-      begin match fn.zero_alloc with
-      | Default_zero_alloc -> ()
-      | Ignore_assert_all | Assume _ | Check _ ->
+    | Ignore_assert_all | Check _ | Assume _ ->
+      begin match Zero_alloc.get fn.zero_alloc with
+      | None -> ()
+      | Some Default_zero_alloc ->
+        Misc.fatal_error "add_check_attribute: default"
+      | Some (Ignore_assert_all | Assume _ | Check _) ->
         Location.prerr_warning expr.exp_loc
-          (Warnings.Duplicated_attribute (to_string fn.zero_alloc));
+          (Warnings.Duplicated_attribute (to_string za));
       end;
-      let exp_desc = Texp_function { fn with zero_alloc = check } in
+      let zero_alloc = Zero_alloc.create za in
+      let exp_desc = Texp_function { fn with zero_alloc } in
       { expr with exp_desc }
     end
   | _ -> expr
@@ -7418,7 +7421,7 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
         let desc =
           { val_type = ty; val_kind = Val_reg;
             val_attributes = [];
-            val_zero_alloc = Builtin_attributes.Default_zero_alloc;
+            val_zero_alloc = Zero_alloc.default;
             val_loc = Location.none;
             val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
           }
@@ -7483,7 +7486,7 @@ and type_argument ?explanation ?recarg env (mode : expected_mode) sarg
               ret_sort;
               alloc_mode;
               region = false;
-              zero_alloc = Default_zero_alloc
+              zero_alloc = Zero_alloc.default
             }
         }
       in
@@ -8886,6 +8889,11 @@ and type_n_ary_function
     let zero_alloc =
       Builtin_attributes.get_zero_alloc_attribute ~in_signature:false
         ~default_arity:syntactic_arity attributes
+    in
+    let zero_alloc =
+      match zero_alloc with
+      | Default_zero_alloc -> Zero_alloc.create_var ()
+      | (Check _ | Assume _ | Ignore_assert_all) -> Zero_alloc.create zero_alloc
     in
     re
       { exp_desc =

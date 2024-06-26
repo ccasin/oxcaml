@@ -150,7 +150,7 @@ and expression_desc =
       }
   | Texp_apply of
       expression * (arg_label * apply_arg) list * apply_position *
-        Mode.Locality.l * Zero_alloc.t
+        Mode.Locality.l * Builtin_attributes.zero_alloc_attribute
   | Texp_match of expression * Jkind.sort * computation case list * partial
   | Texp_try of expression * value case list
   | Texp_tuple of (string option * expression) list * Mode.Alloc.r
@@ -1063,14 +1063,15 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
        match vb.vb_pat.pat_desc, vb.vb_expr.exp_desc with
        | Tpat_var (id, _, _, _), Texp_function fn ->
          Ident.Map.add id fn.zero_alloc checks
+       (* CR ccasinghino: we could copy the zero-allocness if the vb_expr
+          is an ident. *)
        | _ -> checks
     ) Ident.Map.empty bindings
   in
   List.rev_map
     (fun (id, _, _, _) ->
        let zero_alloc =
-         Option.value (Ident.Map.find_opt id checks)
-           ~default:Zero_alloc.Default_zero_alloc
+         Option.value (Ident.Map.find_opt id checks) ~default:Zero_alloc.default
        in
        id, List.rev (Ident.Tbl.find_all modes_and_sorts id), zero_alloc)
     (rev_let_bound_idents_full bindings)

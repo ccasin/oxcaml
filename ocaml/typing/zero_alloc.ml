@@ -1,6 +1,6 @@
 module ZA = Zero_alloc_utils
 
-type t = Builtin_attributes.zero_alloc_attribute =
+type const = Builtin_attributes.zero_alloc_attribute =
   | Default_zero_alloc
   | Ignore_assert_all
   | Check of { strict: bool;
@@ -14,6 +14,33 @@ type t = Builtin_attributes.zero_alloc_attribute =
                 arity: int;
                 loc: Location.t;
               }
+
+(* We only ever constrain by a constant, so there is no need for nested
+   variables.  But we must distinguish the unknown case ([None]) from the
+   default case ([Some Default_zero_alloc]), to avoid trying to update things
+   that are fully inferred (e.g., value descriptions from imports). *)
+type t = const option ref
+
+(* For backtracking *)
+type change = t
+let undo_change c = c := None
+let log_change = ref (fun _ -> ())
+let set_change_log f = log_change := f
+
+let create x = ref (Some x)
+let create_var () = ref None
+let const_default = Some Default_zero_alloc
+let default = ref const_default
+
+let get t = !t
+let set t c =
+  !log_change t;
+  t := c
+
+let get_defaulting t =
+  match !t with
+  | None -> set t const_default; Default_zero_alloc
+  | Some c -> c
 
 type error =
   | Less_general of { missing_entirely : bool }
@@ -35,7 +62,7 @@ let print_error ppf error =
         Here the former is %d and the latter is %d."
       n1 n2
 
-let sub_exn za1 za2 =
+let sub_const_exn za1 za2 =
   (* The core of the check here is that we translate both attributes into the
      abstract domain and use the existing inclusion check from there, ensuring
      what we do in the typechecker matches the backend.
@@ -98,5 +125,15 @@ let sub_exn za1 za2 =
     (* Forgetting zero_alloc info is fine *)
   | None, Some _ ->
     (* Fabricating it is not, but earlier cases should have ruled this out *)
-    Misc.fatal_error "Zero_alloc: sub"
+    Misc.fatal_error "Zero_alloc: sub_const_exn"
   | None, None -> ()
+
+let sub_exn za1 za2 =
+  match get za1, get za2 with
+  | _, None when not (za1 == za2) ->
+    Misc.fatal_error "Zero_alloc: sub_exn variable constraint"
+  | _, None -> ()
+  | None, (Some _ as desc) ->
+    set za1 desc
+  | Some c1, Some c2 ->
+    sub_const_exn c1 c2

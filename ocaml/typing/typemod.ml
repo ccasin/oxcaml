@@ -2081,6 +2081,7 @@ let rec nongen_modtype env f = function
 
 and nongen_signature_item env f = function
   | Sig_value(_id, desc, _) ->
+      ignore (Zero_alloc.get_defaulting desc.val_zero_alloc);
       f env desc.val_type
       |> Option.map (fun vars -> (vars, desc))
   | Sig_module(_id, _, md, _, _) -> nongen_modtype env f md.md_type
@@ -2099,6 +2100,7 @@ let check_nongen_modtype env loc mty =
 let check_nongen_signature_item env sig_item =
   match sig_item with
     Sig_value(_id, vd, _) ->
+      ignore (Zero_alloc.get_defaulting vd.val_zero_alloc);
       Ctype.nongen_vars_in_schema env vd.val_type
       |> Option.iter (fun vars ->
           let vars = Btype.TypeSet.elements vars in
@@ -2831,13 +2833,13 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
                    convert "Assume"s in structures to the equivalent "Check" for
                    the signature. *)
                 let open Builtin_attributes in
-                match[@warning "+9"] zero_alloc with
-                | Default_zero_alloc | Ignore_assert_all -> Default_zero_alloc
-                | Check _ -> zero_alloc
-                | Assume { strict; arity; loc;
-                           never_returns_normally = _;
-                           never_raises = _} ->
-                  Check { strict; arity; loc; opt = false }
+                match[@warning "+9"] Zero_alloc.get zero_alloc with
+                | None | Some (Default_zero_alloc | Check _) -> zero_alloc
+                | Some (Assume { strict; arity; loc;
+                                 never_returns_normally = _;
+                                 never_raises = _}) ->
+                  Zero_alloc.create (Check { strict; arity; loc; opt = false })
+                | Some Ignore_assert_all -> Zero_alloc.default
               in
               let (first_loc, _, _) = List.hd id_info in
               Signature_names.check_value names first_loc id;

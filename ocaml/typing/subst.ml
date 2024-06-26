@@ -24,6 +24,7 @@ open Local_store
 
 type jkind_error =
   | Unconstrained_jkind_variable
+  | Unconstrained_zero_alloc_variable
 
 exception Error of Location.t * jkind_error
 
@@ -751,7 +752,12 @@ let rec subst_lazy_value_description s descr =
   { val_type = Wrap.substitute ~compose Keep s descr.val_type;
     val_kind = descr.val_kind;
     val_loc = loc s descr.val_loc;
-    val_zero_alloc = descr.val_zero_alloc;
+    val_zero_alloc =
+      (match s.additional_action, Zero_alloc.get descr.val_zero_alloc with
+       | Prepare_for_saving _, None ->
+         raise (Error (descr.val_loc, Unconstrained_zero_alloc_variable))
+       | _ -> ();
+       descr.val_zero_alloc);
     val_attributes = attrs s descr.val_attributes;
     val_uid = descr.val_uid;
   }
@@ -948,6 +954,11 @@ let report_error ppf = function
   | Unconstrained_jkind_variable ->
       fprintf ppf
         "Unconstrained layout variable detected when saving artifacts of \
+         compilation to disk.@ Please report this error to \
+         the Jane Street compilers team.@ "
+  | Unconstrained_zero_alloc_variable ->
+      fprintf ppf
+        "Unconstrained zero_alloc variable detected when saving artifacts of \
          compilation to disk.@ Please report this error to \
          the Jane Street compilers team.@ "
 
