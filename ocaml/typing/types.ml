@@ -775,7 +775,7 @@ type change =
   | Cuniv : type_expr option ref * type_expr option -> change
   | Cmodes : Mode.changes -> change
   | Csort : Jkind_types.Sort.change -> change
-  | Czero_alloc : Zero_alloc.t -> change
+  | Czero_alloc : Zero_alloc.change -> change
 
 type changes =
     Change of change * changes ref
