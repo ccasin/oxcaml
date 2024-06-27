@@ -8892,7 +8892,7 @@ and type_n_ary_function
     in
     let zero_alloc =
       match zero_alloc with
-      | Default_zero_alloc -> Zero_alloc.create_var syntactic_arity
+      | Default_zero_alloc -> Zero_alloc.create_var loc syntactic_arity
       | (Check _ | Assume _ | Ignore_assert_all) -> Zero_alloc.create zero_alloc
     in
     re

@@ -1045,8 +1045,8 @@ Error: Signature mismatch:
 (* Test 12: inference plays well with arity *)
 
 (* If the arity doesn't match the signature, you get an error. *)
-module M_inf_arity_1 = struct
-  module M_inference_arity_mismatch = struct
+module M_inf_too_many_args = struct
+  module M_inference_arity_mismatch_1 = struct
     type t = int -> int
     let f : int -> t = fun x _ -> x
   end
@@ -1054,12 +1054,12 @@ module M_inf_arity_1 = struct
   module _ : sig
     type t
     val[@zero_alloc] f : int -> t
-  end = M_inference_arity_mismatch
+  end = M_inference_arity_mismatch_1
 end
 [%%expect{|
-Line 10, characters 8-34:
-10 |   end = M_inference_arity_mismatch
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Line 10, characters 8-36:
+10 |   end = M_inference_arity_mismatch_1
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: Signature mismatch:
        Modules do not match:
          sig type t = int -> int val f : int -> t end
@@ -1075,9 +1075,37 @@ Error: Signature mismatch:
        Here the former is 2 and the latter is 1.
 |}]
 
+module M_inf_too_few_args = struct
+  module M_inference_arity_mismatch_2 = struct
+    let f x = fun y -> x + y
+  end
+
+  module _ : sig
+    val[@zero_alloc] f : int -> int -> int
+  end = M_inference_arity_mismatch_2
+end
+[%%expect{|
+Line 8, characters 8-36:
+8 |   end = M_inference_arity_mismatch_2
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : int -> int -> int end
+       is not included in
+         sig val f : int -> int -> int [@@zero_alloc] end
+       Values do not match:
+         val f : int -> int -> int
+       is not included in
+         val f : int -> int -> int [@@zero_alloc]
+       zero_alloc arity mismatch:
+       When using "zero_alloc" in a signature, the syntactic arity of
+       the implementation must match the function type in the interface.
+       Here the former is 1 and the latter is 2.
+|}]
+
 (* You can fix it with an explicit arity. *)
-module M_inf_arity_2 = struct
-  module M_inference_arity_explicit = struct
+module M_explicit = struct
+  module M_explicit_arity_2 = struct
     type t = int -> int
     let f : int -> t = fun x _ -> x
   end
@@ -1085,12 +1113,12 @@ module M_inf_arity_2 = struct
   module _ : sig
     type t
     val[@zero_alloc (arity 2)] f : int -> t
-  end = M_inference_arity_explicit
+  end = M_explicit_arity_2
 end
 [%%expect{|
-module M_inf_arity_2 :
+module M_explicit :
   sig
-    module M_inference_arity_explicit :
+    module M_explicit_arity_2 :
       sig type t = int -> int val f : int -> t [@@zero_alloc arity 2] end
   end
 |}]

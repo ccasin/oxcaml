@@ -17,8 +17,9 @@ type const = Builtin_attributes.zero_alloc_attribute =
 
 type desc =
   | Known of const
-  | Unknown of int
-  (* The int is the syntactic arity of the function the variable was created for. *)
+  | Unknown of Location.t * int
+  (* The int is the syntactic arity of the function the variable was created
+     for. The loc is the location of that function. *)
 
 (* We only ever constrain by a constant, so there is no need for nested vars. *)
 type t = desc ref
@@ -30,7 +31,7 @@ let log_change = ref (fun _ -> ())
 let set_change_log f = log_change := f
 
 let create x = ref (Known x)
-let create_var n = ref (Unknown n)
+let create_var loc n = ref (Unknown (loc, n))
 let const_default = Known Default_zero_alloc
 let default = ref const_default
 
@@ -155,9 +156,9 @@ let sub_exn za1 za2 =
     Misc.fatal_error "zero_alloc: invalid constraint"
   | Unknown _, (Known Default_zero_alloc as desc) ->
     set za1 desc
-  | Unknown n, (Known (Check { arity; _ }) as desc) ->
+  | Unknown (loc, n), (Known (Check ({ arity; _ } as check))) ->
     if arity = n then
-      set za1 desc
+      set za1 (Known (Check { check with loc }))
     else
       raise (Error (Arity_mismatch (n, arity)))
   | Known c1, Known c2 ->

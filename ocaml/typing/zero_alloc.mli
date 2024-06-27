@@ -25,9 +25,10 @@ val default : t
 
 val create : const -> t
 
-(* [create_var n] creates a variable. [n] must be the syntactic arity of the
+(* [create_var loc n] creates a variable. [loc] is the location of the function
+   you are creating a variable for, and [n] is its syntactic arity of the
    function the variable is being created for. *)
-val create_var : int -> t
+val create_var : Location.t -> int -> t
 
 val get : t -> const option
 
