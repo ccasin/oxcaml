@@ -6,9 +6,11 @@ module M_alloc_var : sig
 end
 val f_call_var : 'a -> 'a * 'a
 
-val[@zero_alloc (arity 1)] f_arity_two : int -> int -> int
+val[@zero_alloc (arity 1)] f_arity_one : int -> int -> int
 
 val[@zero_alloc] f_shadow : int -> int * int
+val[@zero_alloc] f_shadow_alloc : int -> int * int
+val[@zero_alloc] f_shadow_alloc_both : int -> int * int
 
 val[@zero_alloc] f_basic_success : int -> unit
 val[@zero_alloc] f_basic_fail : 'a -> 'a * 'a

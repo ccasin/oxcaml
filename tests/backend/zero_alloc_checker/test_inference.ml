@@ -20,11 +20,11 @@ let[@zero_alloc] f_call_var x = M_alloc_var.f_alloc2 x
 
 
 (* Arity: The typing tests show that if we just give this function the signature
-   [val[@zero_alloc] f_arity_two : int -> int -> int] we'll get a type error.
+   [val[@zero_alloc] f_arity_one : int -> int -> int] we'll get a type error.
    Here we show that if we give it a signature that passes the typechecker (the
-   mli has [val[@zero_alloc (arity 1)] f_arity_two : int -> int -> int]), it
+   mli has [val[@zero_alloc (arity 1)] f_arity_one : int -> int -> int]), it
    correctly gets checked and gives a zero_alloc backend error. *)
-let f_arity_two x = fun y -> x + y
+let f_arity_one x = fun y -> x + y
 
 
 (* Shadowing: the mli marks [f_shadow] zero_alloc.  That check should only apply
@@ -33,6 +33,17 @@ let f_arity_two x = fun y -> x + y
 let f_shadow x = (x, x+1)
 
 let f_shadow _x = (42, 43) (* doesn't allocate because this is static. *)
+
+(* Shadowing: the other way.  This time the function exposed in the signature
+   does allocate, and we should get an error for it. *)
+let f_shadow_alloc _x = (42, 43)
+
+let f_shadow_alloc x = (x, x)
+
+(* Shadowing: This time both allocate.  We should only get an error the second. *)
+let f_shadow_alloc_both x = (x, x)
+
+let f_shadow_alloc_both x = (x, x+1)
 
 (* And now the boring part - just a test that we check each function below with
    the exact parameters implied by the signature (opt, strict). *)
