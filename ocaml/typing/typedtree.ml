@@ -146,11 +146,11 @@ and expression_desc =
         ret_mode : Mode.Alloc.l;
         ret_sort : Jkind.sort;
         alloc_mode : Mode.Alloc.r;
-        zero_alloc : Builtin_attributes.zero_alloc_attribute;
+        zero_alloc : Zero_alloc.t;
       }
   | Texp_apply of
       expression * (arg_label * apply_arg) list * apply_position *
-        Mode.Locality.l * Builtin_attributes.zero_alloc_attribute
+        Mode.Locality.l * Zero_alloc.t
   | Texp_match of expression * Jkind.sort * computation case list * partial
   | Texp_try of expression * value case list
   | Texp_tuple of (string option * expression) list * Mode.Alloc.r
@@ -1070,7 +1070,7 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
     (fun (id, _, _, _) ->
        let zero_alloc =
          Option.value (Ident.Map.find_opt id checks)
-           ~default:Builtin_attributes.Default_zero_alloc
+           ~default:Zero_alloc.Default_zero_alloc
        in
        id, List.rev (Ident.Tbl.find_all modes_and_sorts id), zero_alloc)
     (rev_let_bound_idents_full bindings)
