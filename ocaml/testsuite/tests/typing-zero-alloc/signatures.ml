@@ -936,3 +936,195 @@ module type S_no_assume = sig val f : int -> int * int [@@zero_alloc] end
 module M_nrn_for_mto : sig val f : int -> int * int [@@zero_alloc] end
 module type S_no_nrn = sig val f : int -> int * int [@@zero_alloc] end
 |}]
+
+(**********************************************)
+(* Test 11: inference from signatures, basics *)
+
+(* Some tests here are wrapped up in unnamed modules because otherwise ocamltest
+   processes the definitions as if they were individually entered into the
+   toplevel, which defaults the variables too early. In a normal ML file the
+   defaulting doesn't happen until the end. See the backend tests for an
+   example.
+
+   Also, as mentioned above, we aren't testing here that the functions whose
+   need to be checked for zero_alloc is inferred actually get checked.  That is
+   done in the backend tests.  Here we are just showing that zero_allocness of a
+   function isn't fully determined until it is compared against a signature.
+*)
+
+(* Should work by setting zero_alloc variables in f and g. *)
+module M_infer1 : sig
+  val[@zero_alloc] f : int -> int
+  val g : int -> int
+end = struct
+  let f x = x
+  let g x = x
+end
+
+(* Should be rejected because the vars are set and too weak for the sig. *)
+module M_infer1' : sig
+  val[@zero_alloc] f : int -> int
+  val[@zero_alloc] g : int -> int
+end = M_infer1
+[%%expect{|
+module M_infer1 :
+  sig val f : int -> int [@@zero_alloc] val g : int -> int end
+Line 13, characters 6-14:
+13 | end = M_infer1
+           ^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : int -> int [@@zero_alloc] val g : int -> int end
+       is not included in
+         sig
+           val f : int -> int [@@zero_alloc]
+           val g : int -> int [@@zero_alloc]
+         end
+       Values do not match:
+         val g : int -> int
+       is not included in
+         val g : int -> int [@@zero_alloc]
+       The former provides a weaker "zero_alloc" guarantee than the latter.
+       Hint: Add a "zero_alloc" attribute to the implementation.
+|}]
+
+module M_inference_examples = struct
+  module M_infer2 = struct
+    let f x = x
+    let g x = x
+  end
+
+  (* Should work by setting the variables. *)
+  module M_infer2' : sig
+    val[@zero_alloc opt] f : int -> int
+    val[@zero_alloc] g : int -> int
+  end = M_infer2 (* 1 *)
+
+  (* Should work by zero-alloc subtyping. *)
+  module M_infer2'' : sig
+    val[@zero_alloc opt] f : int -> int
+    val[@zero_alloc opt] g : int -> int
+  end = M_infer2 (* 2 *)
+
+  (* Same as 1 - shows the previous example was subtyping and not overwriting
+     the vars, in which case g would cause an error. *)
+  module M_infer2''' : sig
+    val[@zero_alloc opt] f : int -> int
+    val[@zero_alloc] g : int -> int
+  end = M_infer2 (* 3 *)
+
+  (* Should be rejected. *)
+  module M_infer2'''' : sig
+    val[@zero_alloc] f : int -> int
+    val[@zero_alloc] g : int -> int
+  end = M_infer2 (* 4 *)
+end
+[%%expect{|
+Line 30, characters 8-16:
+30 |   end = M_infer2 (* 4 *)
+             ^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig
+           val f : 'a -> 'a [@@zero_alloc opt]
+           val g : 'a -> 'a [@@zero_alloc]
+         end
+       is not included in
+         sig
+           val f : int -> int [@@zero_alloc]
+           val g : int -> int [@@zero_alloc]
+         end
+       Values do not match:
+         val f : 'a -> 'a [@@zero_alloc opt]
+       is not included in
+         val f : int -> int [@@zero_alloc]
+       The former provides a weaker "zero_alloc" guarantee than the latter.
+|}]
+
+(********************************************)
+(* Test 12: inference plays well with arity *)
+
+(* If the arity doesn't match the signature, you get an error. *)
+module M_inf_arity_1 = struct
+  module M_inference_arity_mismatch = struct
+    type t = int -> int
+    let f : int -> t = fun x _ -> x
+  end
+
+  module _ : sig
+    type t
+    val[@zero_alloc] f : int -> t
+  end = M_inference_arity_mismatch
+end
+[%%expect{|
+Line 10, characters 8-34:
+10 |   end = M_inference_arity_mismatch
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = int -> int val f : int -> t end
+       is not included in
+         sig type t val f : int -> t [@@zero_alloc] end
+       Values do not match:
+         val f : int -> t
+       is not included in
+         val f : int -> t [@@zero_alloc]
+       zero_alloc arity mismatch:
+       When using "zero_alloc" in a signature, the syntactic arity of
+       the implementation must match the function type in the interface.
+       Here the former is 2 and the latter is 1.
+|}]
+
+(* You can fix it with an explicit arity. *)
+module M_inf_arity_2 = struct
+  module M_inference_arity_explicit = struct
+    type t = int -> int
+    let f : int -> t = fun x _ -> x
+  end
+
+  module _ : sig
+    type t
+    val[@zero_alloc (arity 2)] f : int -> t
+  end = M_inference_arity_explicit
+end
+[%%expect{|
+module M_inf_arity_2 :
+  sig
+    module M_inference_arity_explicit :
+      sig type t = int -> int val f : int -> t [@@zero_alloc arity 2] end
+  end
+|}]
+
+(***************************)
+(* Test 13: module type of *)
+
+(* [module type of M] must default the variables in [M], just as for modes. *)
+
+module Module_type_of = struct
+  module M = struct
+    let f x = x+1
+  end
+
+  module type S = module type of M
+
+  module M_no_longer_inferrable : sig
+    val[@zero_alloc] f : int -> int
+  end = M
+end
+
+[%%expect{|
+Line 10, characters 8-9:
+10 |   end = M
+             ^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : int -> int end
+       is not included in
+         sig val f : int -> int [@@zero_alloc] end
+       Values do not match:
+         val f : int -> int
+       is not included in
+         val f : int -> int [@@zero_alloc]
+       The former provides a weaker "zero_alloc" guarantee than the latter.
+       Hint: Add a "zero_alloc" attribute to the implementation.
+|}]
