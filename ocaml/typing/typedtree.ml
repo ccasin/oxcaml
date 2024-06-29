@@ -1070,10 +1070,12 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
        | Tpat_var (id, _, _, _), Texp_function fn ->
          let zero_alloc =
            match Zero_alloc.get fn.zero_alloc with
-           | None ->
+           | Default_zero_alloc ->
              (* We fabricate a "Check" attribute if a top-level annotation
                 specifies that all functions should be checked for zero
-                alloc. *)
+                alloc. There is no need to update the zero_alloc variable on the
+                function - if it remains [Default_zero_alloc], translcore adds
+                the check. *)
              let arity = function_arity fn.params fn.body in
              if !Clflags.zero_alloc_check_assert_all && arity > 0 then
                Zero_alloc.create (Check { strict = false;
@@ -1082,11 +1084,7 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
                                           opt = false })
              else
                fn.zero_alloc
-           | Some (Ignore_assert_all | Check _ | Assume _) -> fn.zero_alloc
-           | Some Default_zero_alloc ->
-             Misc.fatal_error
-               "let_bound_idents_with_modes_sorts_and_checks: \
-                Default_zero_alloc"
+           | Ignore_assert_all | Check _ | Assume _ -> fn.zero_alloc
          in
          Ident.Map.add id zero_alloc checks
          (* CR ccasinghino: we could copy the zero-allocness if the vb_expr

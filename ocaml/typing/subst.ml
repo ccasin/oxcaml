@@ -24,7 +24,6 @@ open Local_store
 
 type jkind_error =
   | Unconstrained_jkind_variable
-  | Unconstrained_zero_alloc_variable
 
 exception Error of Location.t * jkind_error
 
@@ -748,11 +747,16 @@ let rec subst_lazy_value_description s descr =
     val_kind = descr.val_kind;
     val_loc = loc s descr.val_loc;
     val_zero_alloc =
-      (match s.additional_action, Zero_alloc.get descr.val_zero_alloc with
-       | Prepare_for_saving _, None ->
-         raise (Error (descr.val_loc, Unconstrained_zero_alloc_variable))
-       | _ -> ();
-       descr.val_zero_alloc);
+      (* When saving a cmi file, we replace zero_alloc variables with constants.
+         This is necessary because users of the library can't change the
+         zero_alloc check that was done on functions in it, and safe because all
+         type inference is done by the time we write the cmi file (and anyway
+         additional inference steps could only cause the funtion to get checked
+         more strictly than the signature indicates, which is sound). *)
+     (match s.additional_action with
+      | Prepare_for_saving _ ->
+        Zero_alloc.create (Zero_alloc.get descr.val_zero_alloc)
+      | _ -> descr.val_zero_alloc);
     val_attributes = attrs s descr.val_attributes;
     val_uid = descr.val_uid;
   }
@@ -949,11 +953,6 @@ let report_error ppf = function
   | Unconstrained_jkind_variable ->
       fprintf ppf
         "Unconstrained layout variable detected when saving artifacts of \
-         compilation to disk.@ Please report this error to \
-         the Jane Street compilers team.@ "
-  | Unconstrained_zero_alloc_variable ->
-      fprintf ppf
-        "Unconstrained zero_alloc variable detected when saving artifacts of \
          compilation to disk.@ Please report this error to \
          the Jane Street compilers team.@ "
 

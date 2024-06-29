@@ -940,16 +940,10 @@ module type S_no_nrn = sig val f : int -> int * int [@@zero_alloc] end
 (**********************************************)
 (* Test 11: inference from signatures, basics *)
 
-(* Some tests here have several definitions wrapped up in modules because
-   otherwise ocamltest processes the definitions as if they were individually
-   entered into the toplevel, which defaults the variables too early. In a
-   normal ML file the defaulting doesn't happen until the end. See the backend
-   tests for an example.
-
-   Also, as mentioned above, we aren't testing here that the functions whose
-   need to be checked for zero_alloc is inferred actually get checked.  That is
-   done in the backend tests.  Here we are just showing that zero_allocness of a
-   function isn't fully determined until it is compared against a signature.
+(* As mentioned above, we aren't testing here that the functions whose need to
+   be checked for zero_alloc is inferred actually get checked.  That is done in
+   the backend tests.  Here we are just showing that type system's view of the
+   zero_allocness of a function is inferrable.
 *)
 
 (* Should work by setting zero_alloc variables in f and g. *)
@@ -961,7 +955,8 @@ end = struct
   let g x = x
 end
 
-(* Should be rejected because the vars are set and too weak for the sig. *)
+(* Should be rejected because the signature we have for M_infer1 doesn't have
+   vars in it (and its zero_alloc values are too weak). *)
 module M_infer1' : sig
   val[@zero_alloc] f : int -> int
   val[@zero_alloc] g : int -> int
@@ -969,8 +964,8 @@ end = M_infer1
 [%%expect{|
 module M_infer1 :
   sig val f : int -> int [@@zero_alloc] val g : int -> int end
-Line 13, characters 6-14:
-13 | end = M_infer1
+Line 14, characters 6-14:
+14 | end = M_infer1
            ^^^^^^^^
 Error: Signature mismatch:
        Modules do not match:
@@ -988,57 +983,68 @@ Error: Signature mismatch:
        Hint: Add a "zero_alloc" attribute to the implementation.
 |}]
 
-module M_inference_examples = struct
-  module M_infer2 = struct
-    let f x = x
-    let g x = x
-  end
-
-  (* Should work by setting the variables. *)
-  module M_infer2' : sig
-    val[@zero_alloc opt] f : int -> int
-    val[@zero_alloc] g : int -> int
-  end = M_infer2 (* 1 *)
-
-  (* Should work by zero-alloc subtyping. *)
-  module M_infer2'' : sig
-    val[@zero_alloc opt] f : int -> int
-    val[@zero_alloc opt] g : int -> int
-  end = M_infer2 (* 2 *)
-
-  (* Same as 1 - shows the previous example was subtyping and not overwriting
-     the vars, in which case g would cause an error. *)
-  module M_infer2''' : sig
-    val[@zero_alloc opt] f : int -> int
-    val[@zero_alloc] g : int -> int
-  end = M_infer2 (* 3 *)
-
-  (* Should be rejected. *)
-  module M_infer2'''' : sig
-    val[@zero_alloc] f : int -> int
-    val[@zero_alloc] g : int -> int
-  end = M_infer2 (* 4 *)
+module M_infer2 = struct
+  let f x = x
+  let g x = x
 end
+
+(* Should work by updating the variables. *)
+module M_infer2' : sig
+  val[@zero_alloc opt] f : int -> int
+  val[@zero_alloc] g : int -> int
+end = M_infer2 (* 1 *)
+
+(* Should work by zero-alloc subtyping. *)
+module M_infer2'' : sig
+  val[@zero_alloc opt] f : int -> int
+  val[@zero_alloc opt] g : int -> int
+end = M_infer2 (* 2 *)
+
+(* Should work by updating the variables again. *)
+module M_infer2''' : sig
+  val[@zero_alloc] f : int -> int
+  val[@zero_alloc] g : int -> int
+end = M_infer2 (* 3 *)
+
+(* Here we update the variable on [f] but [g] works by subtyping. *)
+module M_infer2'''' : sig
+  val[@zero_alloc strict] f : int -> int
+  val[@zero_alloc opt] g : int -> int
+end = M_infer2 (* 4 *)
 [%%expect{|
-Line 30, characters 8-16:
-30 |   end = M_infer2 (* 4 *)
-             ^^^^^^^^
-Error: Signature mismatch:
-       Modules do not match:
-         sig
-           val f : 'a -> 'a [@@zero_alloc opt]
-           val g : 'a -> 'a [@@zero_alloc]
-         end
-       is not included in
-         sig
-           val f : int -> int [@@zero_alloc]
-           val g : int -> int [@@zero_alloc]
-         end
-       Values do not match:
-         val f : 'a -> 'a [@@zero_alloc opt]
-       is not included in
-         val f : int -> int [@@zero_alloc]
-       The former provides a weaker "zero_alloc" guarantee than the latter.
+module M_infer2 : sig val f : 'a -> 'a val g : 'a -> 'a end
+module M_infer2' :
+  sig
+    val f : int -> int [@@zero_alloc opt]
+    val g : int -> int [@@zero_alloc]
+  end
+module M_infer2'' :
+  sig
+    val f : int -> int [@@zero_alloc opt]
+    val g : int -> int [@@zero_alloc opt]
+  end
+module M_infer2''' :
+  sig val f : int -> int [@@zero_alloc] val g : int -> int [@@zero_alloc] end
+module M_infer2'''' :
+  sig
+    val f : int -> int [@@zero_alloc strict]
+    val g : int -> int [@@zero_alloc opt]
+  end
+|}]
+
+(* At this point, the inferred signature for [M_infer2] has the accumulated
+   constraints. Note that its final signature has the strictest version of the
+   checks done on [f] and [g] individually, even though we never compared
+   against exactly that combined signature.  This shows, for example, that when
+   the constraint for [M_infer2''''] was done we modified [f]'s variable but
+   didn't accidentally weaken the variable on [g]. *)
+module type S = module type of M_infer2
+[%%expect{|
+module type S =
+  sig
+    val f : 'a -> 'a [@@zero_alloc strict]
+    val g : 'a -> 'a [@@zero_alloc]
+  end
 |}]
 
 (********************************************)
@@ -1046,20 +1052,19 @@ Error: Signature mismatch:
 
 (* If the arity doesn't match the signature, you get an error. *)
 module M_inf_too_many_args = struct
-  module M_inference_arity_mismatch_1 = struct
-    type t = int -> int
-    let f : int -> t = fun x _ -> x
-  end
-
-  module _ : sig
-    type t
-    val[@zero_alloc] f : int -> t
-  end = M_inference_arity_mismatch_1
+  type t = int -> int
+  let f : int -> t = fun x _ -> x
 end
+
+module _ : sig
+  type t
+  val[@zero_alloc] f : int -> t
+end = M_inf_too_many_args
 [%%expect{|
-Line 10, characters 8-36:
-10 |   end = M_inference_arity_mismatch_1
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+module M_inf_too_many_args : sig type t = int -> int val f : int -> t end
+Line 9, characters 6-25:
+9 | end = M_inf_too_many_args
+          ^^^^^^^^^^^^^^^^^^^
 Error: Signature mismatch:
        Modules do not match:
          sig type t = int -> int val f : int -> t end
@@ -1076,18 +1081,17 @@ Error: Signature mismatch:
 |}]
 
 module M_inf_too_few_args = struct
-  module M_inference_arity_mismatch_2 = struct
-    let f x = fun y -> x + y
-  end
-
-  module _ : sig
-    val[@zero_alloc] f : int -> int -> int
-  end = M_inference_arity_mismatch_2
+  let f x = fun y -> x + y
 end
+
+module _ : sig
+  val[@zero_alloc] f : int -> int -> int
+end = M_inf_too_few_args
 [%%expect{|
-Line 8, characters 8-36:
-8 |   end = M_inference_arity_mismatch_2
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+module M_inf_too_few_args : sig val f : int -> int -> int end
+Line 7, characters 6-24:
+7 | end = M_inf_too_few_args
+          ^^^^^^^^^^^^^^^^^^
 Error: Signature mismatch:
        Modules do not match:
          sig val f : int -> int -> int end
@@ -1104,46 +1108,76 @@ Error: Signature mismatch:
 |}]
 
 (* You can fix it with an explicit arity. *)
-module M_explicit = struct
-  module M_explicit_arity_2 = struct
-    type t = int -> int
-    let f : int -> t = fun x _ -> x
-  end
-
-  module _ : sig
-    type t
-    val[@zero_alloc (arity 2)] f : int -> t
-  end = M_explicit_arity_2
+module M_explicit_arity_2 = struct
+  type t = int -> int
+  let f : int -> t = fun x _ -> x
 end
+
+module _ : sig
+  type t
+  val[@zero_alloc (arity 2)] f : int -> t
+end = M_explicit_arity_2
+
+module type S = module type of M_explicit_arity_2
 [%%expect{|
-module M_explicit :
-  sig
-    module M_explicit_arity_2 :
-      sig type t = int -> int val f : int -> t [@@zero_alloc arity 2] end
-  end
+module M_explicit_arity_2 : sig type t = int -> int val f : int -> t end
+module type S =
+  sig type t = int -> int val f : int -> t [@@zero_alloc arity 2] end
 |}]
 
 (***************************)
 (* Test 13: module type of *)
 
-(* [module type of M] must default the variables in [M], just as for modes. *)
-
-module Module_type_of = struct
-  module M = struct
-    let f x = x+1
-  end
-
-  module type S = module type of M
-
-  module M_no_longer_inferrable : sig
-    val[@zero_alloc] f : int -> int
-  end = M
+(* When you take the module type of a module, you get the current state of its
+   variables.  The computed signature itself has no variables, and the original
+   module keeps its variables (but changing them won't change the signature you
+   got the first time, just the signature you'll get if you do [module type of]
+   again). *)
+module M_for_mto = struct
+  let f x = x+1
 end
 
+(* The current state of the variales is "no check" *)
+module type S = module type of M_for_mto
 [%%expect{|
-Line 10, characters 8-9:
-10 |   end = M
-             ^
+module M_for_mto : sig val f : int -> int end
+module type S = sig val f : int -> int end
+|}]
+
+(* [S] itself is fixed. *)
+module F (X : S) : sig val[@zero_alloc] f : int -> int end = X
+[%%expect{|
+Line 1, characters 61-62:
+1 | module F (X : S) : sig val[@zero_alloc] f : int -> int end = X
+                                                                 ^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val f : int -> int end
+       is not included in
+         sig val f : int -> int [@@zero_alloc] end
+       Values do not match:
+         val f : int -> int
+       is not included in
+         val f : int -> int [@@zero_alloc]
+       The former provides a weaker "zero_alloc" guarantee than the latter.
+       Hint: Add a "zero_alloc" attribute to the implementation.
+|}]
+
+(* But [M_for_mto] retains its variables.  Changing them changes what you get
+   next time you do [module type of] on it, but not [S]. *)
+module _ : sig
+  val[@zero_alloc] f : int -> int
+end = M_for_mto
+
+module type S' = module type of M_for_mto
+module F' (X : S') : sig val[@zero_alloc] f : int -> int end = X
+module F (X : S) : sig val[@zero_alloc] f : int -> int end = X
+[%%expect{|
+module type S' = sig val f : int -> int [@@zero_alloc] end
+module F' : functor (X : S') -> sig val f : int -> int [@@zero_alloc] end
+Line 7, characters 61-62:
+7 | module F (X : S) : sig val[@zero_alloc] f : int -> int end = X
+                                                                 ^
 Error: Signature mismatch:
        Modules do not match:
          sig val f : int -> int end

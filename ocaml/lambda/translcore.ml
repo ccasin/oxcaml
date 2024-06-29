@@ -371,7 +371,7 @@ let zero_alloc_of_application
         | Check_default | No_check -> false
         | Check_all | Check_opt_only -> true
       in
-      begin match Zero_alloc.get_defaulting val_zero_alloc with
+      begin match Zero_alloc.get val_zero_alloc with
       | Check c when c.arity = num_args && (use_opt || not c.opt) ->
         Builtin_attributes.Assume {
           strict = c.strict;
@@ -1620,7 +1620,7 @@ and transl_function ~in_new_scope ~scopes e params body
       ~zero_alloc =
   let attrs = e.exp_attributes in
   let mode = transl_alloc_mode_r alloc_mode in
-  let zero_alloc = Zero_alloc.get_defaulting zero_alloc in
+  let zero_alloc = Zero_alloc.get zero_alloc in
   let assume_zero_alloc = Builtin_attributes.assume_zero_alloc zero_alloc in
   let scopes =
     if in_new_scope then

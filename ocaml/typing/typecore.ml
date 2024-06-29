@@ -5099,16 +5099,13 @@ let add_zero_alloc_attribute expr attributes =
     | Default_zero_alloc -> expr
     | Ignore_assert_all | Check _ | Assume _ ->
       begin match Zero_alloc.get fn.zero_alloc with
-      | None ->
-        (* It's fine to just throw away this variable without setting it.  There
-           is no way for it to have gotten anywhere else yet. *)
-        ()
-      | Some Default_zero_alloc ->
-        Misc.fatal_error "add_zero_alloc_attribute: default"
-      | Some (Ignore_assert_all | Assume _ | Check _) ->
+      | Default_zero_alloc -> ()
+      | Ignore_assert_all | Assume _ | Check _ ->
         Location.prerr_warning expr.exp_loc
           (Warnings.Duplicated_attribute (to_string za));
       end;
+      (* Here, we may be throwing away a zero_alloc variable. There's no need
+         to set it, because it can't have gotten anywhere else yet. *)
       let zero_alloc = Zero_alloc.create za in
       let exp_desc = Texp_function { fn with zero_alloc } in
       { expr with exp_desc }

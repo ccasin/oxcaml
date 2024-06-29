@@ -30,10 +30,9 @@ val create : const -> t
    function the variable is being created for. *)
 val create_var : Location.t -> int -> t
 
-val get : t -> const option
-
-(* If [t] is a variable, [get_defaulting] sets it to [Default_zero_alloc]. *)
-val get_defaulting : t -> const
+(* In the case [t] is a variable, [get t] returns its current contents as a
+   [const] and has no effect. *)
+val get : t -> const
 
 (* For types.ml's backtracking mechanism. *)
 type change
