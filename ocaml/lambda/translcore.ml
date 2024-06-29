@@ -350,7 +350,8 @@ let can_apply_primitive p pmode pos args =
     end
   end
 
-let zero_alloc_of_application ~num_args annotation funct =
+let zero_alloc_of_application
+      ~num_args (annotation : Builtin_attributes.zero_alloc_attribute) funct =
   let zero_alloc =
     match annotation, funct.exp_desc with
     | Assume _, _ ->
