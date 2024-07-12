@@ -1112,6 +1112,7 @@ The precedences must be listed from low to high.
 %nonassoc FUNCTOR                       /* include functor M */
 %right    MINUSGREATER                  /* function_type (t -> t -> t) */
 %right    OR BARBAR                     /* expr (e || e || e) */
+%nonassoc below_AMPERSAND
 %right    AMPERSAND AMPERAMPER          /* expr (e && e && e) */
 %nonassoc below_EQUAL
 %left     INFIXOP0 EQUAL LESS GREATER   /* expr (e OP e OP e) */
@@ -3891,7 +3892,21 @@ jkind:
   | UNDERSCORE {
       Jane_syntax.Jkind.Default
     }
+  | reverse_product_jkind %prec below_AMPERSAND {
+      Jane_syntax.Jkind.Product (List.rev $1)
+    }
+  | LPAREN jkind RPAREN {
+      $2
+    }
 ;
+
+reverse_product_jkind :
+  | jkind1 = jkind AMPERSAND jkind2 = jkind %prec below_EQUAL
+      { [jkind2; jkind1] }
+  | jkinds = reverse_product_jkind
+    AMPERSAND
+    jkind = jkind %prec below_EQUAL
+    { jkind :: jkinds }
 
 jkind_annotation: (* : jkind_annotation *)
   mkrhs(jkind) { $1 }

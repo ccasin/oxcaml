@@ -367,6 +367,14 @@ module Externality = struct
     | External64, (External64 | Internal) | Internal, External64 -> External64
     | Internal, Internal -> Internal
 
+  let join t1 t2 =
+    match t1, t2 with
+    | Internal, (External | External64 | Internal)
+    | (External | External64), Internal ->
+      Internal
+    | External64, (External | External64) | External, External64 -> External64
+    | External, External -> External
+
   let print ppf = function
     | External -> Format.fprintf ppf "external_"
     | External64 -> Format.fprintf ppf "external64"
@@ -727,6 +735,21 @@ module Const = struct
       List.map parse_mode modes
   end
 
+  let jkind_of_product_annotations jkinds =
+    let folder (layouts, mode_ub, ext_ub)
+        { layout; modes_upper_bounds; externality_upper_bound } =
+      ( layout :: layouts,
+        Modes.join mode_ub modes_upper_bounds,
+        Externality.join ext_ub externality_upper_bound )
+    in
+    let layouts, mode_ub, ext_ub =
+      List.fold_left folder ([], Modes.min, Externality.min) jkinds
+    in
+    { layout = Product (List.rev layouts);
+      modes_upper_bounds = mode_ub;
+      externality_upper_bound = ext_ub
+    }
+
   let rec of_user_written_annotation_unchecked_level
       (jkind : Jane_syntax.Jkind.t) : t =
     match jkind with
@@ -808,6 +831,9 @@ module Const = struct
           }
       in
       List.fold_left meet_mode base parsed_modes
+    | Product ts ->
+      let jkinds = List.map of_user_written_annotation_unchecked_level ts in
+      jkind_of_product_annotations jkinds
     | Default | With _ | Kind_of _ -> Misc.fatal_error "XXX unimplemented"
 
   module Sort = Sort.Const

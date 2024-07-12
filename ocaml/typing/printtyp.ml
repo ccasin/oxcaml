@@ -1263,6 +1263,7 @@ let out_jkind_of_user_jkind (jkind : Jane_syntax.Jkind.annotation) =
           modes.txt
       in
       Ojkind_user_mod (base, modes)
+    | Product ts -> Ojkind_user_product (List.map out_jkind_user_of_user_jkind ts)
     | With _ | Kind_of _ -> failwith "XXX unimplemented jkind syntax"
   in
   Ojkind_user (out_jkind_user_of_user_jkind jkind.txt)
