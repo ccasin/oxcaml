@@ -1254,7 +1254,8 @@ let print_labels = ref true
 let out_jkind_of_user_jkind (jkind : Jane_syntax.Jkind.annotation) =
   let rec out_jkind_user_of_user_jkind : Jane_syntax.Jkind.t -> out_jkind_user = function
     | Default -> Ojkind_user_default
-    | Abbreviation abbrev -> Ojkind_user_abbreviation (abbrev :> string Location.loc).txt
+    | Abbreviation abbrev ->
+       Ojkind_user_abbreviation (Jane_syntax.Jkind.Const.to_string abbrev)
     | Mod (base, modes) ->
       let base = out_jkind_user_of_user_jkind base in
       let modes =

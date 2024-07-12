@@ -1124,20 +1124,23 @@ let default_mapper =
          | PPat (x, g) -> PPat (this.pat this x, map_opt (this.expr this) g)
       );
 
-    jkind_annotation = (fun this ->
+    jkind_annotation = begin
       let open Jane_syntax in
-      function
-      | Default -> Default
-      | Abbreviation s ->
-        let {txt; loc} =
-          map_loc this (s : Jkind.Const.t :> _ loc)
-        in
-        Abbreviation (Jkind.Const.mk txt loc)
-      | Mod (t, mode_list) ->
-        Mod (this.jkind_annotation this t, this.modes this mode_list)
-      | With (t, ty) ->
-        With (this.jkind_annotation this t, this.typ this ty)
-      | Kind_of ty -> Kind_of (this.typ this ty));
+      let rec const this (c : Jkind.Const.t) : Jkind.Const.t =
+        match c with
+        | Base b -> Base (map_loc this b)
+        | Product p ->
+           Product (map_loc this { p with txt = List.map (const this) p.txt })
+      in
+      (fun this -> function
+        | Default -> Default
+        | Abbreviation c -> Abbreviation (const this c)
+        | Mod (t, mode_list) ->
+           Mod (this.jkind_annotation this t, this.modes this mode_list)
+        | With (t, ty) ->
+           With (this.jkind_annotation this t, this.typ this ty)
+        | Kind_of ty -> Kind_of (this.typ this ty))
+      end;
 
     expr_jane_syntax = E.map_jst;
     extension_constructor_jane_syntax = T.map_extension_constructor_jst;

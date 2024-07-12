@@ -193,8 +193,10 @@ let predef_jkind_annotation primitive =
           printing/untypeast.
        *)
        let user_written : _ Location.loc =
-         Jane_syntax.Jkind.(Abbreviation (Const.mk primitive.name Location.none))
-         |> Location.mknoloc
+         Jane_syntax.Jkind.(Abbreviation (Base {
+           txt = Const.mk_raw primitive.name;
+           loc = Location.none
+         })) |> Location.mknoloc
        in
        primitive.jkind, user_written)
     primitive

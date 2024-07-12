@@ -376,7 +376,7 @@ and type_with_label ctxt f (label, c) =
 and jkind ctxt f k = match (k : Jane_syntax.Jkind.t) with
   | Default -> pp f "_"
   | Abbreviation s ->
-    pp f "%s" (s : Jane_syntax.Jkind.Const.t :> _ loc).txt
+    pp f "%s" (Jane_syntax.Jkind.Const.to_string s)
   | Mod (t, { txt = mode_list }) ->
     begin match mode_list with
     | [] -> Misc.fatal_error "malformed jkind annotation"

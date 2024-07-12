@@ -999,10 +999,17 @@ let default_iterator =
       );
 
     jkind_annotation =
+      let rec jkind_annotation_const this (a : Jane_syntax.Jkind.Const.t) =
+        match a with
+        | Base b -> iter_loc this b
+        | Product l -> begin
+            iter_loc this l;
+            List.iter (jkind_annotation_const this) l.txt
+          end
+      in
       (fun this -> function
         | Default -> ()
-        | Abbreviation s ->
-          iter_loc this (s : Jane_syntax.Jkind.Const.t :> _ loc)
+        | Abbreviation a -> jkind_annotation_const this a
         | Mod (t, mode_list) ->
           this.jkind_annotation this t;
           this.modes this mode_list

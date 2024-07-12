@@ -198,14 +198,18 @@ module Jkind : sig
   module Const : sig
     (** Constant jkind *)
 
-    type raw = string
+    (** Represent a user-written kind primitive/abbreviation *)
+    type raw = private string
 
-    (** Represent a user-written kind primitive/abbreviation,
-        containing a string and its location *)
-    type t = private raw Location.loc
+    val mk_raw : string -> raw
 
-    (** Constructs a jkind constant *)
-    val mk : string -> Location.t -> t
+    (** Represents a user-written core jkind annotation without [mod] or [with]
+        *)
+    type t =
+      | Base of raw Location.loc
+      | Product of t list Location.loc (* Invariant: Length >= 2 *)
+
+    val to_string : t -> string
   end
 
   type t =

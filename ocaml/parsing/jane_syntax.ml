@@ -489,20 +489,51 @@ module Modes = struct
 end
 
 module Jkind = struct
+  let struct_item_of_attr attr =
+    { pstr_desc = Pstr_attribute attr; pstr_loc = Location.none }
+
+  let struct_item_of_list prefix name list loc =
+    struct_item_of_attr
+      { attr_name = Location.mknoloc (prefix ^ name);
+        attr_payload = PStr list;
+        attr_loc = loc
+      }
+
+  let struct_item_to_list prefix item =
+    let strip_prefix s =
+      let prefix_len = String.length prefix in
+      String.sub s prefix_len (String.length s - prefix_len)
+    in
+    match item with
+    | { pstr_desc =
+          Pstr_attribute
+            { attr_name = name; attr_payload = PStr list; attr_loc = loc };
+        _
+      }
+      when String.starts_with ~prefix name.txt ->
+      Some (strip_prefix name.txt, list, loc)
+    | _ -> None
+
   module Const : sig
-    type raw = string
+    type raw = private string
 
-    type t = private raw loc
+    val mk_raw : string -> raw
 
-    val mk : string -> Location.t -> t
+    type t =
+      | Base of raw loc
+      | Product of t list loc (* Invariant: Length >= 2 *)
 
     val of_structure_item : structure_item -> t option
 
     val to_structure_item : t -> structure_item
+
+    val to_string : t -> string
   end = struct
     type raw = string
 
-    module Protocol = Make_structure_item_encodable_of_stringable (struct
+    let mk_raw txt = txt
+
+    module Raw_protocol = Make_structure_item_encodable_of_stringable (struct
       type t = raw
 
       let indefinite_article_and_name = "a", "primitive kind"
@@ -512,17 +543,41 @@ module Jkind = struct
       let of_string t = Some t
     end)
 
-    type t = raw loc
+    let prefix = "jane.eraseable.const_layout."
 
-    let mk txt loc : t = { txt; loc }
+    type t =
+      | Base of raw loc
+      | Product of t list loc (* Invariant: Length >= 2 *)
 
-    let of_structure_item = Protocol.of_structure_item
+    let rec to_string = function
+      | Base b -> (b.txt :> string)
+      | Product ts -> String.concat "*" (List.map to_string ts.txt)
 
-    let to_structure_item = Protocol.to_structure_item
+    let rec to_structure_item t =
+      match t with
+      | Base b ->
+        struct_item_of_list prefix "base"
+          [Raw_protocol.to_structure_item b]
+          b.loc
+      | Product p ->
+        struct_item_of_list prefix "product"
+          (List.map to_structure_item p.txt)
+          p.loc
+
+    let rec of_structure_item item =
+      let bind = Option.bind in
+      match struct_item_to_list prefix item with
+      | Some ("base", [b], _loc) ->
+        bind (Raw_protocol.of_structure_item b) (fun b -> Some (Base b))
+      | Some ("product", ts, loc) ->
+        bind (Misc.Stdlib.List.map_option of_structure_item ts) (fun ts ->
+            Some (Product { txt = ts; loc }))
+      | Some _ | None -> None
   end
 
   type t =
     | Default
+    (* XXX ccasinghino: rename abbreviation *)
     | Abbreviation of Const.t
     | Mod of t * Mode_expr.t
     | With of t * core_type
@@ -533,9 +588,6 @@ module Jkind = struct
   let indefinite_article_and_name = "a", "kind"
 
   let prefix = "jane.erasable.layouts."
-
-  let struct_item_of_attr attr =
-    { pstr_desc = Pstr_attribute attr; pstr_loc = Location.none }
 
   let struct_item_to_attr item =
     match item with
@@ -554,34 +606,12 @@ module Jkind = struct
     | { pstr_desc = Pstr_type (Recursive, [decl]); _ } -> decl.ptype_manifest
     | _ -> None
 
-  let struct_item_of_list name list loc =
-    struct_item_of_attr
-      { attr_name = Location.mknoloc (prefix ^ name);
-        attr_payload = PStr list;
-        attr_loc = loc
-      }
-
-  let struct_item_to_list item =
-    let strip_prefix s =
-      let prefix_len = String.length prefix in
-      String.sub s prefix_len (String.length s - prefix_len)
-    in
-    match item with
-    | { pstr_desc =
-          Pstr_attribute
-            { attr_name = name; attr_payload = PStr list; attr_loc = loc };
-        _
-      }
-      when String.starts_with ~prefix name.txt ->
-      Some (strip_prefix name.txt, list, loc)
-    | _ -> None
-
   let rec to_structure_item t_loc =
     let to_structure_item t = to_structure_item (Location.mknoloc t) in
     match t_loc.txt with
-    | Default -> struct_item_of_list "default" [] t_loc.loc
+    | Default -> struct_item_of_list prefix "default" [] t_loc.loc
     | Abbreviation c ->
-      struct_item_of_list "abbrev" [Const.to_structure_item c] t_loc.loc
+      struct_item_of_list prefix "abbrev" [Const.to_structure_item c] t_loc.loc
     | Mod (t, mode_list) ->
       let mode_list_item =
         struct_item_of_attr
@@ -590,18 +620,20 @@ module Jkind = struct
             attr_loc = mode_list.loc
           }
       in
-      struct_item_of_list "mod" [to_structure_item t; mode_list_item] t_loc.loc
+      struct_item_of_list prefix "mod"
+        [to_structure_item t; mode_list_item]
+        t_loc.loc
     | With (t, ty) ->
-      struct_item_of_list "with"
+      struct_item_of_list prefix "with"
         [to_structure_item t; struct_item_of_type ty]
         t_loc.loc
     | Kind_of ty ->
-      struct_item_of_list "kind_of" [struct_item_of_type ty] t_loc.loc
+      struct_item_of_list prefix "kind_of" [struct_item_of_type ty] t_loc.loc
 
   let rec of_structure_item item =
     let bind = Option.bind in
     let ret loc v = Some (Location.mkloc v loc) in
-    match struct_item_to_list item with
+    match struct_item_to_list prefix item with
     | Some ("default", [], loc) -> ret loc Default
     | Some ("mod", [item_of_t; item_of_mode_expr], loc) ->
       bind (of_structure_item item_of_t) (fun { txt = t } ->

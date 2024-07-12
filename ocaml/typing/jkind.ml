@@ -367,6 +367,14 @@ module Externality = struct
     | External64, (External64 | Internal) | Internal, External64 -> External64
     | Internal, Internal -> Internal
 
+  let join t1 t2 =
+    match t1, t2 with
+    | Internal, (External | External64 | Internal)
+    | (External | External64), Internal ->
+      Internal
+    | External64, (External | External64) | External, External64 -> External64
+    | External, External -> External
+
   let print ppf = function
     | External -> Format.fprintf ppf "external_"
     | External64 -> Format.fprintf ppf "external64"
@@ -727,26 +735,45 @@ module Const = struct
       List.map parse_mode modes
   end
 
+  let jkind_of_product_annotations jkinds =
+    let folder (layouts, mode_ub, ext_ub)
+        { layout; modes_upper_bounds; externality_upper_bound } =
+      ( layout :: layouts,
+        Modes.join mode_ub modes_upper_bounds,
+        Externality.join ext_ub externality_upper_bound )
+    in
+    let layouts, mode_ub, ext_ub =
+      List.fold_left folder ([], Modes.min, Externality.min) jkinds
+    in
+    { layout = Product (List.rev layouts);
+      modes_upper_bounds = mode_ub;
+      externality_upper_bound = ext_ub
+    }
+
   let rec of_user_written_annotation_unchecked_level
       (jkind : Jane_syntax.Jkind.t) : t =
     match jkind with
-    | Abbreviation const -> (
-      let { txt = name; loc } =
-        (const : Jane_syntax.Jkind.Const.t :> _ Location.loc)
+    | Abbreviation const ->
+      let rec of_const : Jane_syntax.Jkind.Const.t -> t = function
+        | Base { txt = name; loc } -> (
+          (* CR layouts 2.8: move this to predef *)
+          match (name :> string) with
+          | "any" -> Primitive.any.jkind
+          | "value" -> Primitive.value.jkind
+          | "void" -> Primitive.void.jkind
+          | "immediate64" -> Primitive.immediate64.jkind
+          | "immediate" -> Primitive.immediate.jkind
+          | "float64" -> Primitive.float64.jkind
+          | "float32" -> Primitive.float32.jkind
+          | "word" -> Primitive.word.jkind
+          | "bits32" -> Primitive.bits32.jkind
+          | "bits64" -> Primitive.bits64.jkind
+          | _ -> raise ~loc (Unknown_jkind jkind))
+        | Product { txt = cs; loc = _ } ->
+          let jkinds = List.map of_const cs in
+          jkind_of_product_annotations jkinds
       in
-      (* CR layouts 2.8: move this to predef *)
-      match name with
-      | "any" -> Primitive.any.jkind
-      | "value" -> Primitive.value.jkind
-      | "void" -> Primitive.void.jkind
-      | "immediate64" -> Primitive.immediate64.jkind
-      | "immediate" -> Primitive.immediate.jkind
-      | "float64" -> Primitive.float64.jkind
-      | "float32" -> Primitive.float32.jkind
-      | "word" -> Primitive.word.jkind
-      | "bits32" -> Primitive.bits32.jkind
-      | "bits64" -> Primitive.bits64.jkind
-      | _ -> raise ~loc (Unknown_jkind jkind))
+      of_const const
     | Mod (jkind, modes) ->
       let base = of_user_written_annotation_unchecked_level jkind in
       (* for each mode, lower the corresponding modal bound to be that mode *)
@@ -1161,7 +1188,9 @@ let of_type_decl ~context (decl : Parsetree.type_declaration) =
              Location.map
                (fun attr ->
                  let name = Builtin_attributes.jkind_attribute_to_string attr in
-                 Jane_syntax.Jkind.(Abbreviation (Const.mk name Location.none)))
+                 Jane_syntax.Jkind.(Abbreviation
+                                      (Const.(Base { txt = mk_raw name;
+                                                     loc = Location.none }))))
                attr
            in
            t, (const, annot), decl.ptype_attributes)

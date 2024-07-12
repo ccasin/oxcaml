@@ -118,10 +118,13 @@ module Example = struct
                          ; ptype_loc = loc
                          }
   let tyvar            = "no_tyvars_require_extensions"
+  let const_jkind      = Jane_syntax.Jkind.Const.(
+                            Base { txt = mk_raw "value";
+                                   loc }
+                         )
   let jkind            = Jane_syntax.Jkind.(
                             With (
-                              Abbreviation
-                                (Const.mk "value" loc),
+                              Abbreviation const_jkind,
                               core_type
                             ))
 

@@ -3883,13 +3883,20 @@ jkind:
     }
   | mkrhs(ident) {
       let {txt; loc} = $1 in
-      Jane_syntax.Jkind.(Abbreviation (Const.mk txt loc))
+      Jane_syntax.Jkind.(Abbreviation (Const.Base {
+        txt = Const.mk_raw txt;
+        loc
+      }))
     }
   | KIND_OF ty=core_type {
       Jane_syntax.Jkind.Kind_of ty
     }
   | UNDERSCORE {
       Jane_syntax.Jkind.Default
+    }
+  | LPAREN _ks = separated_nontrivial_llist(AMPERSAND, jkind) RPAREN {
+      Jane_syntax.Jkind.Abbreviation (
+      Jane_syntax.Jkind.Const.Product { txt = (* ks *) []; loc = make_loc($loc(_ks)) } )
     }
 ;
 
