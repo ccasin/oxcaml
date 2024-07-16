@@ -1698,10 +1698,11 @@ module Violation = struct
     then
       let connective =
         match t.violation, get l2 with
-        | Not_a_subjkind _, Const _ -> dprintf "be a sublayout of %a" format l2
-        | No_intersection _, Const _ -> dprintf "overlap with %a" format l2
+        | Not_a_subjkind _, (Const _ | Product _) ->
+          dprintf "be a sublayout of %a" format l2
+        | No_intersection _, (Const _ | Product _) ->
+          dprintf "overlap with %a" format l2
         | _, Var _ -> dprintf "be representable"
-        | _, Product _ -> dprintf "idk some error man 2" (* CR ccasinghino *)
       in
       fprintf ppf "@[<v>%a@;%a@]"
         (format_history

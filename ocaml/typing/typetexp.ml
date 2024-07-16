@@ -719,14 +719,6 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
         (fun (label, t) -> label, transl_type env ~policy ~row_context mode t)
         stl
     in
-    List.iter (fun (_, {ctyp_type; _}) ->
-      (* CR ccasinghino: must we do this here? *)
-      match
-        Ctype.type_sort env ctyp_type ~why:Jkind.History.Unboxed_tuple_element
-      with
-      | Ok _ -> ()
-      | Error _ -> Misc.fatal_error "CJC: add nice error")
-      tl;
     let ctyp_type =
       newty (Tunboxed_tuple
                (List.map (fun (label, ctyp) -> label, ctyp.ctyp_type) tl))
