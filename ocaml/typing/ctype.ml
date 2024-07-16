@@ -2098,13 +2098,17 @@ let tvariant_not_immediate row =
 
 (* We assume here that [get_unboxed_type_representation] has already been
    called, if the type is a Tconstr.  This allows for some optimization by
-   callers (e.g., skip expanding if the kind tells them enough).
+   callers (e.g., skip expanding if the kind tells them enough).  Callers
+   may further want us to eagerly expand component types of a product or not,
+   depending on whether they really want a deep accurate jkind or are doing
+   a check that may succeed on an approximation - the [expand_components]
+   argument lets them choose.
 
    Note that this really returns an upper bound, and in particular returns [Any]
    in some edge cases (when [get_unboxed_type_representation] ran out of fuel,
    or when the type is a Tconstr that is missing from the Env due to a missing
    cmi). *)
-let rec estimate_type_jkind env ty =
+let rec estimate_type_jkind env ~expand_component ty =
   match get_desc ty with
   | Tconstr(p, _, _) -> begin
     try
@@ -2130,14 +2134,23 @@ let rec estimate_type_jkind env ty =
   | Tarrow _ -> Jkind (Jkind.Primitive.value ~why:Arrow)
   | Ttuple _ -> Jkind (Jkind.Primitive.value ~why:Tuple)
   | Tunboxed_tuple ltys ->
-    Product (List.map (fun (_, ty) -> estimate_type_jkind env ty) ltys)
+    Product (List.map (fun (_, ty) ->
+      estimate_type_jkind env ~expand_component (expand_component ty)
+    ) ltys)
   | Tobject _ -> Jkind (Jkind.Primitive.value ~why:Object)
   | Tfield _ -> Jkind (Jkind.Primitive.value ~why:Tfield)
   | Tnil -> Jkind (Jkind.Primitive.value ~why:Tnil)
   | (Tlink _ | Tsubst _) -> assert false
   | Tunivar { jkind } -> Jkind jkind
-  | Tpoly (ty, _) -> estimate_type_jkind env ty
+  | Tpoly (ty, _) -> estimate_type_jkind env ~expand_component ty
   | Tpackage _ -> Jkind (Jkind.Primitive.value ~why:First_class_module)
+
+let estimate_type_jkind_shallow env ty =
+  estimate_type_jkind env ~expand_component:(fun x -> x) ty
+
+let estimate_type_jkind_deep env ty =
+  estimate_type_jkind env ~expand_component:(get_unboxed_type_approximation env)
+    ty
 
 (**** checking jkind relationships ****)
 type type_jkind_sub_var_result =
@@ -2198,7 +2211,7 @@ let type_jkind_sub env ty jkind =
           check_product (vars @ acc) ty_jkinds jkinds
         | (Failure _ | Missing_cmi _) as fail -> fail
     in
-    check_one (estimate_type_jkind env ty) jkind
+    check_one (estimate_type_jkind_shallow env ty) jkind
   in
 
   (* The "fuel" argument here is used because we're duplicating the loop of
@@ -2325,10 +2338,11 @@ let constrain_type_jkind_exn env texn ty jkind =
   | Error err -> raise_for texn (Bad_jkind (ty,err))
 
 let estimate_type_jkind env typ =
-  jkind_of_result (estimate_type_jkind env typ)
+  jkind_of_result (estimate_type_jkind_shallow env typ)
 
 let type_jkind env ty =
-  estimate_type_jkind env (get_unboxed_type_approximation env ty)
+  jkind_of_result
+    (estimate_type_jkind_deep env (get_unboxed_type_approximation env ty))
 
 let type_jkind_purely env ty =
   if !Clflags.principal || Env.has_local_constraints env then
