@@ -29,3 +29,35 @@ module type S_coherence_deep' =
   sig type t1 = float# type t2 = #(int * t1) end
 module F : functor (X : S_coherence_deep') -> sig type r = X.t2 end
 |}]
+
+module type S_constrain_type_jkind_deep = sig
+  type t1 : any
+  type t2 = #(int * t1)
+end
+
+module type S_constrain_type_jkind_deep' =
+  S_constrain_type_jkind_deep with type t1 = float#
+
+type ('a : value & float64) t_constraint
+
+module F(X : S_constrain_type_jkind_deep') = struct
+  type r = X.t2 t_constraint
+end
+[%%expect{|
+module type S_constrain_type_jkind_deep =
+  sig type t1 : any type t2 = #(int * t1) end
+module type S_constrain_type_jkind_deep' =
+  sig type t1 = float# type t2 = #(int * t1) end
+type 'a t_constraint
+Line 12, characters 11-15:
+12 |   type r = X.t2 t_constraint
+                ^^^^
+Error: This type X.t2 = #(int * X.t1) should be an instance of type
+         ('a : value * float64)
+       The layout of X.t2 is any, because
+         of the definition of t1 at line 2, characters 2-15.
+       But the layout of X.t2 must be a sublayout of value
+         * float64, because
+         of the definition of t_constraint at line 9, characters 0-40.
+|}]
+
