@@ -2069,21 +2069,11 @@ let get_unboxed_type_approximation env ty =
      in case the caller wants to update it.
    - Product: The type was an unboxed tuple, these are the components.
 *)
-type jkind_result =
+type jkind_head =
   | Jkind of Jkind.t
-  | TyVar of Jkind.t * type_expr
-  | Product of jkind_result list
+  | TyVar of type_expr * Jkind.t
+  | Product of type_expr list
   (* CR ccasinghino: maybe the Product constructor should carry the reason *)
-
-let rec jkind_of_result : jkind_result -> Jkind.t = function
-  | Jkind l -> l
-  | TyVar (l,_) -> l
-  | Product results -> jkind_of_results results
-
-and jkind_of_results results =
-  (* CR ccasinghino wrong *)
-  Jkind.Primitive.product ~why:Unboxed_tuple (List.map jkind_of_result results)
-
 
 let tvariant_not_immediate row =
   (* if all labels are devoid of arguments, not a pointer *)
@@ -2098,17 +2088,13 @@ let tvariant_not_immediate row =
 
 (* We assume here that [get_unboxed_type_representation] has already been
    called, if the type is a Tconstr.  This allows for some optimization by
-   callers (e.g., skip expanding if the kind tells them enough).  Callers
-   may further want us to eagerly expand component types of a product or not,
-   depending on whether they really want a deep accurate jkind or are doing
-   a check that may succeed on an approximation - the [expand_components]
-   argument lets them choose.
+   callers (e.g., skip expanding if the kind tells them enough).
 
    Note that this really returns an upper bound, and in particular returns [Any]
    in some edge cases (when [get_unboxed_type_representation] ran out of fuel,
    or when the type is a Tconstr that is missing from the Env due to a missing
    cmi). *)
-let rec estimate_type_jkind env ~expand_component ty =
+let rec estimate_type_jkind_head env ty =
   match get_desc ty with
   | Tconstr(p, _, _) -> begin
     try
@@ -2130,27 +2116,29 @@ let rec estimate_type_jkind env ~expand_component ty =
 
        This, however, still allows sort variables to get instantiated. *)
     Jkind jkind
-  | Tvar { jkind } -> TyVar (jkind, ty)
+  | Tvar { jkind } -> TyVar (ty, jkind)
   | Tarrow _ -> Jkind (Jkind.Primitive.value ~why:Arrow)
   | Ttuple _ -> Jkind (Jkind.Primitive.value ~why:Tuple)
-  | Tunboxed_tuple ltys ->
-    Product (List.map (fun (_, ty) ->
-      estimate_type_jkind env ~expand_component (expand_component ty)
-    ) ltys)
+  | Tunboxed_tuple ltys -> Product (List.map snd ltys)
   | Tobject _ -> Jkind (Jkind.Primitive.value ~why:Object)
   | Tfield _ -> Jkind (Jkind.Primitive.value ~why:Tfield)
   | Tnil -> Jkind (Jkind.Primitive.value ~why:Tnil)
   | (Tlink _ | Tsubst _) -> assert false
   | Tunivar { jkind } -> Jkind jkind
-  | Tpoly (ty, _) -> estimate_type_jkind env ~expand_component ty
+  | Tpoly (ty, _) -> estimate_type_jkind_head env ty
   | Tpackage _ -> Jkind (Jkind.Primitive.value ~why:First_class_module)
 
-let estimate_type_jkind_shallow env ty =
-  estimate_type_jkind env ~expand_component:(fun x -> x) ty
-
-let estimate_type_jkind_deep env ty =
-  estimate_type_jkind env ~expand_component:(get_unboxed_type_approximation env)
-    ty
+let rec estimate_type_jkind env expand_components ty =
+  let jkind_of_result : jkind_head -> Jkind.t = function
+  | Jkind l -> l
+  | TyVar (_, l) -> l
+  | Product tys ->
+    Jkind.Primitive.product ~why:Unboxed_tuple
+      (List.map (fun ty ->
+         estimate_type_jkind env expand_components (expand_components ty)
+       ) tys)
+  in
+  jkind_of_result (estimate_type_jkind_head env ty)
 
 (**** checking jkind relationships ****)
 type type_jkind_sub_var_result =
@@ -2174,45 +2162,44 @@ type type_jkind_sub_result =
 let type_jkind_sub env ty jkind =
   (* This is shallow in the sense of not expanding tconstrs, but may still
      traverse the type deeply. *)
-  let shallow_check ty =
-    (* CR ccasinghino: The whole approach here is wrong if I need to expand
-       tconstrs deep in the ty.  the loop around check_product needs to include
-       expansion. *)
-    let rec check_one ty_jkind jkind =
-      match ty_jkind with
-      | Jkind ty_jkind ->
-        if Jkind.sub ty_jkind jkind then Success else Failure ty_jkind
-      | TyVar (ty_jkind, ty) ->
-        Type_vars [{ orig = ty_jkind; bound = jkind; var = ty }]
-      | Product component_jkinds ->
-        (* CR ccasinghino: This is horrible - do some kind of refactor. *)
-        let jkinds =
-          Jkind.make_jkind_nary_product (List.length component_jkinds) jkind
-        in
-        match jkinds with
-        | None -> Failure jkind
-        | Some jkinds -> check_product [] component_jkinds jkinds
+  let rec check_one ty jkind =
+    match estimate_type_jkind_head env ty with
+    | Jkind ty_jkind ->
+      if Jkind.sub ty_jkind jkind then Success else Failure ty_jkind
+    | TyVar (ty, ty_jkind) ->
+      Type_vars [{ orig = ty_jkind; bound = jkind; var = ty }]
+    | Product component_types ->
+      (* CR ccasinghino: This is horrible - do some kind of refactor. *)
+      let jkinds =
+        Jkind.make_jkind_nary_product (List.length component_types) jkind
+      in
+      match jkinds with
+      | None -> Failure jkind
+      | Some jkinds -> check_product [] [] component_types jkinds
 
-    and check_product acc ty_jkinds jkinds =
-      match ty_jkinds, jkinds with
-      | [], _ :: _ | _ :: _, [] ->
-        Misc.fatal_error "type_jkind_sub: mismatched jkind lengths"
-      | [], [] -> if acc = [] then Success else Type_vars acc
-      | ty_jkind :: ty_jkinds, jkind :: jkinds ->
-        (* Note - it is not sensible here to try to constrain the type's jkind
-           by a computed product jkind.  The type might be [#('a : any *
-           string)] and the jkind a product of sort variables.  This can succeed
-           if we're allowed to constrain tvars but the naive check would
-           fail. *)
-
-        match check_one ty_jkind jkind with
-        | Success -> check_product acc ty_jkinds jkinds
-        | Type_vars vars ->
-          check_product (vars @ acc) ty_jkinds jkinds
-        | (Failure _ | Missing_cmi _) as fail -> fail
-    in
-    check_one (estimate_type_jkind_shallow env ty) jkind
-  in
+  and check_product vars_acc deeper_checks_acc (tys : type_expr list) jkinds =
+    match tys, jkinds with
+    | [], _ :: _ | _ :: _, [] ->
+      Misc.fatal_error "type_jkind_sub: mismatched jkind lengths"
+    | [], [] -> begin
+        match vars_acc, deeper_checks_acc with
+        | [], [] -> Success
+        | _, [] -> Type_vars vars_acc
+        | _, _ -> loop_product vars_acc deeper_checks_acc 100 (* XXX fuel *)
+      end
+    | ty :: tys, jkind :: jkinds ->
+      (* Note - it is not sensible here to try to constrain the type's jkind
+         by a computed product jkind.  The type might be [#('a : any *
+         string)] and the jkind a product of sort variables.  This can succeed
+         if we're allowed to constrain tvars but the naive check would
+         fail. *)
+      match check_one ty jkind with
+      | Success -> check_product vars_acc deeper_checks_acc tys jkinds
+      | Type_vars vars ->
+        check_product (vars @ vars_acc) deeper_checks_acc tys jkinds
+      | Failure _ ->
+        check_product vars_acc ((ty, jkind) :: deeper_checks_acc) tys jkinds
+      | (Missing_cmi _) as fail -> fail
 
   (* The "fuel" argument here is used because we're duplicating the loop of
      `get_unboxed_type_representation`, but performing jkind checking at each
@@ -2228,7 +2215,7 @@ let type_jkind_sub env ty jkind =
      ensure it's a valid argument to [t].  (We believe there are still loops
      like this that can occur, though, and may need a more principled solution
      later).  *)
-  let rec loop ty fuel =
+  and loop ty jkind fuel =
     (* This is an optimization to avoid unboxing if we can tell the constraint
        is satisfied from the type_kind *)
     match get_desc ty with
@@ -2241,15 +2228,26 @@ let type_jkind_sub env ty jkind =
         then Success
         else if fuel < 0 then Failure jkind_bound
         else begin match unbox_once env ty with
-          | Final_result ty -> shallow_check ty
-          | Stepped ty -> loop ty (fuel - 1)
+          | Final_result ty -> check_one ty jkind
+          | Stepped ty -> loop ty jkind (fuel - 1)
           | Missing missing_cmi_for ->
             Missing_cmi (jkind_bound, missing_cmi_for)
         end
-    | Tpoly (ty, _) -> loop ty fuel
-    | _ -> shallow_check ty
+    | Tpoly (ty, _) -> loop ty jkind fuel
+    | _ -> check_one ty jkind
+
+  (* XXX fuel all wrong here *)
+  and loop_product vars types_and_jkinds fuel =
+    match types_and_jkinds with
+    | [] when vars = [] -> Success
+    | [] -> Type_vars vars
+    | (ty, jkind) :: types_and_jkinds ->
+      match loop ty jkind fuel with
+      | Success -> loop_product vars types_and_jkinds (fuel - 1)
+      | Type_vars vars' -> loop_product (vars' @ vars) types_and_jkinds (fuel - 1)
+      | (Failure _ | Missing_cmi _) as fail -> fail
   in
-  loop ty 100
+  loop ty jkind 100
 
 (* CR ccasinghino: move this to misc? *)
 let rec iter_until_error ~f l =
@@ -2337,12 +2335,9 @@ let constrain_type_jkind_exn env texn ty jkind =
   | Ok _ -> ()
   | Error err -> raise_for texn (Bad_jkind (ty,err))
 
-let estimate_type_jkind env typ =
-  jkind_of_result (estimate_type_jkind_shallow env typ)
-
 let type_jkind env ty =
-  jkind_of_result
-    (estimate_type_jkind_deep env (get_unboxed_type_approximation env ty))
+  estimate_type_jkind env (get_unboxed_type_approximation env)
+    (get_unboxed_type_approximation env ty)
 
 let type_jkind_purely env ty =
   if !Clflags.principal || Env.has_local_constraints env then
@@ -2354,6 +2349,9 @@ let type_jkind_purely env ty =
     jkind
   else
     type_jkind env ty
+
+let estimate_type_jkind env ty =
+  estimate_type_jkind env (fun x -> x) (get_unboxed_type_approximation env ty)
 
 let type_sort ~why env ty =
   let jkind, sort = Jkind.of_new_sort_var ~why in
