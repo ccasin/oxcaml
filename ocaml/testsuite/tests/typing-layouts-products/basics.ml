@@ -48,16 +48,38 @@ type t1 = #(float# * bool)
 type t2 = #(string option * t1)
 |}]
 
-type t_wrong_1 : value & float64 & value = #(string option * t1)
+type t2_wrong : value & float64 & value = #(string option * t1)
 [%%expect{|
-Line 1, characters 0-64:
-1 | type t_wrong_1 : value & float64 & value = #(string option * t1)
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Line 1, characters 0-63:
+1 | type t2_wrong : value & float64 & value = #(string option * t1)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The layout of type #(string option * t1) is value & (float64 & value), because
          it is an unboxed tuple.
        But the layout of type #(string option * t1) must be a sublayout of
          value & float64 & value, because
-         of the definition of t_wrong_1 at line 1, characters 0-64.
+         of the definition of t2_wrong at line 1, characters 0-63.
+|}]
+
+type ('a : value & bits64) t3 = 'a
+type t4 = #(int * int64#) t3
+type t5 = t4 t3
+[%%expect{|
+type 'a t3 = 'a
+type t4 = #(int * int64#) t3
+type t5 = t4 t3
+|}]
+
+type t4_wrong = #(int * int) t3
+[%%expect{|
+Line 1, characters 16-28:
+1 | type t4_wrong = #(int * int) t3
+                    ^^^^^^^^^^^^
+Error: This type #(int * int) should be an instance of type
+         ('a : value * bits64)
+       The layout of #(int * int) is immediate, because
+         it is the primitive immediate type int.
+       But the layout of #(int * int) must be a sublayout of value & bits64, because
+         of the definition of t3 at line 1, characters 0-34.
 |}]
 
 
