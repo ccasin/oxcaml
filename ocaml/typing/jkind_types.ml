@@ -72,13 +72,20 @@ module Sort = struct
      *   | Const_base b -> to_string_base b
      *   | Const_product cs -> String.concat " * " (List.map to_string cs) *)
 
-    let rec format ppf = function
-      | Const_base b -> Format.fprintf ppf "%s" (to_string_base b)
-      | Const_product [] ->
-        Misc.fatal_error "Jkind_types.Sort.Const.format: empty product"
-      | Const_product (c :: cs) ->
-        format ppf c;
-        List.iter (fun c -> Format.fprintf ppf "@ * %a" format c) cs
+    let format ppf c =
+      let rec format nested ppf = function
+        | Const_base b -> Format.fprintf ppf "%s" (to_string_base b)
+        | Const_product [] ->
+          Misc.fatal_error "Jkind_types.Sort.Const.format: empty product"
+        | Const_product cs ->
+          Format.fprintf ppf "@[%a@]"
+            (Misc.pp_parens_if nested
+               (Format.pp_print_list
+                  ~pp_sep:(fun ppf () -> Format.fprintf ppf "@ & ")
+                  (format true)))
+            cs
+      in
+      format false ppf c
   end
 
   module Var = struct

@@ -850,15 +850,21 @@ module Desc = struct
     | Var of Sort.var
     | Product of t list
 
-  let rec format ppf =
-    let open Format in
-    function
-    | Const c -> fprintf ppf "%a" Const.format c
-    | Var v -> fprintf ppf "%s" (Sort.Var.name v)
-    | Product [] -> Misc.fatal_error "Jkind.Desc.format: empty product"
-    | Product (t :: ts) ->
-      format ppf t;
-      List.iter (fun t -> fprintf ppf "@ * %a" format t) ts
+  let format ppf =
+    let rec format nested ppf =
+      let open Format in
+      function
+      | Const c -> fprintf ppf "%a" Const.format c
+      | Var v -> fprintf ppf "%s" (Sort.Var.name v)
+      | Product ts ->
+        fprintf ppf "@[%a@]"
+          (Misc.pp_parens_if nested
+             (pp_print_list
+                ~pp_sep:(fun ppf () -> fprintf ppf "@ & ")
+                (format true)))
+          ts
+    in
+    format false ppf
 
   (* considers sort variables < Any. Two sort variables are in a [sub]
      relationship only when they are equal.
@@ -1262,16 +1268,19 @@ let set_externality_upper_bound jk externality_upper_bound =
 (* pretty printing *)
 
 let format ppf jkind =
-  let rec format_desc ppf (d : Desc.t) =
+  let rec format_desc nested ppf (d : Desc.t) =
     match d with
     | Const c -> Format.fprintf ppf "%a" Const.format c
     | Var v -> Format.fprintf ppf "%s" (Sort.Var.name v)
-    | Product [] -> Misc.fatal_error "Jkind.format: empty product"
-    | Product (d :: ds) ->
-      format_desc ppf d;
-      List.iter (Format.fprintf ppf "@ * %a" format_desc) ds
+    | Product p ->
+      Format.fprintf ppf "@[%a@]"
+        (Misc.pp_parens_if nested
+           (Format.pp_print_list
+              ~pp_sep:(fun ppf () -> Format.fprintf ppf "@ & ")
+              (format_desc true)))
+        p
   in
-  format_desc ppf (get jkind)
+  format_desc false ppf (get jkind)
 
 let printtyp_path = ref (fun _ _ -> assert false)
 

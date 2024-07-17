@@ -629,6 +629,11 @@ val pp_two_columns :
     v}
 *)
 
+val pp_parens_if :
+  bool -> (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a -> unit
+(** [pp_parens_if ppf condition fmt x] prints [x] with [fmt] on [ppf] and, if
+    [condition] is true, wraps it in parens. *)
+
 val print_see_manual : Format.formatter -> int list -> unit
 (** See manual section *)
 

@@ -1042,6 +1042,12 @@ let pp_two_columns ?(sep = "|") ?max_lines ppf (lines: (string * string) list) =
   ) lines;
   Format.fprintf ppf "@]"
 
+let pp_parens_if condition printer ppf arg =
+  Format.fprintf ppf "%s%a%s"
+    (if condition then "(" else "")
+    printer arg
+    (if condition then ")" else "")
+
 (* showing configuration and configuration variables *)
 let show_config_and_exit () =
   Config.print_config stdout;
