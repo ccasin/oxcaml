@@ -273,7 +273,9 @@ module Primitive : sig
     not mode-cross. *)
   val bits64 : why:History.bits64_creation_reason -> t
 
-  (** This is the jkind of unboxed products.  They have product sorts. *)
+  (** This is the jkind of unboxed products.  The layout will be the product of
+      the layouts of the input kinds, and the other components of the kind will
+      be the join relevant component of the inputs. *)
   val product : why:History.product_creation_reason -> t list -> t
 end
 
@@ -464,8 +466,8 @@ val is_max : t -> bool
 (** Checks to see whether a jkind is has layout. Never does any mutation. *)
 val has_layout_any : t -> bool
 
-(* CR ccasinghino: delete *)
-val make_jkind_nary_product : int -> t -> t list option
+(* CR ccasinghino: move *)
+val constrain_jkind_to_nary_product : int -> t -> t list option
 
 (*********************************)
 (* debugging *)

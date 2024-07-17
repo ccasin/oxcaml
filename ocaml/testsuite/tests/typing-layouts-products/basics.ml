@@ -32,8 +32,8 @@ Line 1, characters 23-39:
 1 | type t_nope = string * #(string * bool)
                            ^^^^^^^^^^^^^^^^
 Error: Tuple element types must have layout value.
-       The layout of #(string * bool) is value, because
-         it's the type of a tuple element.
+       The layout of #(string * bool) is value & value, because
+         it is an unboxed tuple.
        But the layout of #(string * bool) must be a sublayout of value, because
          it's the type of a tuple element.
 |}]
@@ -76,8 +76,8 @@ Line 1, characters 16-28:
                     ^^^^^^^^^^^^
 Error: This type #(int * int) should be an instance of type
          ('a : value * bits64)
-       The layout of #(int * int) is immediate, because
-         it is the primitive immediate type int.
+       The layout of #(int * int) is immediate & immediate, because
+         it is an unboxed tuple.
        But the layout of #(int * int) must be a sublayout of value & bits64, because
          of the definition of t3 at line 1, characters 0-34.
 |}]

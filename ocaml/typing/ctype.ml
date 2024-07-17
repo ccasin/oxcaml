@@ -2129,7 +2129,10 @@ let rec estimate_type_jkind_head env ty =
   | Tpackage _ -> Jkind (Jkind.Primitive.value ~why:First_class_module)
 
 let rec estimate_type_jkind env expand_components ty =
-  let jkind_of_result : jkind_head -> Jkind.t = function
+  jkind_of_result env expand_components (estimate_type_jkind_head env ty)
+
+and jkind_of_result env expand_components jkind_head =
+  match jkind_head with
   | Jkind l -> l
   | TyVar (_, l) -> l
   | Product tys ->
@@ -2137,71 +2140,51 @@ let rec estimate_type_jkind env expand_components ty =
       (List.map (fun ty ->
          estimate_type_jkind env expand_components (expand_components ty)
        ) tys)
-  in
-  jkind_of_result (estimate_type_jkind_head env ty)
 
 (**** checking jkind relationships ****)
-type type_jkind_sub_var_result =
-  { orig : Jkind.t;
+
+(* This type represents jkind constraints that we weren't able prove yet, but
+   which might succeed either by further expanding the type or by modifying a
+   type variable (in which case the [ty] will be a type variable). *)
+type type_jkind_sub_possible_failure =
+  { estimate : Jkind.t;
     bound : Jkind.t;
-    var : type_expr }
+    ty : type_expr }
 
 type type_jkind_sub_result =
   | Success
     (* The [Type_var] case might still be "success"; caller should check.
        We don't just report success here because if the caller unifies the
-       tyvar, error messages improve.
-
-       The *)
-  | Type_vars of type_jkind_sub_var_result list
-  | Missing_cmi of Jkind.t * Path.t
-  | Failure of Jkind.t
-  (* CR ccasinghino: failure no longer carries enough info for good errors -
-     need component type we reached. *)
+       tyvar, error messages improve. *)
+  | Type_vars of type_jkind_sub_possible_failure list
+  | Missing_cmi of Path.t
+  | Failure
 
 let type_jkind_sub env ty jkind =
-  (* This is shallow in the sense of not expanding tconstrs, but may still
-     traverse the type deeply. *)
-  let rec check_one ty jkind =
-    match estimate_type_jkind_head env ty with
-    | Jkind ty_jkind ->
-      if Jkind.sub ty_jkind jkind then Success else Failure ty_jkind
-    | TyVar (ty, ty_jkind) ->
-      Type_vars [{ orig = ty_jkind; bound = jkind; var = ty }]
-    | Product component_types ->
-      (* CR ccasinghino: This is horrible - do some kind of refactor. *)
-      let jkinds =
-        Jkind.make_jkind_nary_product (List.length component_types) jkind
-      in
-      match jkinds with
-      | None -> Failure jkind
-      | Some jkinds -> check_product [] [] component_types jkinds
+  (* [jkind_est_of_result] and [jkind_est_of_results] are used when we've
+     reached an error state in the middle of checking a product. In that case,
+     we don't want to continue with any further checks for later components of
+     the product, but we do need to get our best estimate so far of the kinds of
+     those components, because the error shows the product's computed jkind. *)
+  let jkind_est_of_result result =
+    match result with
+    | Ok jkind -> jkind
+    | Error { estimate; bound = _; ty = _ } -> estimate
+  in
 
-  and check_product vars_acc deeper_checks_acc (tys : type_expr list) jkinds =
-    match tys, jkinds with
-    | [], _ :: _ | _ :: _, [] ->
-      Misc.fatal_error "type_jkind_sub: mismatched jkind lengths"
-    | [], [] -> begin
-        match vars_acc, deeper_checks_acc with
-        | [], [] -> Success
-        | _, [] -> Type_vars vars_acc
-        | _, _ -> loop_product vars_acc deeper_checks_acc 100 (* XXX fuel *)
-      end
-    | ty :: tys, jkind :: jkinds ->
-      (* Note - it is not sensible here to try to constrain the type's jkind
-         by a computed product jkind.  The type might be [#('a : any *
-         string)] and the jkind a product of sort variables.  This can succeed
-         if we're allowed to constrain tvars but the naive check would
-         fail. *)
-      match check_one ty jkind with
-      | Success -> check_product vars_acc deeper_checks_acc tys jkinds
-      | Type_vars vars ->
-        check_product (vars @ vars_acc) deeper_checks_acc tys jkinds
-      | Failure _ ->
-        check_product vars_acc ((ty, jkind) :: deeper_checks_acc) tys jkinds
-      | (Missing_cmi _) as fail -> fail
+  let jkind_est_of_results prefix_jkinds later_components =
+    let jkinds =
+      List.rev_append prefix_jkinds
+        (List.map jkind_est_of_result later_components)
+    in
+    Jkind.Primitive.product ~why:Unboxed_tuple jkinds
+  in
 
-  (* The "fuel" argument here is used because we're duplicating the loop of
+  (* Every function here returns the best jkind computed for the type or types
+     it is passed, along with whether the constraint check succeeded.  The jkind
+     is essential for the caller to give good errors in the failure case.
+
+     The "fuel" argument is used because we're duplicating the loop of
      `get_unboxed_type_representation`, but performing jkind checking at each
      step.  This allows to check examples like:
 
@@ -2215,7 +2198,7 @@ let type_jkind_sub env ty jkind =
      ensure it's a valid argument to [t].  (We believe there are still loops
      like this that can occur, though, and may need a more principled solution
      later).  *)
-  and loop ty jkind fuel =
+  let rec expand_and_check_one ty jkind fuel =
     (* This is an optimization to avoid unboxing if we can tell the constraint
        is satisfied from the type_kind *)
     match get_desc ty with
@@ -2225,29 +2208,117 @@ let type_jkind_sub env ty jkind =
           with Not_found -> Jkind.Primitive.any ~why:(Missing_cmi p)
         in
         if Jkind.sub jkind_bound jkind
-        then Success
-        else if fuel < 0 then Failure jkind_bound
+        then jkind_bound, Success
+        else if fuel < 0 then jkind_bound, Failure
         else begin match unbox_once env ty with
           | Final_result ty -> check_one ty jkind
-          | Stepped ty -> loop ty jkind (fuel - 1)
+          | Stepped ty -> expand_and_check_one ty jkind (fuel - 1)
           | Missing missing_cmi_for ->
-            Missing_cmi (jkind_bound, missing_cmi_for)
+            jkind_bound, Missing_cmi missing_cmi_for
         end
-    | Tpoly (ty, _) -> loop ty jkind fuel
+    | Tpoly (ty, _) -> expand_and_check_one ty jkind fuel
     | _ -> check_one ty jkind
 
   (* XXX fuel all wrong here *)
-  and loop_product vars types_and_jkinds fuel =
-    match types_and_jkinds with
-    | [] when vars = [] -> Success
-    | [] -> Type_vars vars
-    | (ty, jkind) :: types_and_jkinds ->
-      match loop ty jkind fuel with
-      | Success -> loop_product vars types_and_jkinds (fuel - 1)
-      | Type_vars vars' -> loop_product (vars' @ vars) types_and_jkinds (fuel - 1)
-      | (Failure _ | Missing_cmi _) as fail -> fail
+  (* Here, [results] is a list of results from attempting to constrain a product
+     jkind - one for each component. If they are all [Ok], we're done. If some
+     are [Error], some component checks failed, but may succeed if we expand the
+     type further (see also the description of the [results_acc] accumulator on
+     [check_product] below). *)
+  and expand_and_check_product vars jkind_ests_acc results fuel =
+    match results with
+    | [] ->
+      let jkind =
+        Jkind.Primitive.product ~why:Unboxed_tuple (List.rev jkind_ests_acc)
+      in
+      if vars = [] then jkind, Success else jkind, Type_vars vars
+    | Ok jkind_est :: results ->
+      expand_and_check_product vars (jkind_est :: jkind_ests_acc) results fuel
+    | Error { estimate = _; bound; ty } :: results ->
+      let jkind_est, new_result = expand_and_check_one ty bound fuel in
+      let jkind_ests_acc = jkind_est :: jkind_ests_acc in
+      match new_result with
+      | Success ->
+        expand_and_check_product vars jkind_ests_acc results (fuel - 1)
+      | Type_vars vars' ->
+        expand_and_check_product (vars' @ vars) jkind_ests_acc results
+          (fuel - 1)
+      | (Failure | Missing_cmi _) as fail ->
+        let jkind = jkind_est_of_results jkind_ests_acc results in
+        jkind, fail
+
+  (* Unlike [expand_and_check_one], this will not expand the type it is passed,
+     but if that type turns out to be an unboxed product we may end up expanding
+     its components. *)
+  and check_one ty jkind =
+    match estimate_type_jkind_head env ty with
+    | Jkind ty_jkind ->
+      ty_jkind, if Jkind.sub ty_jkind jkind then Success else Failure
+    | TyVar (ty, ty_jkind) ->
+      ty_jkind, Type_vars [{ estimate = ty_jkind; bound = jkind; ty }]
+    | Product component_types as product ->
+      let jkinds =
+        Jkind.constrain_jkind_to_nary_product (List.length component_types)
+          jkind
+      in
+      match jkinds with
+      | None -> jkind_of_result env (fun x -> x) product, Failure
+      | Some jkinds -> check_product [] [] component_types jkinds
+
+  (* Checks that each type in the list [tys] can be constrained by the
+     corresponding kind in the list [jkinds]. Accumulates two pieces of
+     information:
+     - [vars_acc] is all the checks that might succeed if we're
+       allowed to mutate type variables
+     - [results_acc] records, for each pair we've checked so far, either
+       - [Ok jkind] if the check succeeded/we saw a type variable,
+         (where [jkind] is the best estimate of the type's jkind we computed),
+         or
+       - [Error type_jkind_sub_possible_failure] if the check failed, but might
+         succeed if we further expand the type.
+  *)
+  (* XXX with sufficient cleverness, this maybe can have one accumulator
+     which is a type_jkind_sub_result list *)
+  and check_product vars_acc results_acc tys jkinds =
+    match tys, jkinds with
+    | [], _ :: _ | _ :: _, [] ->
+      Misc.fatal_error "type_jkind_sub: mismatched jkind lengths"
+    | [], [] ->
+      expand_and_check_product vars_acc [] (List.rev results_acc) 100 (* XXX fuel *)
+    | ty :: tys, jkind :: jkinds ->
+      (* Note - it is not sensible here to try to constrain the type's jkind
+         by a computed product jkind.  The type might be [#('a : any *
+         string)] and the jkind a product of sort variables.  This can succeed
+         if we're allowed to constrain tvars but the naive check would
+         fail. *)
+      let jkind_est, result = check_one ty jkind in
+      match result with
+      | Success ->
+        check_product vars_acc (Ok jkind_est :: results_acc) tys
+          jkinds
+      | Type_vars vars ->
+        check_product (vars @ vars_acc) (Ok jkind_est :: results_acc) tys jkinds
+      | Failure ->
+        let result = Error { estimate = jkind_est; bound = jkind; ty } in
+        check_product vars_acc (result :: results_acc) tys jkinds
+      | (Missing_cmi _) as fail ->
+        (* In this case, we're going to fail, but still need a jkind estimate
+           the overall type for error messages, so we compute a jkind for
+           everything left. *)
+        let remaining_jkinds =
+          (* XXX just move this cheap estimate_type_jkind up from its definition
+             site below? *)
+          List.map (estimate_type_jkind env (fun x -> x)) tys
+        in
+        let jkind =
+          Jkind.Primitive.product ~why:Unboxed_tuple
+            (  (List.rev_map jkind_est_of_result results_acc)
+             @ jkind_est :: remaining_jkinds)
+        in
+        jkind, fail
+
   in
-  loop ty jkind 100
+  expand_and_check_one ty jkind 100
 
 (* CR ccasinghino: move this to misc? *)
 let rec iter_until_error ~f l =
@@ -2267,23 +2338,24 @@ let rec iter_until_error ~f l =
    correct on [any].)
 *)
 let constrain_type_jkind ~fixed env ty jkind =
-  match type_jkind_sub env ty jkind with
+  let ty_jkind, result = type_jkind_sub env ty jkind in
+  match result with
   | Success -> Ok ()
   | Type_vars tvs ->
-    let constrain_one_var { orig; bound; var = ty } =
-      if fixed then Jkind.sub_or_error orig bound else
+    let constrain_one_var { estimate; bound; ty } =
+      if fixed then Jkind.sub_or_error estimate bound else
       let jkind_inter =
         Jkind.intersection_or_error ~reason:Tyvar_refinement_intersection
-          orig bound
+          estimate bound
       in
       Result.map (set_var_jkind ty) jkind_inter
     in
     iter_until_error ~f:constrain_one_var tvs
-  | Missing_cmi (ty_jkind, missing_cmi) ->
+  | Missing_cmi missing_cmi ->
     Error Jkind.(Violation.of_ ~missing_cmi
       (Not_a_subjkind
          (History.update_reason ty_jkind (Missing_cmi missing_cmi), jkind)))
-  | Failure ty_jkind ->
+  | Failure ->
     Error (Jkind.Violation.of_ (Not_a_subjkind (ty_jkind, jkind)))
 
 let constrain_type_jkind ~fixed env ty jkind =

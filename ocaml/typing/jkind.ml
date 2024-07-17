@@ -735,6 +735,7 @@ module Const = struct
       List.map parse_mode modes
   end
 
+  (* XXX replace/unify this with the similar product function below *)
   let jkind_of_product_annotations jkinds =
     let folder (layouts, mode_ub, ext_ub)
         { layout; modes_upper_bounds; externality_upper_bound } =
@@ -1008,8 +1009,26 @@ module Jkind_desc = struct
     let bits64 = of_const Const.Primitive.bits64.jkind
   end
 
-  (* XXX do I need this?  Seems suspect. *)
-  let product layouts = { max with layout = Product layouts }
+  let product jkinds =
+    (* Here we throw away the history of the component jkinds. This is not
+       great. We should, as part of a broader pass on error messages around
+       product kinds, zip them up into some kind of product history. *)
+    let folder (layouts, mode_ub, ext_ub)
+        { jkind = { layout; modes_upper_bounds; externality_upper_bound };
+          history = _;
+          has_warned = _
+        } =
+      ( layout :: layouts,
+        Modes.join mode_ub modes_upper_bounds,
+        Externality.join ext_ub externality_upper_bound )
+    in
+    let layouts, mode_ub, ext_ub =
+      List.fold_left folder ([], Modes.min, Externality.min) jkinds
+    in
+    { layout = Product (List.rev layouts);
+      modes_upper_bounds = mode_ub;
+      externality_upper_bound = ext_ub
+    }
 
   let rec get_sort modes_upper_bounds externality_upper_bound s : Desc.t =
     match Sort.get s with
@@ -1096,12 +1115,8 @@ module Primitive = struct
   let bits64 ~why =
     fresh_jkind Jkind_desc.Primitive.bits64 ~why:(Bits64_creation why)
 
-  (* XXX: we probably want to do something with the histories of the components.
-     Also the mode should be the lub of the component modes, probabably. *)
   let product ~why ts =
-    fresh_jkind
-      (Jkind_desc.product (List.map (fun t -> t.jkind.layout) ts))
-      ~why:(Product_creation why)
+    fresh_jkind (Jkind_desc.product ts) ~why:(Product_creation why)
 end
 
 let add_mode_crossing t =
@@ -2061,7 +2076,7 @@ let default_to_value_and_get t = default_to_value_and_get t
 (* CR ccasinghino: move these to the appropriate places in the unlikely event we
    keep them.  Also is this just layout.sub on some new sort variables now? Or
    at least the sort one is sort.equate? *)
-let make_sort_nary_product n (s : Sort.t) =
+let constrain_sort_to_nary_product n (s : Sort.t) =
   match Sort.get s with
   | Base _ -> None
   | Var v ->
@@ -2071,20 +2086,19 @@ let make_sort_nary_product n (s : Sort.t) =
   | Product sorts ->
     if List.compare_length_with sorts n = 0 then Some sorts else None
 
-let make_layout_nary_product n (layout : Layout.t) =
+let constrain_layout_to_nary_product n (layout : Layout.t) =
   match layout with
   | Any -> None
   | Sort s ->
     Option.map
       (List.map (fun x -> Jkind_types.Layout.Sort x))
-      (make_sort_nary_product n s)
+      (constrain_sort_to_nary_product n s)
   | Product ts -> if List.compare_length_with ts n = 0 then Some ts else None
 
-let make_jkind_nary_product n t =
-  match make_layout_nary_product n t.jkind.layout with
+let constrain_jkind_to_nary_product n t =
+  match constrain_layout_to_nary_product n t.jkind.layout with
   | None -> None
   | Some layouts ->
-    (* CR ccasinghino: obviously wrong *)
     Some
       (List.map
          (fun layout -> { t with jkind = { t.jkind with layout } })
