@@ -82,6 +82,7 @@ Error: This type #(int * int) should be an instance of type
          of the definition of t3 at line 1, characters 0-34.
 |}]
 
+(* some mutually recusive types *)
 type ('a : value & bits64) t6 = 'a t7
 and 'a t7 = { x : 'a t6 }
 [%%expect{|
@@ -115,6 +116,15 @@ Error: This type #(int * int64) should be an instance of type
          it is an unboxed tuple.
        But the layout of #(int * int64) must be a sublayout of value & bits64, because
          of the annotation on 'a in the declaration of the type t6_wrong.
+|}]
+
+(* Just like t6/t7, but with the annotation on the other (the order doesn't
+   matter) *)
+type 'a t11 = 'a t12
+and ('a : value & bits64) t12 = { x : 'a t11 }
+[%%expect{|
+type ('a : value * bits64) t11 = 'a t12
+and ('a : value * bits64) t12 = { x : 'a t11; }
 |}]
 
 (***********************************)
