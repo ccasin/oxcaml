@@ -1274,21 +1274,22 @@ let out_jkind_of_const_jkind jkind =
 (* returns None for [value], according to (C2.1) from
    Note [When to print jkind annotations] *)
 let out_jkind_option_of_jkind jkind =
-  let rec desc_to_out_jkind : Jkind.Desc.t -> out_jkind option = function
-    | Const jkind ->
-      begin match Jkind.Const.equal jkind Jkind.Const.Primitive.value.jkind with
-      | true -> None
-      | false -> Some (out_jkind_of_const_jkind jkind)
-      end
-    | Var v -> (* This handles (X1). *)
-      if !Clflags.verbose_types
-      then Some (Ojkind_var (Jkind.Sort.Var.name v))
-      else None
+  let rec desc_to_out_jkind : Jkind.Desc.t -> out_jkind = function
+    | Const jkind -> out_jkind_of_const_jkind jkind
+    | Var v -> Ojkind_var (Jkind.Sort.Var.name v)
     | Product jkinds ->
-      Option.map (fun x -> Ojkind_product x)
-        (Misc.Stdlib.List.map_option desc_to_out_jkind jkinds)
+      Ojkind_product (List.map desc_to_out_jkind jkinds)
   in
-  desc_to_out_jkind (Jkind.get jkind)
+  let desc = Jkind.get jkind in
+  let elide =
+    match desc with
+    | Const jkind -> (* C2.1 *)
+      Jkind.Const.equal jkind Jkind.Const.Primitive.value.jkind
+    | Var _ -> (* X1 *)
+      not !Clflags.verbose_types
+    | Product _ -> false
+  in
+  if elide then None else Some (desc_to_out_jkind desc)
 
 let alias_nongen_row mode px ty =
     match get_desc ty with

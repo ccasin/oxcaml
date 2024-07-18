@@ -64,7 +64,7 @@ type ('a : value & bits64) t3 = 'a
 type t4 = #(int * int64#) t3
 type t5 = t4 t3
 [%%expect{|
-type 'a t3 = 'a
+type ('a : value * bits64) t3 = 'a
 type t4 = #(int * int64#) t3
 type t5 = t4 t3
 |}]
@@ -82,6 +82,40 @@ Error: This type #(int * int) should be an instance of type
          of the definition of t3 at line 1, characters 0-34.
 |}]
 
+type ('a : value & bits64) t6 = 'a t7
+and 'a t7 = { x : 'a t6 }
+[%%expect{|
+type ('a : value * bits64) t6 = 'a t7
+and ('a : value * bits64) t7 = { x : 'a t6; }
+|}]
+
+type t9 = #(int * int64#) t7
+type t10 = bool t6
+[%%expect{|
+type t9 = #(int * int64#) t7
+Line 2, characters 11-15:
+2 | type t10 = bool t6
+               ^^^^
+Error: This type bool should be an instance of type ('a : value * bits64)
+       The layout of bool is immediate, because
+         it's an enumeration variant type (all constructors are constant).
+       But the layout of bool must be a sublayout of value & bits64, because
+         of the definition of t6 at line 1, characters 0-37.
+|}]
+
+type ('a : value & bits64) t6_wrong = 'a t7_wrong
+and 'a t7_wrong = { x : #(int * int64) t6_wrong }
+[%%expect{|
+Line 2, characters 24-38:
+2 | and 'a t7_wrong = { x : #(int * int64) t6_wrong }
+                            ^^^^^^^^^^^^^^
+Error: This type #(int * int64) should be an instance of type
+         ('a : value * bits64)
+       The layout of #(int * int64) is value & value, because
+         it is an unboxed tuple.
+       But the layout of #(int * int64) must be a sublayout of value & bits64, because
+         of the annotation on 'a in the declaration of the type t6_wrong.
+|}]
 
 (***********************************)
 (* Nested expansion in kind checks *)
@@ -130,7 +164,7 @@ module type S_constrain_type_jkind_deep =
   sig type t1 : any type t2 = #(int * t1) end
 module type S_constrain_type_jkind_deep' =
   sig type t1 = float# type t2 = #(int * t1) end
-type 'a t_constraint
+type ('a : value * float64) t_constraint
 module F :
   functor (X : S_constrain_type_jkind_deep') ->
     sig type r = X.t2 t_constraint end
