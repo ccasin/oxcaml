@@ -129,6 +129,27 @@ type ('a : value * bits64) t11 = 'a t12
 and ('a : value * bits64) t12 = { x : 'a t11; }
 |}]
 
+(* You can make a universal variable have a product layout, but you have to ask
+   for it *)
+type ('a : float64 & value) t = 'a
+
+let f_uvar_good : ('a : float64 & value) . 'a -> 'a t = fun x -> x
+
+let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
+[%%expect{|
+type ('a : float64 * value) t = 'a
+val f_uvar_good : ('a : float64 * value). 'a -> 'a t = <fun>
+Line 5, characters 28-30:
+5 | let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
+                                ^^
+Error: This type ('a : value) should be an instance of type
+         ('b : float64 * value)
+       The layout of 'a is value, because
+         it is or unifies with an unannotated universal variable.
+       But the layout of 'a must overlap with float64 & value, because
+         of the definition of t at line 1, characters 0-34.
+|}]
+
 (*************************************************************)
 (* Unboxed products are allowed in function args and returns *)
 
@@ -233,6 +254,32 @@ Line 1, characters 15-33:
                    ^^^^^^^^^^^^^^^^^^
 Error: Type #(int * bool) has layout value & value.
        Variants may not yet contain types of this layout.
+|}]
+
+module type S = sig
+  val x : #(int * bool)
+end
+[%%expect{|
+Line 2, characters 10-23:
+2 |   val x : #(int * bool)
+              ^^^^^^^^^^^^^
+Error: This type signature for x is not a value type.
+       The layout of type #(int * bool) is immediate & immediate, because
+         it is an unboxed tuple.
+       But the layout of type #(int * bool) must be a sublayout of value, because
+         it's the type of something stored in a module structure.
+|}]
+
+type object_ = < x : #(int * bool) >
+[%%expect{|
+Line 1, characters 17-34:
+1 | type object_ = < x : #(int * bool) >
+                     ^^^^^^^^^^^^^^^^^
+Error: Object field types must have layout value.
+       The layout of #(int * bool) is immediate & immediate, because
+         it is an unboxed tuple.
+       But the layout of #(int * bool) must be a sublayout of value, because
+         it's the type of an object field.
 |}]
 
 (***********************************)
