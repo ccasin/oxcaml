@@ -1246,7 +1246,7 @@ module Element_repr = struct
     | Value_element
     | Element_without_runtime_component of { loc : Location.t; ty : type_expr }
 
-  let classify env loc ty jkind =
+  let classify env loc kloc ty jkind =
     if is_float env ty then Float_element
     else
       let const_jkind = Jkind.default_to_value_and_get jkind in
@@ -1257,8 +1257,8 @@ module Element_repr = struct
       let base = match sort with
         | None ->
             Misc.fatal_error "Element_repr.classify: unexpected Any"
-        | Some (Const_product _) -> (* CJC XXX check *)
-          Misc.fatal_error "Element_repr.classify: unexpected Product"
+        | Some (Const_product _ as c) ->
+            raise (Error (loc, Invalid_jkind_in_block (ty, c, kloc)))
         | Some (Const_base b) -> b
       in
       match base, externality_upper_bound with
@@ -1364,7 +1364,8 @@ let update_constructor_representation
     | Cstr_tuple arg_types_and_modes ->
         let arg_reprs =
           List.map2 (fun {Types.ca_type=arg_type; _} arg_jkind ->
-            Element_repr.classify env loc arg_type arg_jkind, arg_type)
+            let kloc : jkind_sort_loc = Cstr_tuple { unboxed = false } in
+            Element_repr.classify env loc kloc arg_type arg_jkind, arg_type)
             arg_types_and_modes arg_jkinds
         in
         Element_repr.mixed_product_flat_suffix arg_reprs
@@ -1384,7 +1385,9 @@ let update_constructor_representation
         *)
         let arg_reprs =
           List.map (fun ld ->
-              Element_repr.classify env loc ld.Types.ld_type ld.ld_jkind, ld)
+              let kloc = Inlined_record { unboxed = false } in
+              Element_repr.classify env loc kloc ld.Types.ld_type ld.ld_jkind,
+              ld)
             fields
         in
         Element_repr.mixed_product_flat_suffix arg_reprs
@@ -1451,7 +1454,9 @@ let update_decl_jkind env dpath decl =
       let reprs =
         List.mapi
           (fun i lbl ->
-             Element_repr.classify env loc lbl.Types.ld_type jkinds.(i), lbl)
+             let kloc = Record { unboxed = false } in
+             Element_repr.classify env loc kloc lbl.Types.ld_type jkinds.(i),
+             lbl)
           lbls
       in
       let repr_summary =

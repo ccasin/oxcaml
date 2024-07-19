@@ -1,11 +1,13 @@
 (* TEST
  flambda2;
- include stdlib_beta;
+ include stdlib_upstream_compatible;
  flags = "-extension layouts_beta";
  {
    expect;
  }
 *)
+
+open Stdlib_upstream_compatible
 
 (**************************************************)
 (* Basic unboxed product layouts and tuple types. *)
@@ -127,8 +129,115 @@ type ('a : value * bits64) t11 = 'a t12
 and ('a : value * bits64) t12 = { x : 'a t11; }
 |}]
 
+(*************************************************************)
+(* Unboxed products are allowed in function args and returns *)
+
+type t1 = #(int * bool) -> #(int * float# * #(int64# * string option))
+type t2 : value & float64
+type t3 : value & (float64 & immediate) & float64
+type t4 = t2 -> (t3 -> t3) -> t2
+[%%expect{|
+type t1 = #(int * bool) -> #(int * float# * #(int64# * string option))
+type t2 : value & float64
+type t3 : value & float64 & immediate & float64
+type t4 = t2 -> (t3 -> t3) -> t2
+|}]
+
+let f_make_an_unboxed_tuple (x : string) (y : float#) = #(y, x)
+
+let f_pull_apart_an_unboxed_tuple (x : #(string * #(float# * float#))) =
+  match x with
+  | #(s, #(f1, f2)) ->
+    if s = "mul" then
+      Float_u.mul f1 f2
+    else
+      Float_u.add f1 f2
+[%%expect{|
+val f_make_an_unboxed_tuple : string -> float# -> #(float# * string) = <fun>
+val f_pull_apart_an_unboxed_tuple :
+  #(string * #(float# * float#)) -> Stdlib_upstream_compatible.Float_u.t =
+  <fun>
+|}]
+
+let f_mix_up_an_unboxed_tuple x =
+  let #(a, b, #(c, #(d, e)), f) = x in
+  #(b, #(c, (f, e)), a, d)
+[%%expect{|
+val f_mix_up_an_unboxed_tuple :
+  #('a * 'b * #('c * #('d * 'e)) * 'f) -> #('b * #('c * ('f * 'e)) * 'a * 'd) =
+  <fun>
+|}]
+
+let f_take_a_few_unboxed_tuples x1 x2 x3 x4 x5 =
+  let #(a, b) = x1 in
+  let #(d, e) = x3 in
+  let #(g, h) = x5 in
+  #(h, g, x4, e, d, x2, b, a)
+[%%expect{|
+val f_take_a_few_unboxed_tuples :
+  #('a * 'b) ->
+  'c ->
+  #('d * 'e) -> 'f -> #('g * 'h) -> #('h * 'g * 'f * 'e * 'd * 'c * 'b * 'a) =
+  <fun>
+|}]
+
+(*******************************************)
+(* Unboxed products don't go in structures *)
+
+type poly_var = [ `Foo of #(int * bool) ]
+[%%expect{|
+Line 1, characters 26-39:
+1 | type poly_var = [ `Foo of #(int * bool) ]
+                              ^^^^^^^^^^^^^
+Error: Polymorphic variant constructor argument types must have layout value.
+       The layout of #(int * bool) is immediate & immediate, because
+         it is an unboxed tuple.
+       But the layout of #(int * bool) must be a sublayout of value, because
+         it's the type of the field of a polymorphic variant.
+|}]
+
+type tuple = (int * #(bool * float#))
+[%%expect{|
+Line 1, characters 20-36:
+1 | type tuple = (int * #(bool * float#))
+                        ^^^^^^^^^^^^^^^^
+Error: Tuple element types must have layout value.
+       The layout of #(bool * float#) is immediate & float64, because
+         it is an unboxed tuple.
+       But the layout of #(bool * float#) must be a sublayout of value, because
+         it's the type of a tuple element.
+|}]
+
+type record = { x : #(int * bool) }
+[%%expect{|
+Line 1, characters 0-35:
+1 | type record = { x : #(int * bool) }
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Type #(int * bool) has layout value & value.
+       Records may not yet contain types of this layout.
+|}]
+
+type inlined_record = A of { x : #(int * bool) }
+[%%expect{|
+Line 1, characters 29-46:
+1 | type inlined_record = A of { x : #(int * bool) }
+                                 ^^^^^^^^^^^^^^^^^
+Error: Type #(int * bool) has layout value & value.
+       Inlined records may not yet contain types of this layout.
+|}]
+
+type variant = A of #(int * bool)
+[%%expect{|
+Line 1, characters 15-33:
+1 | type variant = A of #(int * bool)
+                   ^^^^^^^^^^^^^^^^^^
+Error: Type #(int * bool) has layout value & value.
+       Variants may not yet contain types of this layout.
+|}]
+
 (***********************************)
 (* Nested expansion in kind checks *)
+(* CJC XXX add more deeply nested examples too. *)
 
 (* This test shows that the [check_coherence] check in Typedecl can look deeply
    into a product kind. That check is reached in this case because the
