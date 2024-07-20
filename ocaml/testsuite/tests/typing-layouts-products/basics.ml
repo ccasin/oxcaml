@@ -9,8 +9,8 @@
 
 open Stdlib_upstream_compatible
 
-(**************************************************)
-(* Basic unboxed product layouts and tuple types. *)
+(**********************************************************)
+(* Test 1: Basic unboxed product layouts and tuple types. *)
 
 type t1 : float64 & value
 type t2 = #(string * float# * int)
@@ -40,8 +40,8 @@ Error: Tuple element types must have layout value.
          it's the type of a tuple element.
 |}]
 
-(************************************)
-(* Simple kind annotations on types *)
+(********************************************)
+(* Test 2: Simple kind annotations on types *)
 
 type t1 : float64 & value = #(float# * bool)
 type t2 : value & (float64 & value) = #(string option * t1)
@@ -150,8 +150,8 @@ Error: This type ('a : value) should be an instance of type
          of the definition of t at line 1, characters 0-34.
 |}]
 
-(*************************************************************)
-(* Unboxed products are allowed in function args and returns *)
+(*********************************************************************)
+(* Test 3: Unboxed products are allowed in function args and returns *)
 
 type t1 = #(int * bool) -> #(int * float# * #(int64# * string option))
 type t2 : value & float64
@@ -202,14 +202,14 @@ val f_take_a_few_unboxed_tuples :
   <fun>
 |}]
 
-(*******************************************)
-(* Unboxed products don't go in structures *)
+(***************************************************)
+(* Test 4: Unboxed products don't go in structures *)
 
-type poly_var = [ `Foo of #(int * bool) ]
+type poly_var_type = [ `Foo of #(int * bool) ]
 [%%expect{|
-Line 1, characters 26-39:
-1 | type poly_var = [ `Foo of #(int * bool) ]
-                              ^^^^^^^^^^^^^
+Line 1, characters 31-44:
+1 | type poly_var_type = [ `Foo of #(int * bool) ]
+                                   ^^^^^^^^^^^^^
 Error: Polymorphic variant constructor argument types must have layout value.
        The layout of #(int * bool) is immediate & immediate, because
          it is an unboxed tuple.
@@ -217,15 +217,43 @@ Error: Polymorphic variant constructor argument types must have layout value.
          it's the type of the field of a polymorphic variant.
 |}]
 
-type tuple = (int * #(bool * float#))
+let poly_var_term = `Foo #(1,2)
 [%%expect{|
-Line 1, characters 20-36:
-1 | type tuple = (int * #(bool * float#))
-                        ^^^^^^^^^^^^^^^^
+Line 1, characters 25-31:
+1 | let poly_var_term = `Foo #(1,2)
+                             ^^^^^^
+Error: This expression has type #('a * 'b)
+       but an expression was expected of type ('c : value)
+       The layout of #('a * 'b) is '_representable_layout_137
+                                   & '_representable_layout_138, because
+         it is an unboxed tuple.
+       But the layout of #('a * 'b) must be a sublayout of value, because
+         it's the type of the field of a polymorphic variant.
+|}]
+
+type tuple_type = (int * #(bool * float#))
+[%%expect{|
+Line 1, characters 25-41:
+1 | type tuple_type = (int * #(bool * float#))
+                             ^^^^^^^^^^^^^^^^
 Error: Tuple element types must have layout value.
        The layout of #(bool * float#) is immediate & float64, because
          it is an unboxed tuple.
        But the layout of #(bool * float#) must be a sublayout of value, because
+         it's the type of a tuple element.
+|}]
+
+let tuple_term = ("hi", #(1, 2))
+[%%expect{|
+Line 1, characters 24-31:
+1 | let tuple_term = ("hi", #(1, 2))
+                            ^^^^^^^
+Error: This expression has type #('a * 'b)
+       but an expression was expected of type ('c : value)
+       The layout of #('a * 'b) is '_representable_layout_140
+                                   & '_representable_layout_141, because
+         it is an unboxed tuple.
+       But the layout of #('a * 'b) must be a sublayout of value, because
          it's the type of a tuple element.
 |}]
 
@@ -270,17 +298,45 @@ Error: This type signature for x is not a value type.
          it's the type of something stored in a module structure.
 |}]
 
-type object_ = < x : #(int * bool) >
+module M = struct
+  let x = #(1, 2)
+end
 [%%expect{|
-Line 1, characters 17-34:
-1 | type object_ = < x : #(int * bool) >
-                     ^^^^^^^^^^^^^^^^^
+Line 2, characters 6-7:
+2 |   let x = #(1, 2)
+          ^
+Error: Types of top-level module bindings must have layout value, but
+       the type of x has layout value * value.
+|}]
+
+type object_type = < x : #(int * bool) >
+[%%expect{|
+Line 1, characters 21-38:
+1 | type object_type = < x : #(int * bool) >
+                         ^^^^^^^^^^^^^^^^^
 Error: Object field types must have layout value.
        The layout of #(int * bool) is immediate & immediate, because
          it is an unboxed tuple.
        But the layout of #(int * bool) must be a sublayout of value, because
          it's the type of an object field.
 |}]
+
+let object_term = object val x = #(1, 2) end
+[%%expect{|
+Line 1, characters 29-30:
+1 | let object_term = object val x = #(1, 2) end
+                                 ^
+Error: Variables bound in a class must have layout value.
+       The layout of x is immediate & immediate, because
+         it is an unboxed tuple.
+       But the layout of x must be a sublayout of value, because
+         it's the type of a class field.
+|}]
+
+(****************************************************)
+(* Test 5: Methods may take/return unboxed products *)
+
+
 
 (***********************************)
 (* Nested expansion in kind checks *)
@@ -336,3 +392,6 @@ module F :
     sig type r = X.t2 t_constraint end
 |}]
 
+(* To test:
+   - kinds (e.g., int & int mode crosses but int & string does not)
+*)
