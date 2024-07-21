@@ -362,8 +362,8 @@ class class_with_utuple_manipulating_method :
   object method f : #(int * int) -> #(int * int) -> #(int * int) end
 |}]
 
-(***********************************)
-(* Nested expansion in kind checks *)
+(*******************************************)
+(* Test 6: Nested expansion in kind checks *)
 
 (* This test shows that the [check_coherence] check in Typedecl can look deeply
    into a product kind. That check is reached in this case because the
@@ -481,6 +481,98 @@ module F :
     sig type r = X.t4 t_constraint end
 |}]
 
-(* To test:
-   - kinds (e.g., int & int mode crosses but int & string does not)
-*)
+(***********************************************)
+(* Test 8: modal kinds for unboxed tuple types *)
+
+let f_external_utuple_mode_crosses_local_1
+  : local_ #(int * int) -> #(int * int) = fun x -> x
+[%%expect{|
+val f_external_utuple_mode_crosses_local_1 :
+  local_ #(int * int) -> #(int * int) = <fun>
+|}]
+
+let f_internal_utuple_does_not_mode_cross_local_1
+  : local_ #(int * string) -> #(int * string) = fun x -> x
+[%%expect{|
+Line 2, characters 57-58:
+2 |   : local_ #(int * string) -> #(int * string) = fun x -> x
+                                                             ^
+Error: This value escapes its region.
+|}]
+
+let f_external_utuple_mode_crosses_local_2
+  : local_ #(int * #(bool * int)) -> #(int * #(bool * int)) = fun x -> x
+[%%expect{|
+val f_external_utuple_mode_crosses_local_2 :
+  local_ #(int * #(bool * int)) -> #(int * #(bool * int)) = <fun>
+|}]
+
+let f_internal_utuple_does_not_mode_cross_local_2
+  : local_ #(int * #(bool * string)) -> #(int * #(bool * string)) = fun x -> x
+[%%expect{|
+Line 2, characters 77-78:
+2 |   : local_ #(int * #(bool * string)) -> #(int * #(bool * string)) = fun x -> x
+                                                                                 ^
+Error: This value escapes its region.
+|}]
+
+type t = #(int * int)
+let f_external_utuple_mode_crosses_local_3
+  : local_ #(int * #(t * int)) -> #(int * #(t * int)) = fun x -> x
+[%%expect{|
+type t = #(int * int)
+val f_external_utuple_mode_crosses_local_3 :
+  local_ #(int * #(t * int)) -> #(int * #(t * int)) = <fun>
+|}]
+
+type t = #(string * int)
+let f_internal_utuple_does_not_mode_cross_local_3
+  : local_ #(int * #(t * bool)) -> #(int * #(t * bool)) = fun x -> x
+[%%expect{|
+type t = #(string * int)
+Line 3, characters 67-68:
+3 |   : local_ #(int * #(t * bool)) -> #(int * #(t * bool)) = fun x -> x
+                                                                       ^
+Error: This value escapes its region.
+|}]
+
+(****************************************************)
+(* Test 7: modal kinds for product kind annotations *)
+
+type t : float64 & float64
+let f_external_kind_annot_mode_crosses_local_1
+  : local_ t -> t = fun x -> x
+[%%expect{|
+type t : float64 & float64
+val f_external_kind_annot_mode_crosses_local_1 : local_ t -> t = <fun>
+|}]
+
+type t : float64 & value
+let f_internal_kind_annot_does_not_mode_cross_local_1
+  : local_ t -> t = fun x -> x
+[%%expect{|
+type t : float64 & value
+Line 3, characters 29-30:
+3 |   : local_ t -> t = fun x -> x
+                                 ^
+Error: This value escapes its region.
+|}]
+
+type t : immediate & (float64 & immediate)
+let f_external_kind_annot_mode_crosses_local_2
+  : local_ t -> t = fun x -> x
+[%%expect{|
+type t : immediate & float64 & immediate
+val f_external_kind_annot_mode_crosses_local_2 : local_ t -> t = <fun>
+|}]
+
+type t : immediate & (value & float64)
+let f_internal_kind_annot_does_not_mode_cross_local_2
+  : local_ t -> t = fun x -> x
+[%%expect{|
+type t : immediate & value & float64
+Line 3, characters 29-30:
+3 |   : local_ t -> t = fun x -> x
+                                 ^
+Error: This value escapes its region.
+|}]
