@@ -482,7 +482,7 @@ module F :
 |}]
 
 (***********************************************)
-(* Test 8: modal kinds for unboxed tuple types *)
+(* Test 7: modal kinds for unboxed tuple types *)
 
 let f_external_utuple_mode_crosses_local_1
   : local_ #(int * int) -> #(int * int) = fun x -> x
@@ -537,7 +537,7 @@ Error: This value escapes its region.
 |}]
 
 (****************************************************)
-(* Test 7: modal kinds for product kind annotations *)
+(* Test 8: modal kinds for product kind annotations *)
 
 type t : float64 & float64
 let f_external_kind_annot_mode_crosses_local_1
