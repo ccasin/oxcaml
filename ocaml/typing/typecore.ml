@@ -2504,6 +2504,8 @@ and type_pat_aux
   in
   (* CR ccasinghino: see how much of this can be shared *)
   let type_unboxed_tuple_pat spl closed =
+    Jane_syntax_parsing.assert_extension_enabled ~loc Layouts
+      Language_extension.Beta;
     let args =
       match get_desc (expand_head !env expected_ty) with
       (* If it's a principally-known tuple pattern, try to reorder *)
@@ -7883,6 +7885,8 @@ and type_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
 (* CR ccasinghino: Contemplate if any of this can be shared with the above. *)
 and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
       ~explanation ~attributes sexpl =
+  Jane_syntax_parsing.assert_extension_enabled ~loc Layouts
+    Language_extension.Beta;
   let arity = List.length sexpl in
   assert (arity >= 2);
   (* elements must be representable *)

@@ -713,6 +713,8 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
     in
     ctyp desc typ
   | Ptyp_unboxed_tuple stl ->
+    Jane_syntax_parsing.assert_extension_enabled ~loc Layouts
+      Language_extension.Beta;
     let tl =
       (* CR ccasinghino: check mode, but seems right. *)
       List.map
