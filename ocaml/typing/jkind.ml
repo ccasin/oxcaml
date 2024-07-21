@@ -117,10 +117,18 @@ module Layout = struct
           (fun x -> Product x)
           (Misc.Stdlib.List.map_option of_sort sorts)
 
-    let rec to_string : t -> _ = function
-      | Any -> "any"
-      | Base b -> Sort.to_string_base b
-      | Product ts -> String.concat " * " (List.map to_string ts)
+    let to_string t =
+      let rec to_string nested (t : t) =
+        match t with
+        | Any -> "any"
+        | Base b -> Sort.to_string_base b
+        | Product ts ->
+          String.concat ""
+            [ (if nested then "(" else "");
+              String.concat " & " (List.map (to_string true) ts);
+              (if nested then ")" else "") ]
+      in
+      to_string false t
 
     module Legacy = struct
       (* CR layouts v2.8: get rid of this *)
@@ -137,18 +145,25 @@ module Layout = struct
         | Bits64
         | Product of t list
 
-      let rec to_string = function
-        | Any -> "any"
-        | Value -> "value"
-        | Void -> "void"
-        | Immediate64 -> "immediate64"
-        | Immediate -> "immediate"
-        | Float64 -> "float64"
-        | Float32 -> "float32"
-        | Word -> "word"
-        | Bits32 -> "bits32"
-        | Bits64 -> "bits64"
-        | Product ts -> String.concat " * " (List.map to_string ts)
+      let to_string t =
+        let rec to_string nested = function
+          | Any -> "any"
+          | Value -> "value"
+          | Void -> "void"
+          | Immediate64 -> "immediate64"
+          | Immediate -> "immediate"
+          | Float64 -> "float64"
+          | Float32 -> "float32"
+          | Word -> "word"
+          | Bits32 -> "bits32"
+          | Bits64 -> "bits64"
+          | Product ts ->
+            String.concat ""
+              [ (if nested then "(" else "");
+                String.concat " & " (List.map (to_string true) ts);
+                (if nested then ")" else "") ]
+        in
+        to_string false t
     end
 
     (* XXX is this used? *)

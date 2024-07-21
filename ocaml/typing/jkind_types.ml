@@ -412,14 +412,20 @@ module Sort = struct
     | Var v -> Var.name v
     | Product ts -> String.concat " * " (List.map to_string ts)
 
-  let rec format ppf t =
-    match get t with
-    | Base b -> Format.fprintf ppf "%s" (to_string_base b)
-    | Var v -> Format.fprintf ppf "%s" (Var.name v)
-    | Product [] -> Misc.fatal_error "Jkind_types.Sort.format: empty product"
-    | Product (t :: ts) ->
-      format ppf t;
-      List.iter (fun t -> Format.fprintf ppf "@ * %a" format t) ts
+  let format ppf t =
+    let rec format nested ppf t =
+      match get t with
+      | Base b -> Format.fprintf ppf "%s" (to_string_base b)
+      | Var v -> Format.fprintf ppf "%s" (Var.name v)
+      | Product ts ->
+        Format.fprintf ppf "@[%a@]"
+          (Misc.pp_parens_if nested
+             (Format.pp_print_list
+                ~pp_sep:(fun ppf () -> Format.fprintf ppf " & ")
+                (format true)))
+          ts
+    in
+    format false ppf t
 
   (*** debug printing **)
 

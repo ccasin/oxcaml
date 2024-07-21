@@ -66,7 +66,7 @@ type ('a : value & bits64) t3 = 'a
 type t4 = #(int * int64#) t3
 type t5 = t4 t3
 [%%expect{|
-type ('a : value * bits64) t3 = 'a
+type ('a : value & bits64) t3 = 'a
 type t4 = #(int * int64#) t3
 type t5 = t4 t3
 |}]
@@ -77,7 +77,7 @@ Line 1, characters 16-28:
 1 | type t4_wrong = #(int * int) t3
                     ^^^^^^^^^^^^
 Error: This type #(int * int) should be an instance of type
-         ('a : value * bits64)
+         ('a : value & bits64)
        The layout of #(int * int) is immediate & immediate, because
          it is an unboxed tuple.
        But the layout of #(int * int) must be a sublayout of value & bits64, because
@@ -88,8 +88,8 @@ Error: This type #(int * int) should be an instance of type
 type ('a : value & bits64) t6 = 'a t7
 and 'a t7 = { x : 'a t6 }
 [%%expect{|
-type ('a : value * bits64) t6 = 'a t7
-and ('a : value * bits64) t7 = { x : 'a t6; }
+type ('a : value & bits64) t6 = 'a t7
+and ('a : value & bits64) t7 = { x : 'a t6; }
 |}]
 
 type t9 = #(int * int64#) t7
@@ -99,7 +99,7 @@ type t9 = #(int * int64#) t7
 Line 2, characters 11-15:
 2 | type t10 = bool t6
                ^^^^
-Error: This type bool should be an instance of type ('a : value * bits64)
+Error: This type bool should be an instance of type ('a : value & bits64)
        The layout of bool is immediate, because
          it's an enumeration variant type (all constructors are constant).
        But the layout of bool must be a sublayout of value & bits64, because
@@ -113,7 +113,7 @@ Line 2, characters 24-38:
 2 | and 'a t7_wrong = { x : #(int * int64) t6_wrong }
                             ^^^^^^^^^^^^^^
 Error: This type #(int * int64) should be an instance of type
-         ('a : value * bits64)
+         ('a : value & bits64)
        The layout of #(int * int64) is value & value, because
          it is an unboxed tuple.
        But the layout of #(int * int64) must be a sublayout of value & bits64, because
@@ -125,8 +125,8 @@ Error: This type #(int * int64) should be an instance of type
 type 'a t11 = 'a t12
 and ('a : value & bits64) t12 = { x : 'a t11 }
 [%%expect{|
-type ('a : value * bits64) t11 = 'a t12
-and ('a : value * bits64) t12 = { x : 'a t11; }
+type ('a : value & bits64) t11 = 'a t12
+and ('a : value & bits64) t12 = { x : 'a t11; }
 |}]
 
 (* You can make a universal variable have a product layout, but you have to ask
@@ -137,13 +137,13 @@ let f_uvar_good : ('a : float64 & value) . 'a -> 'a t = fun x -> x
 
 let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
 [%%expect{|
-type ('a : float64 * value) t = 'a
-val f_uvar_good : ('a : float64 * value). 'a -> 'a t = <fun>
+type ('a : float64 & value) t = 'a
+val f_uvar_good : ('a : float64 & value). 'a -> 'a t = <fun>
 Line 5, characters 28-30:
 5 | let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
                                 ^^
 Error: This type ('a : value) should be an instance of type
-         ('b : float64 * value)
+         ('b : float64 & value)
        The layout of 'a is value, because
          it is or unifies with an unannotated universal variable.
        But the layout of 'a must overlap with float64 & value, because
@@ -306,7 +306,7 @@ Line 2, characters 6-7:
 2 |   let x = #(1, 2)
           ^
 Error: Types of top-level module bindings must have layout value, but
-       the type of x has layout value * value.
+       the type of x has layout value & value.
 |}]
 
 type object_type = < x : #(int * bool) >
@@ -333,14 +333,37 @@ Error: Variables bound in a class must have layout value.
          it's the type of a class field.
 |}]
 
+class class_ =
+  object
+    method x = #(1,2)
+  end
+[%%expect{|
+Line 3, characters 15-21:
+3 |     method x = #(1,2)
+                   ^^^^^^
+Error: This expression has type #('a * 'b)
+       but an expression was expected of type ('c : value)
+       The layout of #('a * 'b) is '_representable_layout_161
+                                   & '_representable_layout_162, because
+         it is an unboxed tuple.
+       But the layout of #('a * 'b) must be a sublayout of value, because
+         it's the type of an object field.
+|}]
+
 (****************************************************)
 (* Test 5: Methods may take/return unboxed products *)
 
-
+class class_with_utuple_manipulating_method =
+  object
+    method f #(a, b) #(c, d) = #(a + c, b + d)
+  end
+[%%expect{|
+class class_with_utuple_manipulating_method :
+  object method f : #(int * int) -> #(int * int) -> #(int * int) end
+|}]
 
 (***********************************)
 (* Nested expansion in kind checks *)
-(* CJC XXX add more deeply nested examples too. *)
 
 (* This test shows that the [check_coherence] check in Typedecl can look deeply
    into a product kind. That check is reached in this case because the
@@ -365,6 +388,35 @@ module type S_coherence_deep' =
 module F : functor (X : S_coherence_deep') -> sig type r = X.t2 end
 |}]
 
+module type S_coherence_deeper = sig
+  type t1 : any
+  type t2 = #(int * t1)
+  type t3 = #(t2 * bool * int64#)
+  type t4 = #(float# * t3 * int)
+end
+
+module type S_coherence_deeper' = S_coherence_deeper with type t1 = float#
+
+module F(X : S_coherence_deeper') = struct
+  type r : float64 & ((value & float64) & value & bits64) & value = X.t4
+end
+[%%expect{|
+module type S_coherence_deeper =
+  sig
+    type t1 : any
+    type t2 = #(int * t1)
+    type t3 = #(t2 * bool * int64#)
+    type t4 = #(float# * t3 * int)
+  end
+module type S_coherence_deeper' =
+  sig
+    type t1 = float#
+    type t2 = #(int * t1)
+    type t3 = #(t2 * bool * int64#)
+    type t4 = #(float# * t3 * int)
+  end
+module F : functor (X : S_coherence_deeper') -> sig type r = X.t4 end
+|}]
 
 (* Like the above, but hitting the nested expansion case in
    [constrain_type_jkind] *)
@@ -386,10 +438,47 @@ module type S_constrain_type_jkind_deep =
   sig type t1 : any type t2 = #(int * t1) end
 module type S_constrain_type_jkind_deep' =
   sig type t1 = float# type t2 = #(int * t1) end
-type ('a : value * float64) t_constraint
+type ('a : value & float64) t_constraint
 module F :
   functor (X : S_constrain_type_jkind_deep') ->
     sig type r = X.t2 t_constraint end
+|}]
+
+module type S_constrain_type_jkind_deeper = sig
+  type t1 : any
+  type t2 = #(int * t1)
+  type t3 = #(t2 * bool * int64#)
+  type t4 = #(float# * t3 * int)
+end
+
+module type S_constrain_type_jkind_deeper' =
+  S_constrain_type_jkind_deeper with type t1 = float#
+
+type ('a : float64 & ((value & float64) & value & bits64) & value) t_constraint
+
+module F(X : S_constrain_type_jkind_deeper') = struct
+  type r = X.t4 t_constraint
+end
+[%%expect{|
+module type S_constrain_type_jkind_deeper =
+  sig
+    type t1 : any
+    type t2 = #(int * t1)
+    type t3 = #(t2 * bool * int64#)
+    type t4 = #(float# * t3 * int)
+  end
+module type S_constrain_type_jkind_deeper' =
+  sig
+    type t1 = float#
+    type t2 = #(int * t1)
+    type t3 = #(t2 * bool * int64#)
+    type t4 = #(float# * t3 * int)
+  end
+type ('a : float64 & ((value & float64) & value & bits64) & value)
+     t_constraint
+module F :
+  functor (X : S_constrain_type_jkind_deeper') ->
+    sig type r = X.t4 t_constraint end
 |}]
 
 (* To test:
