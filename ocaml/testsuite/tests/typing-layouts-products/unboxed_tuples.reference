@@ -1,2 +1,14 @@
-Test 1, twice pi: 6.28
-Test 1, 14/3: #(4,2)
+Test 1, twice pi inlined: 6.28
+Test 1, twice pi not inlined: 6.28
+Test 1, 14/3 inlined: #(4,2)
+Test 1, 14/3 not inlined: #(4,2)
+Test 1, #(6,#(15,24)) inlined: #(6,#(15,24))
+Test 1, #(6,#(15,24)) not inlined: #(6,#(15,24))
+Test 2, add pi twice: 6.28
+Test 2, add pi four times: 12.56
+Test 2, increment pi twice: 5.14
+Test 2, increment pi four times: 7.14
+Test 2, e times four: 18.88
+Test 2, pi times sixteen: 50.24
+Test 2, pi times sixteen again: 50.24
+Test 2, pi minus four: -0.86
