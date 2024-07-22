@@ -128,7 +128,3 @@ let _ =
        add_two_after (twice (fun x -> add_t x #(-1,#(-#1.0, -1.0))))
      in
      minus_four pi)
-
-
-
-
