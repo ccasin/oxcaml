@@ -350,6 +350,23 @@ Error: This expression has type #('a * 'b)
          it's the type of an object field.
 |}]
 
+let capture_in_object utup = object
+  val f = fun () ->
+    let #(x,y) = utup in
+    x + y
+end;;
+[%%expect{|
+Line 3, characters 17-21:
+3 |     let #(x,y) = utup in
+                     ^^^^
+Error: This expression has type ('a : value)
+       but an expression was expected of type #('b * 'c)
+       The layout of #('a * 'b) is '_representable_layout_171
+                                   & '_representable_layout_172, because
+         it is an unboxed tuple.
+       But the layout of #('a * 'b) must be a sublayout of value, because
+         it's the type of a variable captured in an object.
+|}];;
 (****************************************************)
 (* Test 5: Methods may take/return unboxed products *)
 
