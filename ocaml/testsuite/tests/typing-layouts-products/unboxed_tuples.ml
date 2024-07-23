@@ -197,7 +197,7 @@ let test3 () =
   (* these sum to 3 *)
   let x2 = #(7, #(#40.0, 2.0)) in
   let x4 = #(-23, #(#100.0, 9.0)) in
-  let x6 = #(-242, #(#5.5, 94.5)) in
+  let x6 = #(-242, #(#5.5, 84.5)) in
   let x8 = #(-2, #(#20.0, 2.0)) in
 
   let f3_manyargs = f3_manyargs #(4,8) x1 x2 x3 x4 x5 x6 x7 x8 x9 steps in
