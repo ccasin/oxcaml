@@ -93,9 +93,10 @@ let[@inline never] twice f (x : t) = f (f x)
 
 let[@inline never] compose f g (x : t) = f (g x)
 
-let print_t_sum prefix #(i,#(f1,f2)) =
-  Printf.printf "%s: %.2f\n" prefix
-    ((Float.of_int i) +. (Float_u.to_float f1 +. f2))
+let t_sum #(i,#(f1,f2)) =
+  ((Float.of_int i) +. (Float_u.to_float f1 +. f2))
+
+let print_t_sum prefix t = Printf.printf "%s: %.2f\n" prefix (t_sum t)
 
 let[@inline never] twice_on_pi f =
   let pi = #(1, #(#2.0, 0.14)) in
@@ -264,3 +265,60 @@ let test5 () =
 
 let _ = test5 ()
 
+(*************************************)
+(* Test 6: methods on unboxed tuples *)
+
+(* CR layouts: add tests that unboxed tuples in objects, once that is
+   allowed. *)
+
+(* unboxed tuple args and returns *)
+let f6_1 () = object
+  method f6_m1 t1 t2 t3 =
+    add_t (sub_t t1 t2) t3
+end
+
+(* recursion *)
+let f6_2 n = object(self)
+  method f6_m2 n3 tup f =
+    if n3 = ((Sys.opaque_identity fst) n) + ((Sys.opaque_identity snd) n) then
+      tup
+    else f (self#f6_m2 (n3+1) tup f)
+end
+
+(* overapplication to unboxed tuple and value args *)
+let f6_3 n k = object
+  method f6_m3 n3 tup f =
+    let n = ((Sys.opaque_identity fst) n) + ((Sys.opaque_identity snd) n) in
+    f (n + k + n3) tup
+end
+
+let test6 () =
+  let one = #(-1, #(#1.33, 0.67)) in
+  let pi = #(1, #(#2.0, 0.14)) in
+  let e = #(1, #(#0.1, 1.62)) in
+  let add3 n (m, k) = n + m + k in
+
+  (* (3.14 - 2.72) + 1 = 1.42 *)
+  let o = (Sys.opaque_identity f6_1) () in
+  print_t_sum "Test 6, 1.42"
+    (o#f6_m1 pi e one);
+
+  (* 4.25 * 8 = 34 *)
+  let t_4_25 = #(2, #(#1.1, 1.15)) in
+  let o = (Sys.opaque_identity f6_2) (4,7) in
+  let result = o#f6_m2 8 t_4_25 (fun x -> add_t x x) in
+  print_t_sum "Test 6, 34.00" result;
+
+  (* (1 + 2 + 3 + (-2) + (-12) + 4) * (2.72 + (-1) + 10) = -46.88 *)
+  let o = (Sys.opaque_identity f6_3) (1,2) 3 in
+  let negative_one = #(-3, #(#1.33, 0.67)) in
+  let ten = #(-1, #(#13.2, -2.2)) in
+  let result =
+    o#f6_m3 (-2) e
+      (fun[@inline never] i m1 m2 n m3 ->
+         Float.of_int (add3 i n) *. (t_sum m1 +. t_sum m2 +. t_sum m3))
+      negative_one (-12,4) ten
+  in
+  print_float "Test 6, -46.88" result
+
+let _ = test6 ()
