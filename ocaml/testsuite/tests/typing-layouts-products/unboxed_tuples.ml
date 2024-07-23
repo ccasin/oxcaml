@@ -128,3 +128,80 @@ let _ =
        add_two_after (twice (fun x -> add_t x #(-1,#(-#1.0, -1.0))))
      in
      minus_four pi)
+
+(**************************************)
+(* Test 3: unboxed tuples in closures *)
+
+(* [go]'s closure should have an unboxed tuple with an [int] (immediate), a [float#]
+   (float64) and a [float array] (value). *)
+let[@inline never] f3 tup () =
+  let[@inline never] rec go k =
+    let #(n,m,steps) = tup in
+    if k = n
+    then #0.
+    else begin
+      let acc = go (k + 1) in
+      steps.(k) <- Float_u.to_float acc;
+      Float_u.add m acc
+    end
+  in
+  go 0
+
+(* many args - even args are floats, odd args are unboxed tuples *)
+let[@inline_never] f3_manyargs x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 steps () =
+  let #(start_k, end_k) = x0 in
+  let[@inline never] rec go k =
+    if k = end_k
+    then 0.0
+    else begin
+      let #(x2_1, #(x2_2, x2_3)) = x2 in
+      let #(x4_1, #(x4_2, x4_3)) = x4 in
+      let #(x6_1, #(x6_2, x6_3)) = x6 in
+      let #(x8_1, #(x8_2, x8_3)) = x8 in
+      let sum =
+        Float.of_int x2_1 +. Float_u.to_float x2_2 +. x2_3 +.
+        Float.of_int x4_1 +. Float_u.to_float x4_2 +. x4_3 +.
+        Float.of_int x6_1 +. Float_u.to_float x6_2 +. x6_3 +.
+        Float.of_int x8_1 +. Float_u.to_float x8_2 +. x8_3
+      in
+      let acc = go (k + 1) in
+      steps.(k) <- acc;
+      acc +. ((x1 +. x3 +. x5 +. x7 +. x9) *. sum)
+    end
+  in
+  go start_k
+
+let test3 () =
+  (* Test f3 *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let five_pi = f3 #(5, #3.14, steps) in
+  print_floatu "Test 3, 5 * pi: " (five_pi ());
+  Array.iteri (Printf.printf "  Test 3, step %d: %.2f\n") steps;
+
+  (* Test f3_manyargs
+
+          (3.14 + 2.72 + 1.62 + 1.41 + 42.0) = 50.86
+      3 * (3.14 + 2.72 + 1.62 + 1.41 + 42.0) = 152.58
+      6 * (3.14 + 2.72 + 1.62 + 1.41 + 42.0) = 306.16
+      9 * (3.14 + 2.72 + 1.62 + 1.41 + 42.0) = 457.74
+
+    ( but we expect some floating point error )
+  *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let x1 = 3.14 in
+  let x3 = 2.72 in
+  let x5 = 1.62 in
+  let x7 = 1.41 in
+  let x9 = 42.0 in
+
+  (* these sum to 3 *)
+  let x2 = #(7, #(#40.0, 2.0)) in
+  let x4 = #(-23, #(#100.0, 9.0)) in
+  let x6 = #(-242, #(#5.5, 94.5)) in
+  let x8 = #(-2, #(#20.0, 2.0)) in
+
+  let f3_manyargs = f3_manyargs #(4,8) x1 x2 x3 x4 x5 x6 x7 x8 x9 steps in
+  print_float "Test 3, 610.68: " (f3_manyargs ());
+  Array.iteri (Printf.printf "  Test 3, step %d: %.2f\n") steps
+
+let _ = test3 ()
