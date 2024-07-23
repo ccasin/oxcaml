@@ -1607,10 +1607,25 @@ and cps_function env ~fid ~(recursive : Recursive.t) ?precomputed_free_idents
     | Some ids -> ids
     | None -> Lambda.free_variables body
   in
+  let unboxed_product_components_in_scope = Env.get_unboxed_product_components_in_scope env in
+  let unboxed_product_components_in_scope = Ident.Map.filter (fun id _ -> Ident.Set.mem id free_idents_of_body) unboxed_product_components_in_scope in
+  let free_idents_of_body =
+    Ident.Set.fold
+      (fun id acc ->
+        match Env.get_unboxed_product_fields env id with
+        | None -> Ident.Set.add id acc
+        | Some (_, fields) ->
+          List.fold_left (fun acc id -> Ident.Set.add id acc) acc fields)
+      free_idents_of_body Ident.Set.empty
+  in
   let my_region = Ident.create_local "my_region" in
   let new_env =
     Env.create ~current_unit:(Env.current_unit env)
       ~return_continuation:body_cont ~exn_continuation:body_exn_cont ~my_region
+  in
+  let new_env =
+    Env.with_unboxed_product_components_in_scope new_env
+      unboxed_product_components_in_scope
   in
   let exn_continuation : IR.exn_continuation =
     { exn_handler = body_exn_cont; extra_args = [] }
@@ -1715,7 +1730,7 @@ and cps_switch acc env ccenv (switch : L.lambda_switch) ~condition_dbg
           in
           let k = restore_continuation_context_for_switch_arm env k in
           let consts_rev =
-            (arm, k, Debuginfo.none, None, IR.Var var :: extra_args)
+            (arm, k, Debuginfo.none, None, get_unarized_vars var env @ extra_args)
             :: consts_rev
           in
           consts_rev, wrappers
