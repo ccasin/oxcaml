@@ -241,3 +241,26 @@ let[@inline never] test4 () =
   Array.iteri (Printf.printf "  Test 4, step %d: %.2f\n") steps
 
 let _ = test4 ()
+
+(****************************)
+(* Test 5: Over application *)
+
+let[@inline never] f5 n m =
+  let[@inline never] go f =
+    f (add_t n m)
+  in
+  go
+
+let test5 () =
+  let one = #(-1, #(#1.33, 0.67)) in
+  let pi = #(1, #(#2.0, 0.14)) in
+  let e = #(1, #(#0.1, 1.62)) in
+  let _ : unit =
+    f5 pi e
+      (fun n s m -> print_t_sum s (add_t n m)) "Test 5, pi+e+1"
+      one
+  in
+  ()
+
+let _ = test5 ()
+
