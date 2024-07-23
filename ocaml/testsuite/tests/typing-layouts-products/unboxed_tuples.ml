@@ -86,6 +86,9 @@ type t = #(int * #(float# * float))
 let[@inline never] add_t #(i1,#(f1,f1')) #(i2,#(f2,f2')) =
   #(i1 + i2, #(Float_u.add f1 f2, f1' +. f2'))
 
+let[@inline never] sub_t #(i1,#(f1,f1')) #(i2,#(f2,f2')) =
+  #(i1 - i2, #(Float_u.sub f1 f2, f1' -. f2'))
+
 let[@inline never] twice f (x : t) = f (f x)
 
 let[@inline never] compose f g (x : t) = f (g x)
@@ -134,11 +137,12 @@ let _ =
 
 (* [go]'s closure should have an unboxed tuple with an [int] (immediate), a [float#]
    (float64) and a [float array] (value). *)
-let[@inline never] f3 tup () =
+let[@inline never] f3 bounds steps_init () =
   let[@inline never] rec go k =
-    let #(n,m,steps) = tup in
+    let #(n,m) = bounds in
+    let #(steps, init) = steps_init in
     if k = n
-    then #0.
+    then init
     else begin
       let acc = go (k + 1) in
       steps.(k) <- Float_u.to_float acc;
@@ -174,7 +178,7 @@ let[@inline_never] f3_manyargs x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 steps () =
 let test3 () =
   (* Test f3 *)
   let steps = Array.init 10 (fun _ -> 0.0) in
-  let five_pi = f3 #(5, #3.14, steps) in
+  let five_pi = f3 #(5, #3.14) #(steps, #0.0) in
   print_floatu "Test 3, 5 * pi: " (five_pi ());
   Array.iteri (Printf.printf "  Test 3, step %d: %.2f\n") steps;
 
@@ -205,3 +209,35 @@ let test3 () =
   Array.iteri (Printf.printf "  Test 3, step %d: %.2f\n") steps
 
 let _ = test3 ()
+
+(*********************************************)
+(* Test 4: Partial and indirect applications *)
+
+let[@inline never] test4 () =
+  let one = #(-1, #(#1.33, 0.67)) in
+  let two = #(-5, #(#12.7, -5.7)) in
+
+  (* Simple indirect call *)
+  let[@inline never] go f = f one two in
+  let #(x1, x2) = #(go add_t, go sub_t) in
+  print_t_sum "Test 4, 1 + 2" x1;
+  print_t_sum "Test 4, 1 - 2" x2;
+
+  (* partial application to an unboxed tuple and with one remaining *)
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let f = Sys.opaque_identity (f3 #(5,#3.14)) in
+  let five_pi = f #(steps,#0.0) in
+  print_floatu "Test 4, 5 * pi: " (five_pi ());
+  Array.iteri (Printf.printf "  Test 4, step %d: %.2f\n") steps;
+
+  (* That test again, but making f3 also opaque to prevent expansion of the
+     partial application. *)
+  let f3 = Sys.opaque_identity f3 in
+
+  let steps = Array.init 10 (fun _ -> 0.0) in
+  let f = Sys.opaque_identity (f3 #(5,#3.14)) in
+  let five_pi = f #(steps,#0.0) in
+  print_floatu "Test 4, 5 * pi: " (five_pi ());
+  Array.iteri (Printf.printf "  Test 4, step %d: %.2f\n") steps
+
+let _ = test4 ()
