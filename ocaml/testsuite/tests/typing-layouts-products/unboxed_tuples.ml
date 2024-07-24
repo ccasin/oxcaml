@@ -322,3 +322,29 @@ let test6 () =
   print_float "Test 6, -46.88" result
 
 let _ = test6 ()
+
+(*************************************)
+(* Test 7: letop with unboxed tuples *)
+
+let ( let* ) x f =
+  let one = #(0, #(#1.0, 0.0)) in
+  f Float_u.(add_t x one)
+
+let _ =
+  let* pi_plus_one = #(1, #(#2.0, 0.14)) in
+  print_t_sum "Test 7, 4.14" pi_plus_one
+
+let ( let* ) x (f : _ -> t) =
+  let one = #(0, #(#1.0, 0.0)) in
+  add_t one (f x)
+let ( and* ) x y = (x, t_sum y)
+let _ =
+  let one = #(0, #(#1.0, 0.0)) in
+  let e = #(1, #(#0.1, 1.62)) in
+  let result =
+    let* x = 42
+    and* y = one
+    and* z = e in
+    #(42, #(Float_u.of_float y, z))
+  in
+  print_t_sum "Test 7, 46.72" result
