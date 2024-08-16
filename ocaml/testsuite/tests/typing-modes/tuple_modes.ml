@@ -1,4 +1,5 @@
 (* TEST
+    flags = "-extension layouts_beta";
     expect;
 *)
 
@@ -103,4 +104,25 @@ Line 3, characters 42-44:
 3 |     | x0, x1 -> use_global x0; use_global x1; ()
                                               ^^
 Error: This value escapes its region.
+|}]
+
+(* An unboxed tuple is not an allocation, but a regular tuple is *)
+let f_unboxed_tuple (local_ a) (local_ b) =
+  let t = #(a, b) in
+  let #(a', _) = t in
+  a'
+[%%expect{|
+val f_unboxed_tuple : local_ 'a -> local_ 'b -> local_ 'a = <fun>
+|}]
+
+let f_boxed_tuple (local_ a) (local_ b) =
+  let t = (a, b) in
+  let (a', _) = t in
+  a'
+[%%expect{|
+Line 4, characters 2-4:
+4 |   a'
+      ^^
+Error: This value escapes its region.
+  Hint: Cannot return a local value without an "exclave_" annotation.
 |}]
