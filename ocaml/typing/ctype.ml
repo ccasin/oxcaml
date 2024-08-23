@@ -2237,10 +2237,16 @@ let type_jkind_sub env ty jkind =
       in
       match jkinds with
       | None ->
+        (* The upper bound is not a product, but the type is.  This may be
+           OK if the upper bound has layout any. *)
         let estimate =
           jkind_of_result env ~expand_components:(fun x -> x) product
         in
-        estimate, Failure { estimate; bound = jkind; ty }
+        let result =
+          if Jkind.sub estimate jkind then Success else
+            Failure { estimate; bound = jkind; ty }
+        in
+        estimate, result
       | Some jkinds ->
         (* Note: here we "duplicate" the fuel, which may seem like
            cheating. Fuel counts expansions, and its purpose is to guard against
