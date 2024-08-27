@@ -708,7 +708,7 @@ module Const = struct
     in
     let layouts, mode_ub, ext_ub, null_ub =
       List.fold_left folder
-        ([], Modes.min, Externality.min, Nullability.max)
+        ([], Modes.min, Externality.min, Nullability.min)
         jkinds
     in
     { layout = Product (List.rev layouts);
@@ -970,7 +970,7 @@ module Jkind_desc = struct
     in
     let layouts, mode_ub, ext_ub, null_ub =
       List.fold_left folder
-        ([], Modes.min, Externality.min, Nullability.max)
+        ([], Modes.min, Externality.min, Nullability.min)
         jkinds
     in
     { layout = Product (List.rev layouts);
