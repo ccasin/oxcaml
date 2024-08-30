@@ -152,7 +152,7 @@ let[@inline never] f3 bounds steps_init () =
   in
   go 0
 
-(* many args - even args are floats, odd args are unboxed tuples *)
+(* many args - odd args are floats, even args are unboxed tuples *)
 let[@inline_never] f3_manyargs x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 steps () =
   let #(start_k, end_k) = x0 in
   let[@inline never] rec go k =
