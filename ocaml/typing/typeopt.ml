@@ -28,8 +28,8 @@ type error =
   | Non_value_sort_unknown_ty of Jkind.Sort.t
   | Small_number_sort_without_extension of Jkind.Sort.t * type_expr option
   | Not_a_sort of type_expr * Jkind.Violation.t
-  | Unsupported_sort of Jkind.Sort.const
-  | Unsupported_product_in_structure of Jkind.Sort.const
+  | Unsupported_sort of Jkind.Sort.Const.t
+  | Unsupported_product_in_structure of Jkind.Sort.Const.t
 
 exception Error of Location.t * error
 
@@ -690,7 +690,7 @@ let value_kind env loc ty =
   | Missing_cmi_fallback -> raise (Error (loc, Non_value_layout (ty, None)))
 
 let[@inline always] rec layout_of_const_sort_generic ~value_kind ~error
-  : Jkind.Sort.const -> _ = function
+  : Jkind.Sort.Const.t -> _ = function
   | Const_base Value -> Lambda.Pvalue (Lazy.force value_kind)
   | Const_base Float64 when Language_extension.(is_at_least Layouts Stable) ->
     Lambda.Punboxed_float Pfloat64

@@ -91,7 +91,7 @@ module Layout = struct
       | Base b -> Some (Const_base b)
       | Product ts ->
         Option.map
-          (fun x -> Sort.Const_product x)
+          (fun x -> Sort.Const.Const_product x)
           (Misc.Stdlib.List.map_option get_sort ts)
 
     let rec of_sort s =
@@ -122,7 +122,7 @@ module Layout = struct
       let t ppf t = fprintf ppf "%s" (to_string t)
     end
 
-    let rec of_sort_const : Sort.const -> t = function
+    let rec of_sort_const : Sort.Const.t -> t = function
       | Const_base b -> Base b
       | Const_product consts -> Product (List.map of_sort_const consts)
   end
