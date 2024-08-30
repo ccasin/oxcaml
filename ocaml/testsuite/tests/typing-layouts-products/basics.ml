@@ -139,13 +139,15 @@ and ('a : value & bits64) t12 = { x : 'a t11; }
 type ('a : float64 & value) t = 'a
 
 let f_uvar_good : ('a : float64 & value) . 'a -> 'a t = fun x -> x
+let f_uvar_ok : 'a -> 'a t = fun x -> x
 
 let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
 [%%expect{|
 type ('a : float64 & value) t = 'a
 val f_uvar_good : ('a : float64 & value). 'a -> 'a t = <fun>
-Line 5, characters 28-30:
-5 | let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
+val f_uvar_ok : ('a : float64 & value). 'a -> 'a t = <fun>
+Line 6, characters 28-30:
+6 | let f_uvar_bad : 'a . 'a -> 'a t = fun x -> x
                                 ^^
 Error: This type ('a : value) should be an instance of type
          ('b : float64 & value)
@@ -229,7 +231,7 @@ Line 1, characters 25-31:
                              ^^^^^^
 Error: This expression has type #('a * 'b)
        but an expression was expected of type ('c : value)
-       The layout of #('a * 'b) is '_representable_layout_155 & '_representable_layout_156
+       The layout of #('a * 'b) is '_representable_layout_158 & '_representable_layout_159
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of the field of a polymorphic variant.
@@ -254,7 +256,7 @@ Line 1, characters 24-31:
                             ^^^^^^^
 Error: This expression has type #('a * 'b)
        but an expression was expected of type ('c : value)
-       The layout of #('a * 'b) is '_representable_layout_162 & '_representable_layout_163
+       The layout of #('a * 'b) is '_representable_layout_165 & '_representable_layout_166
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of a tuple element.
@@ -346,7 +348,7 @@ Line 3, characters 15-21:
                    ^^^^^^
 Error: This expression has type #('a * 'b)
        but an expression was expected of type ('c : value)
-       The layout of #('a * 'b) is '_representable_layout_191 & '_representable_layout_192
+       The layout of #('a * 'b) is '_representable_layout_194 & '_representable_layout_195
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of an object field.
@@ -363,7 +365,7 @@ Line 3, characters 17-21:
                      ^^^^
 Error: This expression has type ('a : value)
        but an expression was expected of type #('b * 'c)
-       The layout of #('a * 'b) is '_representable_layout_203 & '_representable_layout_204
+       The layout of #('a * 'b) is '_representable_layout_206 & '_representable_layout_207
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of a variable captured in an object.
@@ -699,7 +701,7 @@ Line 2, characters 37-44:
                                          ^^^^^^^
 Error: This expression has type #('a * 'b)
        but an expression was expected of type ('c : value)
-       The layout of #('a * 'b) is '_representable_layout_363 & '_representable_layout_364
+       The layout of #('a * 'b) is '_representable_layout_366 & '_representable_layout_367
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of the recursive variable x.
@@ -715,9 +717,61 @@ Line 1, characters 21-29:
                          ^^^^^^^^
 Error: This expression has type #('a * 'b)
        but an expression was expected of type ('c : value)
-       The layout of #('a * 'b) is '_representable_layout_370 & '_representable_layout_371
+       The layout of #('a * 'b) is '_representable_layout_373 & '_representable_layout_374
          because it is an unboxed tuple.
        But the layout of #('a * 'b) must be a sublayout of value
          because it's the type of the recursive variable _x.
 |}]
 
+(**********************************************************)
+(* Test 10: not allowed in [@@unboxed] declarations (yet) *)
+
+type ('a : value & value) t = A of 'a [@@unboxed]
+[%%expect{|
+Line 1, characters 30-37:
+1 | type ('a : value & value) t = A of 'a [@@unboxed]
+                                  ^^^^^^^
+Error: Type 'a has layout value & value.
+       Unboxed variants may not yet contain types of this layout.
+|}]
+
+type t = A of #(int * int) [@@unboxed]
+[%%expect{|
+Line 1, characters 9-26:
+1 | type t = A of #(int * int) [@@unboxed]
+             ^^^^^^^^^^^^^^^^^
+Error: Type #(int * int) has layout value & value.
+       Unboxed variants may not yet contain types of this layout.
+|}]
+
+type ('a : value & value) t = A of { x : 'a } [@@unboxed]
+[%%expect{|
+Line 1, characters 37-43:
+1 | type ('a : value & value) t = A of { x : 'a } [@@unboxed]
+                                         ^^^^^^
+Error: Type 'a has layout value & value.
+       Unboxed inlined records may not yet contain types of this layout.
+|}]
+
+type t = A of { x : #(int * int) } [@@unboxed]
+[%%expect{|
+Line 1, characters 16-32:
+1 | type t = A of { x : #(int * int) } [@@unboxed]
+                    ^^^^^^^^^^^^^^^^
+Error: Type #(int * int) has layout value & value.
+       Unboxed inlined records may not yet contain types of this layout.
+|}]
+
+(**************************************)
+(* Test 11: Unboxed tuples and arrays *)
+
+type ('a : value & value) t1 = 'a array
+type ('a : bits64 & (value & float64)) t2 = 'a array
+type t3 = #(int * bool) array
+type t4 = #(string * #(float# * bool option)) array
+[%%expect{|
+type ('a : value & value) t1 = 'a array
+type ('a : bits64 & (value & float64)) t2 = 'a array
+type t3 = #(int * bool) array
+type t4 = #(string * #(float# * bool option)) array
+|}]
