@@ -35,8 +35,8 @@ module type Sort = sig
 
   module Const : sig
     type t =
-      | Const_base of base
-      | Const_product of t list
+      | Base of base
+      | Product of t list
 
     val equal : t -> t -> bool
 

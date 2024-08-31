@@ -85,6 +85,9 @@ module Sort : sig
 end
 
 module Layout : sig
+  (** Note that products have two possible encodings: as [Product ...] or as
+      [Sort (Product ...]. This duplication is hard to eliminate because of the
+      possibility that a sort variable may be instantiated by a product sort. *)
   type 'sort layout =
     | Sort of 'sort
     | Product of 'sort layout list

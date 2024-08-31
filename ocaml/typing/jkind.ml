@@ -88,10 +88,10 @@ module Layout = struct
 
     let rec get_sort : t -> Sort.Const.t option = function
       | Any -> None
-      | Base b -> Some (Const_base b)
+      | Base b -> Some (Base b)
       | Product ts ->
         Option.map
-          (fun x -> Sort.Const.Const_product x)
+          (fun x -> Sort.Const.Product x)
           (Misc.Stdlib.List.map_option get_sort ts)
 
     let rec of_sort s =
@@ -123,8 +123,8 @@ module Layout = struct
     end
 
     let rec of_sort_const : Sort.Const.t -> t = function
-      | Const_base b -> Base b
-      | Const_product consts -> Product (List.map of_sort_const consts)
+      | Base b -> Base b
+      | Product consts -> Product (List.map of_sort_const consts)
   end
 
   type t = Sort.t layout
