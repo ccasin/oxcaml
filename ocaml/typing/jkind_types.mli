@@ -88,9 +88,9 @@ module Layout : sig
   (** Note that products have two possible encodings: as [Product ...] or as
       [Sort (Product ...]. This duplication is hard to eliminate because of the
       possibility that a sort variable may be instantiated by a product sort. *)
-  type 'sort layout =
-    | Sort of 'sort
-    | Product of 'sort layout list
+  type t =
+    | Sort of Sort.t
+    | Product of t list
     | Any
 
   module Const : sig
@@ -117,8 +117,6 @@ module Layout : sig
         | Product of t list
     end
   end
-
-  type t = Sort.t layout
 end
 
 module type Axis = sig

@@ -34,6 +34,8 @@ type type_expr = Types.type_expr
 module Layout = struct
   open Jkind_types.Layout
 
+  type nonrec t = t
+
   module Const = struct
     type t = Const.t =
       | Any
@@ -126,8 +128,6 @@ module Layout = struct
       | Base b -> Base b
       | Product consts -> Product (List.map of_sort_const consts)
   end
-
-  type t = Sort.t layout
 
   module Debug_printers = struct
     open Format

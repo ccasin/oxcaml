@@ -458,9 +458,9 @@ module Sort = struct
 end
 
 module Layout = struct
-  type 'sort layout =
-    | Sort of 'sort
-    | Product of 'sort layout list
+  type t =
+    | Sort of Sort.t
+    | Product of t list
     | Any
 
   module Const = struct
@@ -486,8 +486,6 @@ module Layout = struct
         | Product of t list
     end
   end
-
-  type t = Sort.t layout
 end
 
 module type Axis = sig
