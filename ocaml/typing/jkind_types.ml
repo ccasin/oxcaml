@@ -29,7 +29,7 @@ module Sort = struct
 
   and var =
     { mutable contents : t option;
-      uid : int
+      uid : int (* For debugging / printing only *)
     }
 
   let equal_base b1 b2 =

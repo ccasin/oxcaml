@@ -949,7 +949,7 @@ module Jkind_desc = struct
   end
 
   let product jkinds =
-    (* CR layouts 7.1: Here we throw away the history of the component
+    (* CR layouts v7.1: Here we throw away the history of the component
        jkinds. This is not great. We should, as part of a broader pass on error
        messages around product kinds, zip them up into some kind of product
        history. *)
