@@ -979,7 +979,7 @@ module Jkind_desc = struct
       nullability_upper_bound = null_ub
     }
 
-  (* Post-condition: If the result is [Var v], then [!v] is [None]. *)
+  (* Post-condition: If the result contains [Var v], then [!v] is [None]. *)
   let rec get_sort modes_upper_bounds externality_upper_bound
       nullability_upper_bound s : Desc.t =
     match Sort.get s with
