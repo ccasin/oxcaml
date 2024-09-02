@@ -2256,14 +2256,15 @@ let type_jkind_sub env ty jkind =
         let results = List.map2 (check_one fuel) component_types jkinds in
         process_product_results fuel [] [] results
 
-  (* Here, [results] is a list of results from attempting to constrain a product
-     jkind - one for each component. Failures may have occurred just because we
-     haven't expanded the component type enough yet, so we expand and check it
-     again.
+  (* Here, we are recusing down [results] is a list of the (unprocessed) results
+     from attempting to constrain a product jkind. There is one for each
+     component, and we process them individually into the accumulators [vars]
+     and [jkind_ests]. Those collect the [Type_vars] from the component checks
+     and the jkind estimate of each component, respectively
 
-     [vars] and [jkind_ests] are accumulators, collecting the [Type_vars] from
-     the component checks and the jkind estimate of each component.
-  *)
+     [Failure]s in results may have occurred just because we haven't expanded
+     the component type enough yet, so we expand and check it again. *)
+
   and process_product_results fuel vars jkind_ests results =
     match results with
     | [] ->
