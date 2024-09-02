@@ -2128,13 +2128,14 @@ let rec estimate_type_jkind_head env ty =
   | Tpoly (ty, _) -> estimate_type_jkind_head env ty
   | Tpackage _ -> Jkind (Builtin.value ~why:First_class_module)
 
-(* We parameterize [estimate_type_jkind] and [jkind_of_result] by a function
+(* We parameterize [estimate_type_jkind] and [jkind_of_jkind_head] by a function
    [expand_components] because some callers want expansion of types and others
    don't. *)
 let rec estimate_type_jkind env ~expand_components ty =
-  jkind_of_result env ~expand_components (estimate_type_jkind_head env ty)
+  jkind_of_jkind_head env ~expand_components (estimate_type_jkind_head env ty)
 
-and jkind_of_result env ~expand_components jkind_head =
+(* See [estimate_type_jkind] above for explanation of [expand_components]. *)
+and jkind_of_jkind_head env ~expand_components jkind_head =
   match jkind_head with
   | Jkind l -> l
   | TyVar (_, l) -> l
@@ -2240,7 +2241,7 @@ let type_jkind_sub env ty jkind =
         (* The upper bound is not a product, but the type is.  This may be
            OK if the upper bound has layout any. *)
         let estimate =
-          jkind_of_result env ~expand_components:(fun x -> x) product
+          jkind_of_jkind_head env ~expand_components:(fun x -> x) product
         in
         let result =
           if Jkind.sub estimate jkind then Success else
