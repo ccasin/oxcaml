@@ -979,19 +979,7 @@ module Jkind_desc = struct
       nullability_upper_bound = null_ub
     }
 
-  (* Helper for [get_sort] below. *)
-  let all_const ds =
-    Misc.Stdlib.List.map_option
-      (fun (d : Desc.t) ->
-        match d with
-        | Const { layout = l; _ } -> Some l
-        | Var _ | Product _ -> None)
-      ds
-
-  (* Post-condition:
-     - If the result contains [Var v], then [!v] is [None].
-     - If the result contains [Product l], then [l] contains a [Var] or
-       [Product] *)
+  (* Post-condition: If the result contains [Var v], then [!v] is [None]. *)
   let rec get_sort modes_upper_bounds externality_upper_bound
       nullability_upper_bound s : Desc.t =
     match Sort.get s with
@@ -1003,23 +991,13 @@ module Jkind_desc = struct
           nullability_upper_bound
         }
     | Var v -> Var v
-    | Product sorts -> (
-      let descs =
-        List.map
-          (fun x ->
-            get_sort modes_upper_bounds externality_upper_bound
-              nullability_upper_bound x)
-          sorts
-      in
-      match all_const descs with
-      | Some ls ->
-        Const
-          { layout = Product ls;
-            modes_upper_bounds;
-            externality_upper_bound;
-            nullability_upper_bound
-          }
-      | None -> Product descs)
+    | Product sorts ->
+      Desc.Product
+        (List.map
+           (fun x ->
+             get_sort modes_upper_bounds externality_upper_bound
+               nullability_upper_bound x)
+           sorts)
 
   let rec get
       ({ layout;
@@ -1038,17 +1016,8 @@ module Jkind_desc = struct
     | Sort s ->
       get_sort modes_upper_bounds externality_upper_bound
         nullability_upper_bound s
-    | Product layouts -> (
-      let descs = List.map (fun layout -> get { k with layout }) layouts in
-      match all_const descs with
-      | None -> Product descs
-      | Some ls ->
-        Const
-          { layout = Product ls;
-            modes_upper_bounds;
-            externality_upper_bound;
-            nullability_upper_bound
-          })
+    | Product layouts ->
+      Product (List.map (fun layout -> get { k with layout }) layouts)
 
   module Debug_printers = struct
     open Format

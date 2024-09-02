@@ -74,7 +74,8 @@ Line 3, characters 0-47:
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The kind of type #(t1 * t2) is any & any
          because it is an unboxed tuple.
-       But the kind of type #(t1 * t2) must be a subkind of any & any
+       But the kind of type #(t1 * t2) must be a subkind of
+         any_non_null & any_non_null
          because of the definition of t3 at line 3, characters 0-47.
 |}]
 
@@ -89,6 +90,7 @@ Line 3, characters 0-58:
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The kind of type #(t1 * t2) is any & any
          because it is an unboxed tuple.
-       But the kind of type #(t1 * t2) must be a subkind of any & any
+       But the kind of type #(t1 * t2) must be a subkind of
+         any_non_null & any_non_null
          because of the definition of t3 at line 3, characters 0-58.
 |}]
