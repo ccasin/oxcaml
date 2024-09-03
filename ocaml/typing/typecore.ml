@@ -1492,7 +1492,6 @@ let solve_Ppat_unboxed_tuple ~refine ~alloc_mode loc env args expected_ty =
   let arg_modes =
     match alloc_mode.tuple_modes with
     (* CR zqian: improve the modes of opened labeled tuple pattern. *)
-    (* XXX modes *)
     | Some l when List.compare_length_with l arity = 0 -> l
     | _ -> List.init arity (fun _ -> alloc_mode.mode)
   in
@@ -3070,7 +3069,6 @@ let rec pat_tuple_arity spat =
   | None      ->
   match spat.ppat_desc with
   | Ppat_tuple args -> Local_tuple (List.length args)
-  (* XXX modes *)
   | Ppat_unboxed_tuple (args,_c) -> Local_tuple (List.length args)
   | Ppat_any | Ppat_exception _ | Ppat_var _ -> Maybe_local_tuple
   | Ppat_constant _
@@ -4520,12 +4518,12 @@ let contains_variant_either ty =
   try loop ty; unmark_type ty; false
   with Exit -> unmark_type ty; true
 
-let shallow_iter_labeled_tuple f lst = List.iter (fun (_,p) -> f p) lst
+let shallow_iter_ppat_labeled_tuple f lst = List.iter (fun (_,p) -> f p) lst
 
 let shallow_iter_ppat_jane_syntax f : Jane_syntax.Pattern.t -> _ = function
   | Jpat_immutable_array (Iapat_immutable_array pats) -> List.iter f pats
   | Jpat_layout (Lpat_constant _) -> ()
-  | Jpat_tuple (lst, _) -> shallow_iter_labeled_tuple f lst
+  | Jpat_tuple (lst, _) -> shallow_iter_ppat_labeled_tuple f lst
 
 let shallow_iter_ppat f p =
   match Jane_syntax.Pattern.of_ast p with
@@ -4540,7 +4538,7 @@ let shallow_iter_ppat f p =
   | Ppat_or (p1,p2) -> f p1; f p2
   | Ppat_variant (_, arg) -> Option.iter f arg
   | Ppat_tuple lst -> List.iter f lst
-  | Ppat_unboxed_tuple (lst, _) -> shallow_iter_labeled_tuple f lst
+  | Ppat_unboxed_tuple (lst, _) -> shallow_iter_ppat_labeled_tuple f lst
   | Ppat_construct (_, Some (_, p))
   | Ppat_exception p | Ppat_alias (p,_)
   | Ppat_open (_,p)
