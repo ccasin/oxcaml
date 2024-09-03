@@ -25,11 +25,23 @@
  } {
    flags = "-extension layouts_alpha";
    native;
+ } {
+   flags = "-extension layouts_alpha -Oclassic";
+   native;
+ } {
+   flags = "-extension layouts_alpha -O3";
+   native;
  }{
    flags = "-extension layouts_alpha";
    bytecode;
  }{
    flags = "-extension layouts_beta";
+   native;
+ }{
+   flags = "-extension layouts_beta -Oclassic";
+   native;
+ }{
+   flags = "-extension layouts_beta -O3";
    native;
  }{
    flags = "-extension layouts_beta";
@@ -65,7 +77,7 @@ let test1 () =
     ((mult_float_by_int [@inlined]) #(pi,2));
   print_floatu "Test 1, twice pi not inlined"
     ((mult_float_by_int [@inlined never]) #(pi,2));
-  print_ints "Test 1, 14/3 inlined" ((div_mod [@inlined]) 14 3);
+  print_ints "Test 1, 14/3 inlined" ((div_mod [@inlined hint]) 14 3);
   print_ints "Test 1, 14/3 not inlined" ((div_mod [@inlined never]) 14 3);
   let #(a,#(b,c)) =
     (add_some_stuff [@inlined]) #(1,2,#(3,4)) #(5,#(6,#(7,8,9)))
