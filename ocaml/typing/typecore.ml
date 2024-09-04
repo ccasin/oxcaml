@@ -7769,7 +7769,15 @@ and type_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     | Some tuple_modes when List.compare_length_with tuple_modes arity = 0 ->
         List.map (fun mode -> Value.meet [mode; argument_mode])
           tuple_modes
-    | _ ->
+    | Some tuple_modes ->
+        (* If the pattern and the expression have different tuple length, it
+          should be an type error. Here, we give the sound mode anyway. *)
+        let tuple_modes =
+          List.map (fun mode -> snd (register_allocation_value_mode mode)) tuple_modes
+        in
+        let argument_mode = Value.meet (argument_mode :: tuple_modes) in
+        List.init arity (fun _ -> argument_mode)
+    | None ->
         List.init arity (fun _ -> argument_mode)
   in
   let types_and_modes = List.combine labeled_subtypes argument_modes in
@@ -7795,6 +7803,7 @@ and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     Language_extension.Beta;
   let arity = List.length sexpl in
   assert (arity >= 2);
+  let argument_mode = expected_mode.mode in
   (* elements must be representable *)
   let labels_types_and_sorts =
     List.map (fun (label, _) ->
@@ -7814,9 +7823,15 @@ and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     match expected_mode.tuple_modes with
     (* CR zqian: improve the modes of opened labeled tuple pattern. *)
     | Some tuple_modes when List.compare_length_with tuple_modes arity = 0 ->
-        tuple_modes
-    | _ ->
-        List.init arity (fun _ -> as_single_mode expected_mode)
+        List.map (fun mode -> Value.meet [mode; argument_mode])
+          tuple_modes
+    | Some tuple_modes ->
+        (* If the pattern and the expression have different tuple length, it
+          should be an type error. Here, we give the sound mode anyway. *)
+        let argument_mode = Value.meet (argument_mode :: tuple_modes) in
+        List.init arity (fun _ -> argument_mode)
+    | None ->
+        List.init arity (fun _ -> argument_mode)
   in
   let types_sorts_and_modes =
     List.combine labels_types_and_sorts argument_modes
