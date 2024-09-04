@@ -93,9 +93,11 @@ let f e0 (e1 @ local) =
     match #(e0, e1) with
     | #(x0, x1) when x0 = x1 -> use_global x0; use_local x1; ()
     | x -> use_global_product x; ()
-(* XXX wrong *)
 [%%expect{|
-val f : 'a -> local_ 'a -> unit = <fun>
+Line 4, characters 30-31:
+4 |     | x -> use_global_product x; ()
+                                  ^
+Error: This value escapes its region.
 |}]
 
 
