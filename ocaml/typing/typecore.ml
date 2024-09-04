@@ -7816,7 +7816,7 @@ and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     | Some tuple_modes when List.compare_length_with tuple_modes arity = 0 ->
         tuple_modes
     | _ ->
-        List.init arity (fun _ -> expected_mode.mode)
+        List.init arity (fun _ -> as_single_mode expected_mode)
   in
   let types_sorts_and_modes =
     List.combine labels_types_and_sorts argument_modes
