@@ -7819,7 +7819,6 @@ and type_unboxed_tuple ~loc ~env ~(expected_mode : expected_mode) ~ty_expected
     unify_exp_types loc env to_unify (generic_instance ty_expected));
 
   let argument_modes =
-    (* XXX modes *)
     match expected_mode.tuple_modes with
     (* CR zqian: improve the modes of opened labeled tuple pattern. *)
     | Some tuple_modes when List.compare_length_with tuple_modes arity = 0 ->

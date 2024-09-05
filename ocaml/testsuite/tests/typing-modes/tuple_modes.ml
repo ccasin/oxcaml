@@ -117,8 +117,9 @@ let f e0 (e1 @ local) =
 val f : 'a -> local_ 'a -> unit = <fun>
 |}]
 
-(* we can return [e1], because it's regional. We can't return [x]
-   (or its component) because [x] is allocated in the current region. *)
+(* we can return [e1], because it's regional. We can't return [x] (or its
+   component) because [x] is allocated in the current region.  But when there is
+   no allocation, as in the unboxed version just below, this is allowed.  *)
 let f e0 (e1 @ local) =
     match e0, e1 with
     | x0, x1 when x0 = x1 -> use_global x0; use_local x1; e1
@@ -135,8 +136,6 @@ let f e0 (e1 @ local) =
     match #(e0, e1) with
     | #(x0, x1) when x0 = x1 -> use_global x0; use_local x1; e1
     | x -> use_local_product x; let #(x0, x1) = x in x0
-(* XXX this is different than the boxed case, but I think it is OK because there
-   is no box. *)
 [%%expect{|
 val f : 'a -> local_ 'a -> local_ 'a = <fun>
 |}]
