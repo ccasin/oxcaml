@@ -176,6 +176,19 @@ module Stdlib = struct
       in
       aux l []
 
+    let map2_option f l1 l2 =
+      let rec aux l1 l2 acc =
+        match l1, l2 with
+        | [], [] -> Some (List.rev acc)
+        | x :: xs, y :: ys ->
+          begin match f x y with
+          | None -> None
+          | Some z -> aux xs ys (z :: acc)
+          end
+        | _, _ -> invalid_arg "map2_option"
+      in
+      aux l1 l2 []
+
     let split_at n l =
       let rec aux n acc l =
         if n = 0
@@ -495,9 +508,9 @@ module Stdlib = struct
         in
         loop [] ms
 
-      let all_unit ms =
-        let skip = return () in
-        List.fold_left (fun _ m -> bind m (fun _ -> skip)) skip ms
+      let rec all_unit = function
+        | [] -> return ()
+        | m :: ms -> bind m (fun _ -> all_unit ms)
     end
 
     module Result = Make2(struct

@@ -3256,6 +3256,8 @@ let arraylength kind arg dbg =
   | Punboxedintarray Pint64 | Punboxedintarray Pnativeint ->
     unboxed_int64_or_nativeint_array_length arg dbg
   | Punboxedintarray Pint32 -> unboxed_int32_array_length arg dbg
+  | Pgcscannableproductarray _ | Pgcignorableproductarray _ ->
+    Misc.fatal_error "Cmm_helper.arraylength: unimplemented"
 
 (* CR-soon gyorsh: effects and coeffects for primitives are set conservatively
    to Arbitrary_effects and Has_coeffects, resp. Check if this can be improved
