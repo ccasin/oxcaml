@@ -29,7 +29,7 @@ type error =
   | Unknown_builtin_primitive of string
   | Wrong_arity_builtin_primitive of string
   | Invalid_floatarray_glb
-  | Unexpected_product_in_prim of Jkind.Sort.Const.t
+  | Expected_product_array
 
 exception Error of Location.t * error
 
@@ -513,7 +513,7 @@ let lookup_primitive loc ~poly_mode ~poly_sort pos p =
         ((Parraysetu
           (gen_array_set_kind (get_first_arg_mode ()), Punboxed_int_index Pnativeint)),
         3)
-    | "%caml_make_unboxed_tuple_vect" ->
+    | "%make_unboxed_tuple_vect" ->
       Primitive (Pmake_unboxed_tuple_vect (gen_array_kind, mode), 2)
     | "%obj_size" -> Primitive ((Parraylength Pgenarray), 1)
     | "%obj_field" -> Primitive ((Parrayrefu (Pgenarray_ref mode, Ptagged_int_index)), 2)
@@ -1135,6 +1135,12 @@ let specialize_primitive env loc ty ~has_constant_constructor prim =
         glb_array_type loc at
           (array_kind_of_elt ~elt_sort:None env loc p2)
       in
+      begin match array_type with
+      | Pgcscannableproductarray _ | Pgcignorableproductarray _ -> ()
+      | (Pgenarray | Paddrarray | Pintarray | Pfloatarray | Punboxedfloatarray _
+        | Punboxedintarray _) ->
+        raise (Error (loc, Expected_product_array))
+      end;
       if at = array_type then None
       else Some (Primitive (Pmake_unboxed_tuple_vect (array_type, mode), arity))
     end
@@ -1737,12 +1743,11 @@ let report_error ppf = function
       fprintf ppf
         "@[Floatarray primitives can't be used on arrays containing@ \
          unboxed types.@]"
-
-  | Unexpected_product_in_prim c ->
+  | Expected_product_array ->
       fprintf ppf
-        "@[Unboxed product layouts are not yet supported as arguments to@ \
-         layout polymorphic externals.@ The layout of this argument is %a.@]"
-        Jkind.Sort.Const.format c
+        "@[The initial element provided to %%make_unboxed_tuple_vect must be @ \
+         unboxed product.@]"
+
 let () =
   Location.register_error_of_exn
     (function

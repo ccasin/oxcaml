@@ -68,7 +68,6 @@ type error =
   | Inconsistent_noalloc_attributes_for_effects
   | Invalid_representation_polymorphic_attribute
   | Invalid_native_repr_for_primitive of string
-  | Invalid_layout_for_external of string
 
 exception Error of Location.t * error
 
@@ -465,20 +464,6 @@ module Repr_check = struct
     check
       (List.init (arity+1) (fun _ -> value_or_unboxed_or_untagged))
       prim
-
-  let is_unboxed_product repr =
-    match repr with
-    | Same_as_ocaml_repr (Product _) -> true
-    | Same_as_ocaml_repr (Base _)
-    | Unboxed_float _ | Unboxed_integer _ | Unboxed_vector _
-    | Untagged_immediate | Repr_poly -> false
-
-  let no_unboxed_products prim =
-    let arity = List.length prim.prim_native_repr_args in
-    check
-      (List.init (arity+1) (fun _ -> fun r -> not (is_unboxed_product r)))
-      prim
-
 end
 
 (* Note: [any] here is not the same as jkind [any]. It means we allow any
@@ -671,10 +656,10 @@ let prim_has_valid_reprs ~loc prim =
         is (Same_as_ocaml_repr word);
         any;
         is (Same_as_ocaml_repr value)]
-    | "%caml_make_unboxed_tuple_vect" ->
+    | "%make_unboxed_tuple_vect" ->
       check [
         is (Same_as_ocaml_repr value);
-        is_unboxed_product;
+        any;
         is (Same_as_ocaml_repr value);
       ]
 
@@ -728,9 +713,8 @@ let prim_has_valid_reprs ~loc prim =
                  |}
               *)
             else
-              (* Ban unboxed products in external c primitives, but otherwise
-                 make no assumptions. *)
-              no_unboxed_products)
+              (* make no assumptions about external c primitives *)
+              fun _ -> Success)
   in
   match check prim with
   | Success -> ()
@@ -741,12 +725,8 @@ let prim_has_valid_reprs ~loc prim =
        errors dependent on the [prim_name]. *)
     ()
   | Wrong_repr ->
-    if is_builtin_prim_name prim.prim_name then
-      raise (Error (loc,
-              Invalid_native_repr_for_primitive (prim.prim_name)))
-    else
-      raise (Error (loc,
-              Invalid_layout_for_external (prim.prim_name)))
+    raise (Error (loc,
+                  Invalid_native_repr_for_primitive (prim.prim_name)))
 
 let prim_can_contain_layout_any prim =
   match prim.prim_name with
@@ -813,12 +793,6 @@ let report_error ppf err =
       "The primitive [%s] is used in an invalid declaration.@ \
        The declaration contains argument/return types with the@ \
        wrong layout."
-      name
-  | Invalid_layout_for_external name ->
-    Format.fprintf ppf
-      "The declaration of the external [%s] is invalid. It contains an@ \
-       argument or return type with a layout that is not supported in@ \
-       non-builtin external declarations."
       name
 
 let () =
