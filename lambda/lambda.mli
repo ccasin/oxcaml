@@ -331,6 +331,8 @@ type primitive =
   | Parray_of_iarray (* Unsafely reinterpret an immutable array as a mutable
                         one; O(1) *)
   | Pget_header of locality_mode
+  | Ppeek of peek_or_poke
+  | Ppoke of peek_or_poke
   (* Get the header of a block. This primitive is invalid if provided with an
      immediate value.
      Note: The GC color bits in the header are not reliable except for checking
@@ -341,6 +343,8 @@ type primitive =
      handlers, finalizers, memprof callbacks, etc, as well as GCs and
      GC slices, so should not be moved or optimised away. *)
   | Ppoll
+
+and signed_or_unsigned = Signed | Unsigned
 
 (** This is the same as [Primitive.native_repr] but with [Repr_poly]
     compiled away. *)
@@ -503,6 +507,14 @@ and unboxed_float = boxed_float
 and unboxed_integer = boxed_integer
 
 and unboxed_vector = boxed_vector
+
+and peek_or_poke =
+  | Ppp_tagged_immediate
+  | Ppp_unboxed_float32
+  | Ppp_unboxed_float
+  | Ppp_unboxed_int32
+  | Ppp_unboxed_int64
+  | Ppp_unboxed_nativeint
 
 and bigarray_kind =
     Pbigarray_unknown

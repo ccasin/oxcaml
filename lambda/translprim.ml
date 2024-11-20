@@ -110,6 +110,10 @@ type prim =
   | Identity
   | Apply of Lambda.region_close * Lambda.layout
   | Revapply of Lambda.region_close * Lambda.layout
+  | Peek of Lambda.peek_or_poke option
+  | Poke of Lambda.peek_or_poke option
+    (* For [Peek] and [Poke] the [option] is [None] until the primitive
+       specialization code (below) has been run. *)
   | Unsupported of Lambda.primitive
 
 let units_with_used_primitives = Hashtbl.create 7
@@ -887,6 +891,8 @@ let lookup_primitive loc ~poly_mode ~poly_sort pos p =
       Primitive(Preinterpret_tagged_int63_as_unboxed_int64, 1)
     | "%reinterpret_unboxed_int64_as_tagged_int63" ->
       Primitive(Preinterpret_unboxed_int64_as_tagged_int63, 1)
+    | "%peek" -> Peek None
+    | "%poke" -> Poke None
     | s when String.length s > 0 && s.[0] = '%' ->
       (match String.Map.find_opt s indexing_primitives with
        | Some prim -> prim ~mode
@@ -1156,6 +1162,31 @@ let glb_array_set_type loc t1 t2 =
   (* Pfloatarray is a minimum *)
   | Pfloatarray_set, Pfloatarray -> Pfloatarray_set
 
+let peek_or_poke_layout_from_type error_loc env ty
+      : Lambda.peek_or_poke option =
+  match
+    (* XXX mshinwell: fix [why] *)
+    Ctype.type_sort ~why:Layout_poly_in_external ~fixed:true env ty
+  with
+  | Error _ -> None
+  | Ok sort ->
+    let layout = Typeopt.layout env error_loc sort ty in
+    match layout with
+    | Punboxed_float Pfloat32 -> Some Ppp_unboxed_float32
+    | Punboxed_float Pfloat64 -> Some Ppp_unboxed_float
+    | Punboxed_int Pint32 -> Some Ppp_unboxed_int32
+    | Punboxed_int Pint64 -> Some Ppp_unboxed_int64
+    | Punboxed_int Pnativeint -> Some Ppp_unboxed_nativeint
+    | Pvalue { raw_kind = Pintval ; _ } -> Some Ppp_tagged_immediate
+    | Ptop
+    | Pvalue _
+    | Punboxed_vector _
+    | Punboxed_product _
+    | Pbottom ->
+      (* XXX should be a proper error *)
+      Misc.fatal_errorf "Bad layout for %%peek:@ %a"
+        Printlambda.layout layout
+
 (* Specialize a primitive from available type information. *)
 (* CR layouts v7: This function had a loc argument added just to support the void
    check error message.  Take it out when we remove that. *)
@@ -1309,6 +1340,23 @@ let specialize_primitive env loc ty ~has_constant_constructor prim =
     end else begin
       None
     end
+  | Peek _, _ -> (
+    match is_function_type env ty with
+    | None -> None
+    | Some (_p1, result_ty) ->
+      (* XXX mshinwell: why is the result type needed on the following?
+         (if not, it seems like a layout of value is inferred)
+         let test_read32_s (x : int32# t) : int32# = read_s x
+      *)
+      match peek_or_poke_layout_from_type (to_location loc) env result_ty with
+      | None -> None
+      | Some contents_layout -> Some (Peek (Some contents_layout))
+  )
+  | Poke _, _ptr_ty :: new_value_ty :: _ -> (
+    match peek_or_poke_layout_from_type (to_location loc) env new_value_ty with
+    | None -> None
+    | Some contents_layout -> Some (Poke (Some contents_layout))
+  )
   | _ -> None
 
 let caml_equal =
@@ -1555,6 +1603,12 @@ let lambda_of_prim prim_name prim loc args arg_exps =
         ap_region_close = pos;
         ap_mode = alloc_heap;
       }
+  | Peek None, _ | Poke None, _ ->
+      Misc.fatal_error "Peek or Poke primitive without layout"
+  | Peek (Some layout), [ptr] ->
+      Lprim (Ppeek layout, [ptr], loc)
+  | Poke (Some layout), [ptr; new_value] ->
+      Lprim (Ppoke layout, [ptr; new_value], loc)
   | Unsupported prim, _ ->
       let exn =
         transl_extension_path loc (Lazy.force Env.initial)
@@ -1573,7 +1627,7 @@ let lambda_of_prim prim_name prim loc args arg_exps =
   | (Raise _ | Raise_with_backtrace
     | Lazy_force _ | Loc _ | Primitive _ | Sys_argv | Comparison _
     | Send _ | Send_self _ | Send_cache _ | Frame_pointers | Identity
-    | Apply _ | Revapply _), _ ->
+    | Apply _ | Revapply _ | Peek _ | Poke _), _ ->
       raise(Error(to_location loc, Wrong_arity_builtin_primitive prim_name))
 
 let check_primitive_arity loc p =
@@ -1605,8 +1659,8 @@ let check_primitive_arity loc p =
     | Send _ | Send_self _ -> p.prim_arity = 2
     | Send_cache _ -> p.prim_arity = 4
     | Frame_pointers -> p.prim_arity = 0
-    | Identity -> p.prim_arity = 1
-    | Apply _ | Revapply _ -> p.prim_arity = 2
+    | Identity | Peek _ -> p.prim_arity = 1
+    | Apply _ | Revapply _ | Poke _ -> p.prim_arity = 2
     | Unsupported _ -> true
   in
   if not ok then raise(Error(loc, Wrong_arity_builtin_primitive p.prim_name))
@@ -1796,7 +1850,7 @@ let lambda_primitive_needs_event_after = function
   | Pintofbint _ | Pctconst _ | Pbswap16 | Pint_as_pointer _ | Popaque _
   | Pdls_get
   | Pobj_magic _ | Punbox_float _ | Punbox_int _ | Punbox_vector _
-  | Preinterpret_unboxed_int64_as_tagged_int63
+  | Preinterpret_unboxed_int64_as_tagged_int63 | Ppeek _ | Ppoke _
   (* These don't allocate in bytecode; they're just identity functions: *)
   | Pbox_float (_, _) | Pbox_int _ | Pbox_vector (_, _)
     -> false
@@ -1810,7 +1864,7 @@ let primitive_needs_event_after = function
   | Lazy_force _ | Send _ | Send_self _ | Send_cache _
   | Apply _ | Revapply _ -> true
   | Raise _ | Raise_with_backtrace | Loc _ | Frame_pointers | Identity
-  | Unsupported _ -> false
+  | Peek _ | Poke _ | Unsupported _ -> false
 
 let transl_primitive_application loc p env ty ~poly_mode ~poly_sort
     path exp args arg_exps pos =

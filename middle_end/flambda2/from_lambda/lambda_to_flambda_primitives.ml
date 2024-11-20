@@ -2073,6 +2073,28 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
         "Preinterpret_tagged_int63_as_unboxed_int64 can only be used on 64-bit \
          targets";
     [Unary (Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64, i)]
+  | Ppeek layout, [[ptr]] ->
+    let kind : K.Standard_int_or_float.t =
+      match layout with
+      | Ppp_tagged_immediate -> Tagged_immediate
+      | Ppp_unboxed_float32 -> Naked_float32
+      | Ppp_unboxed_float -> Naked_float
+      | Ppp_unboxed_int32 -> Naked_int32
+      | Ppp_unboxed_int64 -> Naked_int64
+      | Ppp_unboxed_nativeint -> Naked_nativeint
+    in
+    [Unary (Peek kind, ptr)]
+  | Ppoke layout, [[ptr]; [new_value]] ->
+    let kind : K.Standard_int_or_float.t =
+      match layout with
+      | Ppp_tagged_immediate -> Tagged_immediate
+      | Ppp_unboxed_float32 -> Naked_float32
+      | Ppp_unboxed_float -> Naked_float
+      | Ppp_unboxed_int32 -> Naked_int32
+      | Ppp_unboxed_int64 -> Naked_int64
+      | Ppp_unboxed_nativeint -> Naked_nativeint
+    in
+    [Binary (Poke kind, ptr, new_value)]
   | ( ( Pmodint Unsafe
       | Pdivbint { is_safe = Unsafe; size = _; mode = _ }
       | Pmodbint { is_safe = Unsafe; size = _; mode = _ }
@@ -2105,7 +2127,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
       | Punbox_int _ | Pbox_int _ | Punboxed_product_field _ | Pget_header _
       | Pufloatfield _ | Patomic_load _ | Pmixedfield _
       | Preinterpret_unboxed_int64_as_tagged_int63
-      | Preinterpret_tagged_int63_as_unboxed_int64 ),
+      | Preinterpret_tagged_int63_as_unboxed_int64 | Ppeek _ ),
       ([] | _ :: _ :: _ | [([] | _ :: _ :: _)]) ) ->
     Misc.fatal_errorf
       "Closure_conversion.convert_primitive: Wrong arity for unary primitive \
@@ -2148,7 +2170,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             _,
             _ )
       | Pcompare_ints | Pcompare_floats _ | Pcompare_bints _ | Patomic_exchange
-      | Patomic_fetch_add ),
+      | Patomic_fetch_add | Ppoke _ ),
       ( []
       | [_]
       | _ :: _ :: _ :: _
