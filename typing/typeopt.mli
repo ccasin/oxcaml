@@ -36,6 +36,8 @@ val array_kind :
   Typedtree.expression -> Jkind.Sort.t -> Lambda.array_kind
 val array_pattern_kind :
   Typedtree.pattern -> Jkind.Sort.t -> Lambda.array_kind
+val peek_or_poke_kind :
+  Env.t -> Location.t -> Types.type_expr -> Lambda.peek_or_poke_kind
 
 (* If [kind] or [layout] is unknown, attempt to specialize it by examining the
    type parameters of the bigarray. If [kind] or [length] is not unknown, returns

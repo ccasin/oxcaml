@@ -20,6 +20,21 @@ open Types
 open Typedtree
 open Lambda
 
+(* [classification]s are used for two things: things in arrays, and things in
+   lazys. In the former case, we need detailed information about unboxed
+   products and in the latter it would be wasteful to compute that information,
+   so this type is polymorphic in what it remembers about products. *)
+type 'a classification =
+  | Int   (* any immediate type *)
+  | Float
+  | Unboxed_float of unboxed_float
+  | Unboxed_int of unboxed_integer
+  | Unboxed_vector of unboxed_vector
+  | Lazy
+  | Addr  (* any value except a float or a lazy *)
+  | Any
+  | Product of 'a
+
 type error =
     Non_value_layout of type_expr * Jkind.Violation.t option
   | Non_value_sort of Jkind.Sort.t * type_expr
@@ -34,6 +49,7 @@ type error =
   | Unsupported_vector_in_product_array
   | Mixed_product_array of Jkind.Sort.Const.t
   | Product_iarrays_unsupported
+  | Unsupported_peek_or_poke_type of unit classification * type_expr
 
 exception Error of Location.t * error
 
@@ -115,21 +131,6 @@ let type_legacy_sort ~why env loc ty =
   match Ctype.type_legacy_sort ~why env ty with
   | Ok sort -> sort
   | Error err -> raise (Error (loc, Not_a_sort (ty, err)))
-
-(* [classification]s are used for two things: things in arrays, and things in
-   lazys. In the former case, we need detailed information about unboxed
-   products and in the latter it would be wasteful to compute that information,
-   so this type is polymorphic in what it remembers about products. *)
-type 'a classification =
-  | Int   (* any immediate type *)
-  | Float
-  | Unboxed_float of unboxed_float
-  | Unboxed_int of unboxed_integer
-  | Unboxed_vector of unboxed_vector
-  | Lazy
-  | Addr  (* any value except a float or a lazy *)
-  | Any
-  | Product of 'a
 
 (* Classify a ty into a [classification]. Looks through synonyms, using
    [scrape_ty].  Returning [Any] is safe, though may skip some optimizations.
@@ -278,6 +279,23 @@ let array_pattern_kind pat elt_sort =
   array_type_kind
     ~elt_sort:(Some elt_sort)
     pat.pat_env pat.pat_loc pat.pat_type
+
+let peek_or_poke_kind env loc ty =
+  let elt_sort =
+    match Ctype.type_sort ~why:Peeked_or_poked ~fixed:true env ty with
+    | Ok s -> s
+    | Error err -> raise (Error (loc, Not_a_sort (ty, err)))
+  in
+  let classify_product _ty _sorts = () in
+  match classify ~classify_product env loc ty elt_sort with
+  | Any | Float | Addr | Lazy | Unboxed_vector _ | Product _ as c ->
+    raise (Error (loc, Unsupported_peek_or_poke_type (c, ty)))
+  | Int -> Ppp_tagged_immediate
+  | Unboxed_int Pnativeint -> Ppp_unboxed_nativeint
+  | Unboxed_int Pint32 -> Ppp_unboxed_int32
+  | Unboxed_int Pint64 -> Ppp_unboxed_int64
+  | Unboxed_float Pfloat32 -> Ppp_unboxed_float32
+  | Unboxed_float Pfloat64 -> Ppp_unboxed_float
 
 let bigarray_decode_type env ty tbl dfl =
   match scrape env ty with
@@ -1047,6 +1065,18 @@ let report_error ppf = function
   | Product_iarrays_unsupported ->
       fprintf ppf
         "Immutable arrays of unboxed products are not yet supported."
+  | Unsupported_peek_or_poke_type (c, ty) ->
+      let explanation =
+        match c with
+        | Int | Unboxed_float _ | Unboxed_int _ -> assert false
+        | Unboxed_vector _ -> "Vectors are not supported."
+        | Float | Lazy | Addr | Any ->
+          "They only work with types that can be ignored by the GC."
+        | Product _ -> "Unboxed products are not supported."
+      in
+      fprintf ppf
+        "The peek and poke primitives do not work with type %a.@ %s"
+        Printtyp.type_expr ty explanation
 
 let () =
   Location.register_error_of_exn

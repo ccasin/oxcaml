@@ -475,7 +475,7 @@ let field_read_semantics ppf sem =
   | Reads_agree -> ()
   | Reads_vary -> fprintf ppf "_mut"
 
-let peek_or_poke ppf (pp : peek_or_poke) =
+let peek_or_poke ppf (pp : peek_or_poke_kind) =
   match pp with
   | Ppp_tagged_immediate -> fprintf ppf "tagged_immediate"
   | Ppp_unboxed_float32 -> fprintf ppf "unboxed_float32"

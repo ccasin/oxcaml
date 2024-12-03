@@ -325,8 +325,8 @@ type primitive =
   | Parray_to_iarray
   | Parray_of_iarray
   | Pget_header of locality_mode
-  | Ppeek of peek_or_poke
-  | Ppoke of peek_or_poke
+  | Ppeek of peek_or_poke_kind
+  | Ppoke of peek_or_poke_kind
   (* Fetching domain-local state *)
   | Pdls_get
   (* Poll for runtime actions *)
@@ -477,7 +477,7 @@ and unboxed_integer = boxed_integer
 
 and unboxed_vector = boxed_vector
 
-and peek_or_poke =
+and peek_or_poke_kind =
   | Ppp_tagged_immediate
   | Ppp_unboxed_float32
   | Ppp_unboxed_float

@@ -110,8 +110,8 @@ type prim =
   | Identity
   | Apply of Lambda.region_close * Lambda.layout
   | Revapply of Lambda.region_close * Lambda.layout
-  | Peek of Lambda.peek_or_poke option
-  | Poke of Lambda.peek_or_poke option
+  | Peek of Lambda.peek_or_poke_kind option
+  | Poke of Lambda.peek_or_poke_kind option
     (* For [Peek] and [Poke] the [option] is [None] until the primitive
        specialization code (below) has been run. *)
   | Unsupported of Lambda.primitive
@@ -1162,31 +1162,6 @@ let glb_array_set_type loc t1 t2 =
   (* Pfloatarray is a minimum *)
   | Pfloatarray_set, Pfloatarray -> Pfloatarray_set
 
-let peek_or_poke_layout_from_type error_loc env ty
-      : Lambda.peek_or_poke option =
-  match
-    (* XXX mshinwell: fix [why] *)
-    Ctype.type_sort ~why:Layout_poly_in_external ~fixed:true env ty
-  with
-  | Error _ -> None
-  | Ok sort ->
-    let layout = Typeopt.layout env error_loc sort ty in
-    match layout with
-    | Punboxed_float Pfloat32 -> Some Ppp_unboxed_float32
-    | Punboxed_float Pfloat64 -> Some Ppp_unboxed_float
-    | Punboxed_int Pint32 -> Some Ppp_unboxed_int32
-    | Punboxed_int Pint64 -> Some Ppp_unboxed_int64
-    | Punboxed_int Pnativeint -> Some Ppp_unboxed_nativeint
-    | Pvalue { raw_kind = Pintval ; _ } -> Some Ppp_tagged_immediate
-    | Ptop
-    | Pvalue _
-    | Punboxed_vector _
-    | Punboxed_product _
-    | Pbottom ->
-      (* XXX should be a proper error *)
-      Misc.fatal_errorf "Bad layout for %%peek:@ %a"
-        Printlambda.layout layout
-
 (* Specialize a primitive from available type information. *)
 (* CR layouts v7: This function had a loc argument added just to support the void
    check error message.  Take it out when we remove that. *)
@@ -1348,14 +1323,12 @@ let specialize_primitive env loc ty ~has_constant_constructor prim =
          (if not, it seems like a layout of value is inferred)
          let test_read32_s (x : int32# t) : int32# = read_s x
       *)
-      match peek_or_poke_layout_from_type (to_location loc) env result_ty with
-      | None -> None
-      | Some contents_layout -> Some (Peek (Some contents_layout))
+      let kind = Typeopt.peek_or_poke_kind env (to_location loc) result_ty in
+      Some (Peek (Some kind))
   )
   | Poke _, _ptr_ty :: new_value_ty :: _ -> (
-    match peek_or_poke_layout_from_type (to_location loc) env new_value_ty with
-    | None -> None
-    | Some contents_layout -> Some (Poke (Some contents_layout))
+    let kind = Typeopt.peek_or_poke_kind env (to_location loc) new_value_ty in
+    Some (Poke (Some kind))
   )
   | _ -> None
 

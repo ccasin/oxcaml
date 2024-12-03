@@ -331,8 +331,8 @@ type primitive =
   | Parray_of_iarray (* Unsafely reinterpret an immutable array as a mutable
                         one; O(1) *)
   | Pget_header of locality_mode
-  | Ppeek of peek_or_poke
-  | Ppoke of peek_or_poke
+  | Ppeek of peek_or_poke_kind
+  | Ppoke of peek_or_poke_kind
   (* Get the header of a block. This primitive is invalid if provided with an
      immediate value.
      Note: The GC color bits in the header are not reliable except for checking
@@ -508,7 +508,7 @@ and unboxed_integer = boxed_integer
 
 and unboxed_vector = boxed_vector
 
-and peek_or_poke =
+and peek_or_poke_kind =
   | Ppp_tagged_immediate
   | Ppp_unboxed_float32
   | Ppp_unboxed_float
