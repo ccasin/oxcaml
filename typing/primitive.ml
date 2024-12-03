@@ -654,21 +654,13 @@ let prim_has_valid_reprs ~loc prim =
         any;
         is (Same_as_ocaml_repr C.value);
       ]
-
     | "%peek" ->
-      (* XXX mshinwell: unsure why this doesn't work
-      check [is (Same_as_ocaml_repr C.bits64); any]
-      *)
-      fun _ -> Success
+      check [is (Same_as_ocaml_repr C.word); any]
     | "%poke" ->
-      (*
       check [
-        is (Same_as_ocaml_repr C.bits64);
+        is (Same_as_ocaml_repr C.word);
         any;
         is (Same_as_ocaml_repr C.value)]
-      *)
-      fun _ -> Success
-
     | "%box_float" ->
       exactly [Same_as_ocaml_repr C.float64; Same_as_ocaml_repr C.value]
     | "%unbox_float" ->
