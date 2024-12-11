@@ -192,6 +192,7 @@ type primitive =
       array being *produced* by the duplication. *)
   | Parrayblit of {
       src_mutability : mutable_flag;
+      array_kind : array_kind;
       dst_array_set_kind : array_set_kind;
     }
   (** For [Parrayblit], we record the [array_set_kind] of the destination
@@ -199,10 +200,12 @@ type primitive =
       need to know anything about its locality. We do however request the
       mutability of the source array. *)
   | Parraylength of array_kind
-  | Parrayrefu of array_ref_kind * array_index_kind * mutable_flag
-  | Parraysetu of array_set_kind * array_index_kind
-  | Parrayrefs of array_ref_kind * array_index_kind * mutable_flag
-  | Parraysets of array_set_kind * array_index_kind
+  | Parrayrefu of array_ref_kind * array_kind * array_index_kind * mutable_flag
+  (** The [array_kind], not the [array_ref_kind], determines the stride for
+      the array index.  Likewise for the other array get/set primitives. *)
+  | Parraysetu of array_set_kind * array_kind * array_index_kind
+  | Parrayrefs of array_ref_kind * array_kind * array_index_kind * mutable_flag
+  | Parraysets of array_set_kind * array_kind * array_index_kind
   (* Test if the argument is a block or an immediate integer *)
   | Pisint of { variant_only : bool }
   (* Test if the argument is a null pointer *)

@@ -498,6 +498,7 @@ let iterator ~transl_exp ~scopes ~loc :
               (Lprim
                  ( Parrayrefu
                      ( Lambda.(array_ref_kind alloc_heap iter_arr_kind),
+                       iter_arr_kind,
                        Ptagged_int_index,
                        iter_arr_mut ),
                    [iter_arr.var; Lvar iter_ix],
@@ -780,7 +781,9 @@ let body ~loc ~array_kind ~array_size ~array_sizing ~array ~index ~body =
     (* array.(index) <- elt *)
     Lprim
       ( Parraysetu
-          (Lambda.(array_set_kind modify_heap array_kind), Ptagged_int_index),
+          ( Lambda.(array_set_kind modify_heap array_kind),
+            array_kind,
+            Ptagged_int_index ),
         [array.var; index.var; elt],
         loc )
   in
