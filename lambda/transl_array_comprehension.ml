@@ -500,7 +500,8 @@ let iterator ~transl_exp ~scopes ~loc :
                      ( Lambda.(array_ref_kind alloc_heap iter_arr_kind),
                        iter_arr_kind,
                        Ptagged_int_index,
-                       iter_arr_mut ),
+                       iter_arr_mut,
+                       Pnormal_access ),
                    [iter_arr.var; Lvar iter_ix],
                    loc ))
               pattern body
@@ -783,7 +784,8 @@ let body ~loc ~array_kind ~array_size ~array_sizing ~array ~index ~body =
       ( Parraysetu
           ( Lambda.(array_set_kind modify_heap array_kind),
             array_kind,
-            Ptagged_int_index ),
+            Ptagged_int_index,
+            Pnormal_access ),
         [array.var; index.var; elt],
         loc )
   in
