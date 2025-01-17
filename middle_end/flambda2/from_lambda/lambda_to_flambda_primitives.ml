@@ -2126,7 +2126,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     ->
     [ checked_arith_op ~dbg (Some Boxed_nativeint) Mod (Some mode) arg1 arg2
         ~current_region ]
-  | Parrayrefu (array_ref_kind, array_kind, index_kind, mut), [[array]; [index]]
+  | Parrayrefu (array_ref_kind, array_kind, index_kind, mut, _), [[array]; [index]]
     ->
     (* For this and the following cases we will end up relying on the backend to
        CSE the two accesses to the array's header word in the [Pgenarray]
@@ -2135,7 +2135,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
         (array_load_unsafe ~array ~mut
            ~index:(convert_index_to_tagged_int ~index ~index_kind)
            ~current_region) ]
-  | Parrayrefs (array_ref_kind, array_kind, index_kind, mut), [[array]; [index]]
+  | Parrayrefs (array_ref_kind, array_kind, index_kind, mut, _), [[array]; [index]]
     ->
     let array_length_kind = convert_array_kind_for_length array_kind in
     [ check_array_access ~dbg ~array array_length_kind ~index ~index_kind
@@ -2144,13 +2144,13 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
            (array_load_unsafe ~array ~mut
               ~index:(convert_index_to_tagged_int ~index ~index_kind)
               ~current_region)) ]
-  | ( Parraysetu (array_set_kind, array_kind, index_kind),
+  | ( Parraysetu (array_set_kind, array_kind, index_kind, _),
       [[array]; [index]; new_values] ) ->
     [ match_on_array_set_kind dbg ~array array_kind array_set_kind
         (array_set_unsafe dbg ~array
            ~index:(convert_index_to_tagged_int ~index ~index_kind)
            ~new_values) ]
-  | ( Parraysets (array_set_kind, array_kind, index_kind),
+  | ( Parraysets (array_set_kind, array_kind, index_kind, _),
       [[array]; [index]; new_values] ) ->
     let array_length_kind = convert_array_kind_for_length array_kind in
     [ check_array_access ~dbg ~array array_length_kind ~index ~index_kind
@@ -2544,7 +2544,8 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Pgcscannableproductarray_ref _ | Pgcignorableproductarray_ref _ ),
             _,
             _,
-            _ )
+            _,
+            _)
       | Parrayrefs
           ( ( Pgenarray_ref _ | Paddrarray_ref | Pintarray_ref
             | Pfloatarray_ref _ | Punboxedfloatarray_ref _
@@ -2552,7 +2553,8 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Pgcscannableproductarray_ref _ | Pgcignorableproductarray_ref _ ),
             _,
             _,
-            _ )
+            _,
+            _)
       | Pcompare_ints | Pcompare_floats _ | Pcompare_bints _ | Patomic_exchange
       | Patomic_fetch_add ),
       ( []
@@ -2571,14 +2573,16 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Punboxedintarray_set _ | Punboxedvectorarray_set _
             | Pgcscannableproductarray_set _ | Pgcignorableproductarray_set _ ),
             _,
-            _ )
+            _,
+            _)
       | Parraysets
           ( ( Pgenarray_set _ | Paddrarray_set _ | Pintarray_set
             | Pfloatarray_set | Punboxedfloatarray_set _
             | Punboxedintarray_set _ | Punboxedvectorarray_set _
             | Pgcscannableproductarray_set _ | Pgcignorableproductarray_set _ ),
             _,
-            _ )
+            _,
+            _)
       | Pbytes_set_16 _ | Pbytes_set_32 _ | Pbytes_set_f32 _ | Pbytes_set_64 _
       | Pbytes_set_128 _ | Pbigstring_set_16 _ | Pbigstring_set_32 _
       | Pbigstring_set_f32 _ | Pbigstring_set_64 _ | Pbigstring_set_128 _

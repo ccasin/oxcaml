@@ -512,7 +512,7 @@ let comp_primitive stack_info p sz args =
      array modes (allocation for [Parrayref{s,u}], modification for
      [Parrayset{s,u}]). *)
   (* XXX think about reinterpret cases for bytecode *)
-  | Parrayrefs (Pgenarray_ref _, _, index_kind, _)
+  | Parrayrefs (Pgenarray_ref _, _, index_kind, _, _)
   | Parrayrefs ((Paddrarray_ref | Pintarray_ref | Pfloatarray_ref _
                 | Punboxedfloatarray_ref (Unboxed_float64 | Unboxed_float32)
                 | Punboxedintarray_ref _
@@ -520,10 +520,10 @@ let comp_primitive stack_info p sz args =
                 | Pgcignorableproductarray_ref _),
                 _,
                 (Punboxed_int_index _ as index_kind),
-                _) ->
+                _, _) ->
       Kccall(indexing_primitive index_kind "caml_array_get", 2)
   | Parrayrefs ((Punboxedfloatarray_ref Unboxed_float64 | Pfloatarray_ref _),
-        _, Ptagged_int_index, _) ->
+        _, Ptagged_int_index, _, _) ->
       Kccall("caml_floatarray_get", 2)
   | Parrayrefs ((Punboxedfloatarray_ref Unboxed_float32 | Punboxedintarray_ref _
                 | Paddrarray_ref | Pintarray_ref
@@ -531,67 +531,72 @@ let comp_primitive stack_info p sz args =
                 | Pgcignorableproductarray_ref _),
                 _,
                 Ptagged_int_index,
-                _) ->
+                _, _) ->
       Kccall("caml_array_get_addr", 2)
-  | Parraysets (Pgenarray_set _, _, index_kind)
+  | Parraysets (Pgenarray_set _, _, index_kind, _)
   | Parraysets ((Paddrarray_set _ | Pintarray_set | Pfloatarray_set
                 | Punboxedfloatarray_set (Unboxed_float64 | Unboxed_float32)
                 | Punboxedintarray_set _
                 | Pgcscannableproductarray_set _
                 | Pgcignorableproductarray_set _),
                 _,
-                (Punboxed_int_index _ as index_kind)) ->
+                (Punboxed_int_index _ as index_kind),
+               _) ->
       Kccall(indexing_primitive index_kind "caml_array_set", 3)
   | Parraysets ((Punboxedfloatarray_set Unboxed_float64 | Pfloatarray_set), _,
-                Ptagged_int_index) ->
+                Ptagged_int_index, _) ->
       Kccall("caml_floatarray_set", 3)
   | Parraysets ((Punboxedfloatarray_set Unboxed_float32 | Punboxedintarray_set _
                 | Paddrarray_set _ | Pintarray_set
                 | Pgcscannableproductarray_set _
                 | Pgcignorableproductarray_set _),
                 _,
-                Ptagged_int_index) ->
+                Ptagged_int_index,
+               _) ->
     Kccall("caml_array_set_addr", 3)
-  | Parrayrefu (Pgenarray_ref _, _, index_kind, _)
+  | Parrayrefu (Pgenarray_ref _, _, index_kind, _, _)
   | Parrayrefu ((Paddrarray_ref | Pintarray_ref | Pfloatarray_ref _
                 | Punboxedfloatarray_ref (Unboxed_float64 | Unboxed_float32)
                 | Punboxedintarray_ref _
                 | Pgcscannableproductarray_ref _
                 | Pgcignorableproductarray_ref _),
                 _,
-                (Punboxed_int_index _ as index_kind), _) ->
+                (Punboxed_int_index _ as index_kind),
+                _, _) ->
       Kccall(indexing_primitive index_kind "caml_array_unsafe_get", 2)
   | Parrayrefu ((Punboxedfloatarray_ref Unboxed_float64 | Pfloatarray_ref _),
-      _, Ptagged_int_index, _) ->
+      _, Ptagged_int_index, _, _) ->
     Kccall("caml_floatarray_unsafe_get", 2)
   | Parrayrefu ((Punboxedfloatarray_ref Unboxed_float32 | Punboxedintarray_ref _
                 | Paddrarray_ref | Pintarray_ref
                 | Pgcscannableproductarray_ref _
                 | Pgcignorableproductarray_ref _),
                 _,
-                Ptagged_int_index, _) -> Kgetvectitem
-  | Parraysetu (Pgenarray_set _, _, index_kind)
+                Ptagged_int_index, _, _) -> Kgetvectitem
+  | Parraysetu (Pgenarray_set _, _, index_kind, _)
   | Parraysetu ((Paddrarray_set _ | Pintarray_set | Pfloatarray_set
                 | Punboxedfloatarray_set (Unboxed_float64 | Unboxed_float32)
                 | Punboxedintarray_set _
                 | Pgcscannableproductarray_set _
                 | Pgcignorableproductarray_set _),
                 _,
-                (Punboxed_int_index _ as index_kind)) ->
+                (Punboxed_int_index _ as index_kind),
+                _) ->
       Kccall(indexing_primitive index_kind "caml_array_unsafe_set", 3)
   | Parraysetu ((Punboxedfloatarray_set Unboxed_float64 | Pfloatarray_set),
-        _, Ptagged_int_index) ->
+        _, Ptagged_int_index, _) ->
       Kccall("caml_floatarray_unsafe_set", 3)
   | Parraysetu ((Punboxedfloatarray_set Unboxed_float32 | Punboxedintarray_set _
                 | Paddrarray_set _ | Pintarray_set
                 | Pgcscannableproductarray_set _
                 | Pgcignorableproductarray_set _),
                 _,
-                Ptagged_int_index) -> Ksetvectitem
-  | Parrayrefs (Punboxedvectorarray_ref _, _, _, _)
-  | Parraysets (Punboxedvectorarray_set _, _, _)
-  | Parrayrefu (Punboxedvectorarray_ref _, _, _, _)
-  | Parraysetu (Punboxedvectorarray_set _, _, _) ->
+                Ptagged_int_index,
+                _) -> Ksetvectitem
+  | Parrayrefs (Punboxedvectorarray_ref _, _, _, _, _)
+  | Parraysets (Punboxedvectorarray_set _, _, _, _)
+  | Parrayrefu (Punboxedvectorarray_ref _, _, _, _, _)
+  | Parraysetu (Punboxedvectorarray_set _, _, _, _) ->
       fatal_error "SIMD is not supported in bytecode mode."
   | Pctconst c ->
      let const_name = match c with
