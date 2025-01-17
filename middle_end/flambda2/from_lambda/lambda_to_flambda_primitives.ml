@@ -1168,20 +1168,21 @@ let rec array_load_unsafe ~array ~index ~(mut : Lambda.mutable_flag) array_kind
       | Unboxed_product kinds -> List.concat_map unarize_kind kinds
     in
     let unarized = List.concat_map unarize_kind array_ref_kinds in
-    let width_in_scalars =
-      (* Recall: the multiplier is taken from the _array kind_, not the array
-         ref kind. *)
-      P.Array_kind.width_in_scalars array_kind
-    in
     let index : H.expr_primitive =
+      (* Recall: the multiplier for the index is taken from the _array kind_,
+         not the array ref kind. *)
       let multiplier =
-        width_in_scalars |> Targetint_31_63.of_int |> Simple.const_int
+        P.Array_kind.width_in_scalars array_kind
+        |> Targetint_31_63.of_int |> Simple.const_int
       in
       Binary (Int_arith (Tagged_immediate, Mul), index, Simple multiplier)
     in
     let indexes =
-      (* Reminder: all of the unarized components are machine word width. *)
-      compute_array_indexes ~index:(Prim index) ~num_elts:width_in_scalars
+      (* Reminder: all of the unarized components are machine word width.
+
+         The number of indexes is determined by the number of unarized
+         components, not by anything to do with the array kind. *)
+      compute_array_indexes ~index:(Prim index) ~num_elts:(List.length unarized)
     in
     List.concat_map
       (fun (index, array_ref_kind) ->
@@ -1211,6 +1212,8 @@ let array_load_unsafe ~array ~index ~mut array_kind array_load_kind
     ~current_region
   |> H.maybe_create_unboxed_product
 
+(* CR mshinwell: try to refactor array_get_unsafe and array_set_unsafe to use
+   mostly the same code *)
 let rec array_set_unsafe dbg ~array ~index array_kind
     (array_set_kind : Array_set_kind.t) ~new_values : H.expr_primitive list =
   let[@local] normal_case array_set_kind new_values =
@@ -1241,20 +1244,21 @@ let rec array_set_unsafe dbg ~array ~index array_kind
       | Unboxed_product kinds -> List.concat_map unarize_kind kinds
     in
     let unarized = List.concat_map unarize_kind array_set_kinds in
-    let width_in_scalars =
-      (* Recall: the multiplier is taken from the _array kind_, not the array
-         set kind. *)
-      P.Array_kind.width_in_scalars array_kind
-    in
     let index : H.expr_primitive =
+      (* Recall: the multiplier for the index is taken from the _array kind_,
+         not the array ref kind. *)
       let multiplier =
-        width_in_scalars |> Targetint_31_63.of_int |> Simple.const_int
+        P.Array_kind.width_in_scalars array_kind
+        |> Targetint_31_63.of_int |> Simple.const_int
       in
       Binary (Int_arith (Tagged_immediate, Mul), index, Simple multiplier)
     in
     let indexes =
-      (* Reminder: all of the unarized components are machine word width. *)
-      compute_array_indexes ~index:(Prim index) ~num_elts:width_in_scalars
+      (* Reminder: all of the unarized components are machine word width.
+
+         The number of indexes is determined by the number of unarized
+         components, not by anything to do with the array kind. *)
+      compute_array_indexes ~index:(Prim index) ~num_elts:(List.length unarized)
     in
     if List.compare_lengths indexes new_values <> 0
     then
@@ -1418,6 +1422,92 @@ let opaque layout arg ~middle_end_only : H.expr_primitive list =
       let kind = K.With_subkind.kind kind in
       Unary (Opaque_identity { middle_end_only; kind }, arg_component))
     arg kinds
+
+let check_valid_reinterpret_array_kind (array_kind : L.array_kind) fail =
+  (* At the moment we only permit these operations when the array kind implies
+     that each element of the array at runtime is 64 bits wide, and the array
+     set kind only involves 64-bit quantities. *)
+  (* CR mshinwell: relaxing this to 32 (or 128) bits on both sides is probably
+     ok, but for e.g. an int32# array being reinterpreted as int64# * int64#,
+     the indices need adjusting (the second component of such a product is at
+     index n+2, not n+1, when the first component is at index n). *)
+  match array_kind with
+  | Pgenarray | Paddrarray | Pintarray | Pfloatarray
+  | Punboxedfloatarray Unboxed_float64
+  | Punboxedintarray Unboxed_int64
+  | Punboxedintarray Unboxed_nativeint
+  | Pgcscannableproductarray _ | Pgcignorableproductarray _ ->
+    (* Recall: unboxed product arrays are always uniformly 64-bit wide for each
+       component. *)
+    ()
+  | Punboxedfloatarray Unboxed_float32
+  | Punboxedintarray Unboxed_int32
+  | Punboxedvectorarray Unboxed_vec128 ->
+    fail ()
+
+(* We need to think carefully about the bounds checking code before enabling
+   reinterpret for safe array ops *)
+let reinterpret_not_supported dbg (reinterp : L.array_access_reinterp) =
+  match reinterp with
+  | Pnormal_access -> ()
+  | Preinterp_access ->
+    Misc.fatal_errorf
+      "Reinterpret array operations with bounds checks are not yet supported, \
+       please use the unsafe versions and do your own bounds check beforehand \
+       if necessary:@ %a"
+      Debuginfo.print_compact dbg
+
+let check_valid_reinterpret_set_kinds (array_kind : L.array_kind)
+    (array_set_kind : L.array_set_kind) (reinterp : L.array_access_reinterp) dbg
+    =
+  let[@inline] fail () =
+    Misc.fatal_errorf
+      "Unsupported array reinterpret set operation with array_kind %s and\n\
+       array_set_kind %a:@ %a"
+      (Printlambda.array_kind array_kind)
+      Printlambda.array_set_kind array_set_kind Debuginfo.print_compact dbg
+  in
+  match reinterp with
+  | Pnormal_access -> ()
+  | Preinterp_access -> (
+    check_valid_reinterpret_array_kind array_kind fail;
+    match array_set_kind with
+    | Pgenarray_set _ | Paddrarray_set _ | Pintarray_set | Pfloatarray_set
+    | Punboxedfloatarray_set Unboxed_float64
+    | Punboxedintarray_set Unboxed_int64
+    | Punboxedintarray_set Unboxed_nativeint
+    | Pgcscannableproductarray_set _ | Pgcignorableproductarray_set _ ->
+      ()
+    | Punboxedfloatarray_set Unboxed_float32
+    | Punboxedintarray_set Unboxed_int32
+    | Punboxedvectorarray_set Unboxed_vec128 ->
+      fail ())
+
+let check_valid_reinterpret_ref_kinds (array_kind : L.array_kind)
+    (array_ref_kind : L.array_ref_kind) (reinterp : L.array_access_reinterp) dbg
+    =
+  let[@inline] fail () =
+    Misc.fatal_errorf
+      "Unsupported array reinterpret ref operation with array_kind %s and\n\
+       array_ref_kind %a:@ %a"
+      (Printlambda.array_kind array_kind)
+      Printlambda.array_ref_kind array_ref_kind Debuginfo.print_compact dbg
+  in
+  match reinterp with
+  | Pnormal_access -> ()
+  | Preinterp_access -> (
+    check_valid_reinterpret_array_kind array_kind fail;
+    match array_ref_kind with
+    | Pgenarray_ref _ | Paddrarray_ref | Pintarray_ref | Pfloatarray_ref _
+    | Punboxedfloatarray_ref Unboxed_float64
+    | Punboxedintarray_ref Unboxed_int64
+    | Punboxedintarray_ref Unboxed_nativeint
+    | Pgcscannableproductarray_ref _ | Pgcignorableproductarray_ref _ ->
+      ()
+    | Punboxedfloatarray_ref Unboxed_float32
+    | Punboxedintarray_ref Unboxed_int32
+    | Punboxedvectorarray_ref Unboxed_vec128 ->
+      fail ())
 
 (* Primitive conversion *)
 let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
@@ -2126,17 +2216,19 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     ->
     [ checked_arith_op ~dbg (Some Boxed_nativeint) Mod (Some mode) arg1 arg2
         ~current_region ]
-  | Parrayrefu (array_ref_kind, array_kind, index_kind, mut, _), [[array]; [index]]
-    ->
+  | ( Parrayrefu (array_ref_kind, array_kind, index_kind, mut, reinterp),
+      [[array]; [index]] ) ->
     (* For this and the following cases we will end up relying on the backend to
        CSE the two accesses to the array's header word in the [Pgenarray]
        case. *)
+    check_valid_reinterpret_ref_kinds array_kind array_ref_kind reinterp dbg;
     [ match_on_array_ref_kind dbg ~array array_kind array_ref_kind
         (array_load_unsafe ~array ~mut
            ~index:(convert_index_to_tagged_int ~index ~index_kind)
            ~current_region) ]
-  | Parrayrefs (array_ref_kind, array_kind, index_kind, mut, _), [[array]; [index]]
-    ->
+  | ( Parrayrefs (array_ref_kind, array_kind, index_kind, mut, reinterp),
+      [[array]; [index]] ) ->
+    reinterpret_not_supported dbg reinterp;
     let array_length_kind = convert_array_kind_for_length array_kind in
     [ check_array_access ~dbg ~array array_length_kind ~index ~index_kind
         ~size_int
@@ -2144,14 +2236,16 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
            (array_load_unsafe ~array ~mut
               ~index:(convert_index_to_tagged_int ~index ~index_kind)
               ~current_region)) ]
-  | ( Parraysetu (array_set_kind, array_kind, index_kind, _),
+  | ( Parraysetu (array_set_kind, array_kind, index_kind, reinterp),
       [[array]; [index]; new_values] ) ->
+    check_valid_reinterpret_set_kinds array_kind array_set_kind reinterp dbg;
     [ match_on_array_set_kind dbg ~array array_kind array_set_kind
         (array_set_unsafe dbg ~array
            ~index:(convert_index_to_tagged_int ~index ~index_kind)
            ~new_values) ]
-  | ( Parraysets (array_set_kind, array_kind, index_kind, _),
+  | ( Parraysets (array_set_kind, array_kind, index_kind, reinterp),
       [[array]; [index]; new_values] ) ->
+    reinterpret_not_supported dbg reinterp;
     let array_length_kind = convert_array_kind_for_length array_kind in
     [ check_array_access ~dbg ~array array_length_kind ~index ~index_kind
         ~size_int
@@ -2545,7 +2639,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             _,
             _,
             _,
-            _)
+            _ )
       | Parrayrefs
           ( ( Pgenarray_ref _ | Paddrarray_ref | Pintarray_ref
             | Pfloatarray_ref _ | Punboxedfloatarray_ref _
@@ -2554,7 +2648,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             _,
             _,
             _,
-            _)
+            _ )
       | Pcompare_ints | Pcompare_floats _ | Pcompare_bints _ | Patomic_exchange
       | Patomic_fetch_add ),
       ( []
@@ -2574,7 +2668,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Pgcscannableproductarray_set _ | Pgcignorableproductarray_set _ ),
             _,
             _,
-            _)
+            _ )
       | Parraysets
           ( ( Pgenarray_set _ | Paddrarray_set _ | Pintarray_set
             | Pfloatarray_set | Punboxedfloatarray_set _
@@ -2582,7 +2676,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Pgcscannableproductarray_set _ | Pgcignorableproductarray_set _ ),
             _,
             _,
-            _)
+            _ )
       | Pbytes_set_16 _ | Pbytes_set_32 _ | Pbytes_set_f32 _ | Pbytes_set_64 _
       | Pbytes_set_128 _ | Pbigstring_set_16 _ | Pbigstring_set_32 _
       | Pbigstring_set_f32 _ | Pbigstring_set_64 _ | Pbigstring_set_128 _
