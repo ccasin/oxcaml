@@ -184,30 +184,27 @@ let locality_mode ppf = function
   | Alloc_heap -> fprintf ppf "heap"
   | Alloc_local -> fprintf ppf "local"
 
-let constructor_shape _print_value_kind _ppf _shape = assert false
-  (* XXX *)
-  (*
-  let value_fields, flat_fields  =
-    match shape with
-    | Constructor_uniform fields -> fields, []
-    | Constructor_mixed { value_prefix; flat_suffix } ->
-        value_prefix, flat_suffix
-  in
-  fprintf ppf "%a%t"
-    (Format.pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ")
-       print_value_kind)
-    value_fields
-    (fun ppf ->
-       match flat_fields with
-       | [] -> ()
-       | _ :: _ ->
-           fprintf ppf ";@%a"
-             (Format.pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@")
-              (fun ppf flat_element ->
-                fprintf ppf "[%s]"
-                    (Types.flat_element_to_lowercase_string flat_element)))
-             flat_fields)
-*)
+let mixed_block_element print_value_kind ppf el =
+  match el with
+  | Value vk -> print_value_kind ppf vk
+  | Float_boxed _ -> fprintf ppf "float"
+  | Float32 -> fprintf ppf "float32"
+  | Float64 -> fprintf ppf "float64"
+  | Bits32 -> fprintf ppf "bits32"
+  | Bits64 -> fprintf ppf "bits64"
+  | Vec128 -> fprintf ppf "vec128"
+  | Word -> fprintf ppf "word"
+
+let constructor_shape print_value_kind ppf shape =
+  match shape with
+  | Constructor_uniform fields ->
+     Format.pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ")
+       print_value_kind ppf fields
+  | Constructor_mixed shape->
+    fprintf ppf "%a"
+      (Format.pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf ",@ ")
+         (mixed_block_element print_value_kind)) (Array.to_list shape)
+
 let tag_and_constructor_shape print_value_kind ppf (tag, shape) =
   fprintf ppf "@[<hov 1>[%d:@ %a]@]"
     tag
