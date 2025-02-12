@@ -189,48 +189,28 @@ let rec declare_const acc dbg (const : Lambda.structured_constant) =
       SC.block (Tag.Scannable.create_exn tag) Immutable Value_only fields
     in
     register_const acc dbg const "const_block"
-  | Const_mixed_block (tag, shape, consts) ->
-    let unbox_float_constant (c : Lambda.structured_constant) :
-        Lambda.structured_constant =
-      match c with
-      | Const_base (Const_float f) -> Const_base (Const_unboxed_float f)
-      | Const_base
-          ( Const_int _ | Const_char _ | Const_string _ | Const_float32 _
-          | Const_unboxed_float _ | Const_unboxed_float32 _ | Const_int32 _
-          | Const_int64 _ | Const_nativeint _ | Const_unboxed_int32 _
-          | Const_unboxed_int64 _ | Const_unboxed_nativeint _ )
-      | Const_block _ | Const_mixed_block _ | Const_float_array _
-      | Const_immstring _ | Const_float_block _ | Const_null ->
-        Misc.fatal_errorf
-          "In constant mixed block, a field of kind Float_boxed contained the \
-           constant %a"
-          Printlambda.structured_constant c
-    in
-    let consts =
-      List.mapi
-        (fun i c ->
-          if i < shape.value_prefix_len
-          then c
-          else
-            match shape.flat_suffix.(i - shape.value_prefix_len) with
-            | Float_boxed -> unbox_float_constant c
-            | Imm | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word -> c)
-        consts
-    in
-    let shape = K.Mixed_block_shape.from_lambda shape in
-    let acc, fields =
-      List.fold_left_map
-        (fun acc c ->
-          let acc, field, _name = declare_const acc dbg c in
-          acc, field)
-        acc consts
-    in
-    let const : SC.t =
-      SC.block
-        (Tag.Scannable.create_exn tag)
-        Immutable (Mixed_record shape) fields
-    in
-    register_const acc dbg const "const_mixed_block"
+  | Const_mixed_block (_tag, _shape, _consts) ->
+    (* CR mshinwell: why do we need these "const" block cases? *)
+    Misc.fatal_error "fixme for Xavier"
+    (* XXX let unbox_float_constant (c : Lambda.structured_constant) :
+       Lambda.structured_constant = match c with | Const_base (Const_float f) ->
+       Const_base (Const_unboxed_float f) | Const_base ( Const_int _ |
+       Const_char _ | Const_string _ | Const_float32 _ | Const_unboxed_float _ |
+       Const_unboxed_float32 _ | Const_int32 _ | Const_int64 _ | Const_nativeint
+       _ | Const_unboxed_int32 _ | Const_unboxed_int64 _ |
+       Const_unboxed_nativeint _ ) | Const_block _ | Const_mixed_block _ |
+       Const_float_array _ | Const_immstring _ | Const_float_block _ |
+       Const_null -> Misc.fatal_errorf "In constant mixed block, a field of kind
+       Float_boxed contained the \ constant %a" Printlambda.structured_constant
+       c in let consts = List.mapi (fun i c -> if i < shape.value_prefix_len
+       then c else match shape.flat_suffix.(i - shape.value_prefix_len) with |
+       Float_boxed -> unbox_float_constant c | Imm | Float64 | Float32 | Bits32
+       | Bits64 | Vec128 | Word -> c) consts in let shape =
+       K.Mixed_block_shape.from_lambda shape in let acc, fields =
+       List.fold_left_map (fun acc c -> let acc, field, _name = declare_const
+       acc dbg c in acc, field) acc consts in let const : SC.t = SC.block
+       (Tag.Scannable.create_exn tag) Immutable (Mixed_record shape) fields in
+       register_const acc dbg const "const_mixed_block" *)
   | Const_null -> acc, reg_width RWC.const_null, "null"
 
 let close_const acc const =

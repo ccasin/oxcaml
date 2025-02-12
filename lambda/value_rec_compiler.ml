@@ -841,7 +841,7 @@ let alloc_prim =
 let alloc_float_record_prim =
   Lambda.simple_prim_on_values ~name:"caml_alloc_dummy_float" ~arity:1 ~alloc:true
 
-let alloc_mixed_record_prim =
+let _alloc_mixed_record_prim =
   Lambda.simple_prim_on_values ~name:"caml_alloc_dummy_mixed" ~arity:2 ~alloc:true
 
 let update_prim =
@@ -940,8 +940,11 @@ let compile_letrec input_bindings body =
           match size with
           | Regular_block size -> alloc_prim, [size]
           | Float_record size -> alloc_float_record_prim, [size]
-          | Mixed_record (size, shape) ->
-              alloc_mixed_record_prim, [size; shape.value_prefix_len]
+          | Mixed_record _ (* XXX (size, shape) ->
+              alloc_mixed_record_prim, [size; shape.value_prefix_len] *)
+              -> failwith "don't know what to do"
+              (* probably need to count the number of values in [shape] to
+              work out how long the flat suffix is *)
         in
         let alloc =
           Lprim (Pccall alloc_prim,

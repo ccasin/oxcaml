@@ -607,12 +607,13 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
                   in
                   Pmakeblock(0, Immutable, Some (Lambda.generic_value :: shape),
                             alloc_mode)
-              | Constructor_mixed shape ->
+              | Constructor_mixed _shape -> (* XXX
                   let shape = Lambda.transl_mixed_product_shape shape in
                   let shape =
                     { shape with value_prefix_len = shape.value_prefix_len + 1 }
                   in
-                  Pmakemixedblock(0, Immutable, shape, alloc_mode)
+                  Pmakemixedblock(0, Immutable, shape, alloc_mode) *)
+                  failwith "needs fixing"
             in
             Lprim (makeblock, lam :: ll, of_location ~scopes e.exp_loc)
       | Extension _, (Variant_boxed _ | Variant_unboxed | Variant_with_null)
@@ -675,8 +676,9 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
             (* CR layouts v5.9: support this *)
             fatal_error
               "Mixed inlined records not supported for extensible variants"
-        | Record_inlined (_, Constructor_mixed shape, Variant_boxed _)
-        | Record_mixed shape ->
+        | Record_inlined (_, Constructor_mixed _shape, Variant_boxed _)
+        | Record_mixed _shape ->
+                  failwith "needs fixing" (* XXX
           let ({ value_prefix_len; flat_suffix } : mixed_product_shape) =
             shape
           in
@@ -702,7 +704,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
             { value_prefix_len; flat_suffix }
           in
           Lprim (Pmixedfield (lbl.lbl_pos, read, shape, sem), [targ],
-                  of_location ~scopes e.exp_loc)
+                  of_location ~scopes e.exp_loc) *)
         | Record_inlined (_, _, Variant_with_null) -> assert false
       end
   | Texp_unboxed_field(arg, arg_sort, _id, lbl, _) ->
@@ -743,8 +745,8 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
             (* CR layouts v5.9: support this *)
             fatal_error
               "Mixed inlined records not supported for extensible variants"
-        | Record_inlined (_, Constructor_mixed shape, Variant_boxed _)
-        | Record_mixed shape -> begin
+        | Record_inlined (_, Constructor_mixed _shape, Variant_boxed _)
+        | Record_mixed _shape -> failwith "needs fixing" (* XXX begin
           let ({ value_prefix_len; flat_suffix } : mixed_product_shape) =
             shape
           in
@@ -759,7 +761,7 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
              { value_prefix_len; flat_suffix }
            in
            Psetmixedfield(lbl.lbl_pos, write, shape, mode)
-          end
+          end *)
         | Record_inlined (_, _, Variant_with_null) -> assert false
       in
       Lprim(access, [transl_exp ~scopes Jkind.Sort.Const.for_record arg;
@@ -1914,8 +1916,8 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                 (* CR layouts v5.9: support this *)
                 fatal_error
                   "Mixed inlined records not supported for extensible variants"
-            | Record_inlined (_, Constructor_mixed shape, Variant_boxed _)
-            | Record_mixed shape -> begin
+            | Record_inlined (_, Constructor_mixed _shape, Variant_boxed _)
+            | Record_mixed _shape -> failwith "needs fixing" (* XXX begin
                 let { value_prefix_len; flat_suffix } : mixed_product_shape =
                   shape
                 in
@@ -1934,7 +1936,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                 in
                 Psetmixedfield
                   (lbl.lbl_pos, write, shape, Assignment modify_heap)
-              end
+              end *)
             | Record_inlined (_, _, Variant_with_null) -> assert false
           in
           Lsequence(Lprim(upd, [Lvar copy_id;
@@ -1985,8 +1987,8 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                        so it's simpler to leave it Alloc_heap *)
                     Pfloatfield (i, sem, alloc_heap)
                  | Record_ufloat -> Pufloatfield (i, sem)
-                 | Record_inlined (_, Constructor_mixed shape, Variant_boxed _)
-                 | Record_mixed shape ->
+                 | Record_inlined (_, Constructor_mixed _shape, Variant_boxed _)
+                 | Record_mixed _shape -> failwith "needs fixing" (* XXX
                   let { value_prefix_len; flat_suffix } : mixed_product_shape =
                     shape
                   in
@@ -2008,7 +2010,7 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                    let shape : Lambda.mixed_block_shape =
                      { value_prefix_len; flat_suffix }
                    in
-                   Pmixedfield (i, read, shape, sem)
+                   Pmixedfield (i, read, shape, sem) *)
                  | Record_inlined (_, _, Variant_with_null) -> assert false
                in
                Lprim(access, [Lvar init_id],

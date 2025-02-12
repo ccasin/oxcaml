@@ -600,19 +600,20 @@ and value_kind_variant env ~loc ~visited ~depth ~num_nodes_visited
       in
       num_nodes_visited, Lambda.Constructor_uniform fields
     in
-    let for_one_mixed_constructor fields ~value_prefix_len ~flat_suffix
+    let for_one_mixed_constructor fields ~value_prefix_len ~flat_suffix:_
         ~field_to_type ~depth ~num_nodes_visited =
       let value_prefix, _ =
         Misc.Stdlib.List.split_at value_prefix_len fields
       in
       assert (List.length value_prefix = value_prefix_len);
-      let num_nodes_visited, value_prefix =
+      let _num_nodes_visited, _value_prefix =
         for_constructor_fields value_prefix ~depth ~num_nodes_visited
           ~field_to_type
       in
+      Misc.fatal_error "needs fixing" (* XXX
       num_nodes_visited + Array.length flat_suffix,
       Lambda.Constructor_mixed
-        { value_prefix; flat_suffix = Array.to_list flat_suffix }
+        { value_prefix; flat_suffix = Array.to_list flat_suffix } *)
     in
     let for_one_constructor (constructor : Types.constructor_declaration)
           ~depth ~num_nodes_visited
@@ -767,7 +768,7 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
                 Misc.Stdlib.List.split_at value_prefix_len labels
               in
               assert (List.length labels_value_prefix = value_prefix_len);
-              let num_nodes_visited, value_prefix =
+              let _num_nodes_visited, _value_prefix =
                 List.fold_left_map
                   (fun num_nodes_visited
                     (label:Types.label_declaration) ->
@@ -776,9 +777,10 @@ and value_kind_record env ~loc ~visited ~depth ~num_nodes_visited
                       label.ld_type)
                   num_nodes_visited labels_value_prefix
               in
-              let flat_suffix = Array.to_list flat_suffix in
+              let _flat_suffix = Array.to_list flat_suffix in
+              failwith "needs fixing" (* XXX
               num_nodes_visited,
-              Constructor_mixed { value_prefix; flat_suffix }
+              Constructor_mixed { value_prefix; flat_suffix } *)
         in
         let non_consts =
           match rep with
