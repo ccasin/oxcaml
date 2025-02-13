@@ -1937,7 +1937,8 @@ let get_expr_args_constr ~scopes head (arg, _mut, sort, layout) rem =
       | Constructor_mixed shape ->
           let shape =
             Lambda.transl_mixed_product_shape_for_read
-              ~get_mode:(fun () ->
+              ~get_value_kind:(fun _i -> Lambda.generic_value)
+              ~get_mode:(fun _i ->
                 Misc.fatal_error
                   "unexpected flat float of layout value in \
                     constructor field")
@@ -2361,7 +2362,8 @@ let get_expr_args_record ~scopes head (arg, _mut, sort, layout) rem =
         | Record_mixed shape ->
             let shape =
               Lambda.transl_mixed_product_shape_for_read
-                ~get_mode:(fun () ->
+                ~get_value_kind:(fun _i -> Lambda.generic_value)
+                ~get_mode:(fun _i ->
                   (* TODO: could optimise to Alloc_local sometimes *)
                   alloc_heap)
                 shape

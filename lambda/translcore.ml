@@ -557,7 +557,11 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
               match cstr.cstr_shape with
               | Constructor_mixed shape ->
                   if !Clflags.native_code then
-                    let shape = transl_mixed_product_shape shape in
+                    let shape =
+                      Lambda.transl_mixed_product_shape
+                        ~get_value_kind:(fun _i -> Lambda.generic_value)
+                        shape
+                    in
                     Some (Const_mixed_block(runtime_tag, shape, constants))
                   else
                     (* CR layouts v5.9: Structured constants for mixed blocks should
@@ -581,7 +585,11 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
                     in
                     Pmakeblock(runtime_tag, Immutable, Some shape, alloc_mode)
                 | Constructor_mixed shape ->
-                    let shape = Lambda.transl_mixed_product_shape shape in
+                    let shape =
+                      Lambda.transl_mixed_product_shape
+                        ~get_value_kind:(fun _i -> Lambda.generic_value)
+                        shape
+                    in
                     Pmakemixedblock(runtime_tag, Immutable, shape, alloc_mode)
               in
               Lprim (makeblock, ll, of_location ~scopes e.exp_loc)
@@ -607,13 +615,16 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
                   in
                   Pmakeblock(0, Immutable, Some (Lambda.generic_value :: shape),
                             alloc_mode)
-              | Constructor_mixed _shape -> (* XXX
-                  let shape = Lambda.transl_mixed_product_shape shape in
+              | Constructor_mixed shape ->
                   let shape =
-                    { shape with value_prefix_len = shape.value_prefix_len + 1 }
+                    Lambda.transl_mixed_product_shape
+                      ~get_value_kind:(fun _i -> Lambda.generic_value)
+                      shape
                   in
-                  Pmakemixedblock(0, Immutable, shape, alloc_mode) *)
-                  failwith "needs fixing"
+                  let shape =
+                    Array.append [| Lambda.Value Lambda.generic_value |] shape
+                  in
+                  Pmakemixedblock(0, Immutable, shape, alloc_mode)
             in
             Lprim (makeblock, lam :: ll, of_location ~scopes e.exp_loc)
       | Extension _, (Variant_boxed _ | Variant_unboxed | Variant_with_null)
@@ -676,35 +687,33 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
             (* CR layouts v5.9: support this *)
             fatal_error
               "Mixed inlined records not supported for extensible variants"
-        | Record_inlined (_, Constructor_mixed _shape, Variant_boxed _)
-        | Record_mixed _shape ->
-                  failwith "needs fixing" (* XXX
-          let ({ value_prefix_len; flat_suffix } : mixed_product_shape) =
-            shape
-          in
-          let read =
-            if lbl.lbl_num < value_prefix_len then
-              Mread_value_prefix (maybe_pointer e)
-            else
-              let flat_read =
-                match flat_suffix.(lbl.lbl_num - value_prefix_len) with
-                | Float_boxed ->
-                  (match float with
-                    | Boxing (mode, _) ->
-                        flat_read_float_boxed (transl_alloc_mode mode)
+        | Record_inlined (_, Constructor_mixed shape, Variant_boxed _)
+        | Record_mixed shape ->
+          let shape =
+            Lambda.transl_mixed_product_shape_for_read
+              ~get_value_kind:(fun i ->
+                if i <> lbl.lbl_num then Lambda.generic_value
+                else
+                  match maybe_pointer e with
+                  | Pointer -> Lambda.generic_value
+                  | Immediate ->
+                    { Lambda.
+                      raw_kind = Pintval;
+                      nullable = Non_nullable; (* XXX is this correct? *)
+                    })
+              ~get_mode:(fun i ->
+                if i <> lbl.lbl_num then Lambda.alloc_heap
+                else
+                  match float with
+                    | Boxing (mode, _) -> transl_alloc_mode mode
                     | Non_boxing _ ->
                         Misc.fatal_error
                           "expected typechecking to make [float] boxing mode\
                           \ present for float field read")
-                | non_float -> flat_read_non_float non_float
-              in
-              Mread_flat_suffix flat_read
+              shape
           in
-          let shape : Lambda.mixed_block_shape =
-            { value_prefix_len; flat_suffix }
-          in
-          Lprim (Pmixedfield (lbl.lbl_pos, read, shape, sem), [targ],
-                  of_location ~scopes e.exp_loc) *)
+          Lprim (Pmixedfield (lbl.lbl_pos, shape, sem), [targ],
+                  of_location ~scopes e.exp_loc)
         | Record_inlined (_, _, Variant_with_null) -> assert false
       end
   | Texp_unboxed_field(arg, arg_sort, _id, lbl, _) ->
@@ -2041,7 +2050,11 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
             Lconst(Const_float_block(List.map extract_float cl))
         | Record_mixed shape ->
             if !Clflags.native_code then
-              let shape = transl_mixed_product_shape shape in
+              let shape =
+                Lambda.transl_mixed_product_shape
+                  ~get_value_kind:(fun _i -> Lambda.generic_value)
+                  shape
+              in
               Lconst(Const_mixed_block(0, shape, cl))
             else
               (* CR layouts v5.9: Structured constants for mixed blocks should
@@ -2092,11 +2105,19 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
         | Record_inlined (Ordinary _, _, Variant_extensible) ->
             assert false
         | Record_mixed shape ->
-            let shape = transl_mixed_product_shape shape in
+            let shape =
+              Lambda.transl_mixed_product_shape
+                ~get_value_kind:(fun _i -> Lambda.generic_value)
+                shape
+            in
             Lprim (Pmakemixedblock (0, mut, shape, Option.get mode), ll, loc)
         | Record_inlined (Ordinary { runtime_tag },
                           Constructor_mixed shape, Variant_boxed _) ->
-            let shape = transl_mixed_product_shape shape in
+            let shape =
+              Lambda.transl_mixed_product_shape
+                ~get_value_kind:(fun _i -> Lambda.generic_value)
+                shape
+            in
             Lprim (Pmakemixedblock (runtime_tag, mut, shape, Option.get mode),
                    ll, loc)
         | Record_inlined (_, _, Variant_with_null) -> assert false

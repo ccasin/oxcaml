@@ -1389,16 +1389,24 @@ let transl_prim mod_name name =
   | exception Not_found ->
       fatal_error ("Primitive " ^ name ^ " not found.")
 
-let transl_mixed_product_shape : Types.mixed_product_shape -> mixed_block_shape =
-  fun _x -> failwith "FIXME"
-
-let transl_mixed_product_shape_for_read ~get_mode shape =
-  Array.map (fun (elt : Types.mixed_block_element) ->
+let transl_mixed_product_shape ~get_value_kind shape =
+  Array.mapi (fun i (elt : Types.mixed_block_element) ->
     match elt with
-    | Value ->
-      (* CR mshinwell: take the value kind info somehow *)
-      Value generic_value
-    | Float_boxed -> Float_boxed (get_mode ())
+    | Value -> Value (get_value_kind i)
+    | Float_boxed -> Float_boxed ()
+    | Float64 -> Float64
+    | Float32 -> Float32
+    | Bits32 -> Bits32
+    | Bits64 -> Bits64
+    | Vec128 -> Vec128
+    | Word -> Word
+  ) shape
+
+let transl_mixed_product_shape_for_read ~get_value_kind ~get_mode shape =
+  Array.mapi (fun i (elt : Types.mixed_block_element) ->
+    match elt with
+    | Value -> Value (get_value_kind i)
+    | Float_boxed -> Float_boxed (get_mode i)
     | Float64 -> Float64
     | Float32 -> Float32
     | Bits32 -> Bits32
