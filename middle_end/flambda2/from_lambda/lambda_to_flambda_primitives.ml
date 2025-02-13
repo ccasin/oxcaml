@@ -1436,17 +1436,28 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     let mode = Alloc_mode.For_allocations.from_lambda mode ~current_region in
     let mutability = Mutability.from_lambda mutability in
     [Variadic (Make_block (Naked_floats, mutability, mode), args)]
-  | Pmakemixedblock (_tag, _mutability, _shape, _mode), _ ->
-    Misc.fatal_error "fixme for Xavier"
-    (* XXX let args = List.flatten args in let args = List.mapi (fun i arg ->
-       match Lambda.get_mixed_block_element shape i with | Value_prefix |
-       Flat_suffix (Float64 | Float32 | Imm | Bits32 | Bits64 | Vec128 | Word)
-       -> arg | Flat_suffix Float_boxed -> unbox_float arg) args in let mode =
-       Alloc_mode.For_allocations.from_lambda mode ~current_region in let
-       mutability = Mutability.from_lambda mutability in let tag =
-       Tag.Scannable.create_exn tag in let shape =
-       K.Mixed_block_shape.from_lambda shape in [Variadic (Make_block (Mixed
-       (tag, shape), mutability, mode), args)] *)
+  | Pmakemixedblock (tag, mutability, shape, mode), _ ->
+    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let args =
+      List.flatten args |> Array.of_list
+      |> Lambda.Shape.reorder_array shape
+      |> Array.to_list
+    in
+    let args =
+      List.mapi
+        (fun i arg ->
+          match Lambda.Shape.get shape i with
+          | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word -> arg
+          | Float_boxed _ -> unbox_float arg)
+        args
+    in
+    let mode = Alloc_mode.For_allocations.from_lambda mode ~current_region in
+    let mutability = Mutability.from_lambda mutability in
+    let tag = Tag.Scannable.create_exn tag in
+    let shape =
+      K.Mixed_block_shape.from_lambda (Lambda.Shape.reordered_shape shape)
+    in
+    [Variadic (Make_block (Mixed (tag, shape), mutability, mode), args)]
   | Pmakearray (lambda_array_kind, mutability, mode), _ -> (
     let args = List.flatten args in
     let mode = Alloc_mode.For_allocations.from_lambda mode ~current_region in
@@ -1931,24 +1942,37 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     [ Unary
         (Block_load { kind = block_access; mut = mutability; field = imm }, arg)
     ]
-  | Pmixedfield (_field, _shape, _sem), [[_arg]] ->
-    Misc.fatal_error "fixme for Xavier"
-    (* let imm = Targetint_31_63.of_int field in check_non_negative_imm imm
-       "Pmixedfield"; let mutability = convert_field_read_semantics sem in let
-       block_access : P.Block_access_kind.t = let field_kind :
-       P.Mixed_block_access_field_kind.t = match read with (* CR mshinwell: make
-       use of the int-or-ptr flag (new in OCaml 5)? *) | Mread_value_prefix
-       _int_or_pointer -> Value_prefix Any_value | Mread_flat_suffix read ->
-       Flat_suffix (match read with | Flat_read flat_element ->
-       K.Flat_suffix_element.from_lambda flat_element | Flat_read_float_boxed _
-       -> K.Flat_suffix_element.naked_float) in let shape =
-       K.Mixed_block_shape.from_lambda shape in Mixed { tag = Unknown;
-       field_kind; shape; size = Unknown } in let block_access :
-       H.expr_primitive = Unary (Block_load { kind = block_access; mut =
-       mutability; field = imm }, arg) in match read with | Mread_value_prefix _
-       | Mread_flat_suffix (Flat_read _) -> [block_access] | Mread_flat_suffix
-       (Flat_read_float_boxed mode) -> [box_float mode block_access
-       ~current_region] *)
+  | Pmixedfield (field, shape, sem), [[arg]] -> (
+    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let field = Lambda.Shape.old_index_to_new_index shape field in
+    let imm = Targetint_31_63.of_int field in
+    check_non_negative_imm imm "Pmixedfield";
+    let mutability = convert_field_read_semantics sem in
+    let block_access : P.Block_access_kind.t =
+      let field_kind : P.Mixed_block_access_field_kind.t =
+        match Lambda.Shape.get shape field with
+        (* (* CR mshinwell: make use of the value_kind? *) *)
+        | Value _value_kind -> Value_prefix Any_value
+        | (Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word) as
+          mixed_block_element ->
+          Flat_suffix (K.Flat_suffix_element.from_lambda mixed_block_element)
+        | Float_boxed _ -> Flat_suffix K.Flat_suffix_element.naked_float
+      in
+      let shape =
+        K.Mixed_block_shape.from_lambda
+          (Lambda.Shape.reordered_shape_unit shape)
+      in
+      Mixed { tag = Unknown; field_kind; shape; size = Unknown }
+    in
+    let block_access : H.expr_primitive =
+      Unary
+        (Block_load { kind = block_access; mut = mutability; field = imm }, arg)
+    in
+    match Lambda.Shape.get shape field with
+    | Float_boxed (mode : Lambda.locality_mode) ->
+      [box_float mode block_access ~current_region]
+    | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word ->
+      [block_access])
   | ( Psetfield (index, immediate_or_pointer, initialization_or_assignment),
       [[block]; [value]] ) ->
     let field_kind = convert_block_access_field_kind immediate_or_pointer in
@@ -1984,21 +2008,55 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
         ( Block_set { kind = block_access; init = init_or_assign; field = imm },
           block,
           value ) ]
-  | ( Psetmixedfield (_field, _shape, _initialization_or_assignment),
-      [[_block]; [_value]] ) ->
-    Misc.fatal_error "FIXME for Xavier"
-    (* let imm = Targetint_31_63.of_int field in check_non_negative_imm imm
-       "Psetmixedfield"; let block_access : P.Block_access_kind.t = Mixed {
-       field_kind = (match write with | Mwrite_value_prefix immediate_or_pointer
-       -> Value_prefix (convert_block_access_field_kind immediate_or_pointer) |
-       Mwrite_flat_suffix flat -> Flat_suffix (K.Flat_suffix_element.from_lambda
-       flat)); shape = K.Mixed_block_shape.from_lambda shape; tag = Unknown;
-       size = Unknown } in let init_or_assign = convert_init_or_assign
-       initialization_or_assignment in let value = match write with |
-       Mwrite_value_prefix _ | Mwrite_flat_suffix (Imm | Float64 | Float32 |
-       Bits32 | Bits64 | Vec128 | Word) -> value | Mwrite_flat_suffix
-       Float_boxed -> unbox_float value in [ Binary ( Block_set { kind =
-       block_access; init = init_or_assign; field = imm }, block, value ) ] *)
+  | ( Psetmixedfield (field, shape, initialization_or_assignment),
+      [[block]; [value]] ) ->
+    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let field = Lambda.Shape.old_index_to_new_index shape field in
+    let imm = Targetint_31_63.of_int field in
+    check_non_negative_imm imm "Psetmixedfield";
+    let block_access : P.Block_access_kind.t =
+      Mixed
+        { field_kind =
+            (match Lambda.Shape.get shape field with
+            | Value (value_kind : Lambda.value_kind) ->
+              let immediate_or_pointer =
+                (* CR-soon xclerc for xclerc: is there already a function for
+                   that? *)
+                match value_kind.raw_kind with
+                | Pgenval -> Lambda.Pointer
+                | Pintval -> Lambda.Immediate
+                | Pboxedfloatval _ -> Lambda.Pointer
+                | Pboxedintval _ -> Lambda.Pointer
+                | Pvariant { consts = _; non_consts } -> (
+                  match non_consts with
+                  | [] -> Lambda.Immediate
+                  | _ :: _ -> Lambda.Pointer)
+                | Parrayval _ -> Lambda.Pointer
+                | Pboxedvectorval _ -> Lambda.Pointer
+              in
+              P.Mixed_block_access_field_kind.Value_prefix
+                (convert_block_access_field_kind immediate_or_pointer)
+            | Float_boxed _ | Float64 | Float32 | Bits32 | Bits64 | Vec128
+            | Word ->
+              Flat_suffix
+                (K.Flat_suffix_element.from_lambda
+                   (Lambda.Shape.get shape field)));
+          shape =
+            K.Mixed_block_shape.from_lambda (Lambda.Shape.reordered_shape shape);
+          tag = Unknown;
+          size = Unknown
+        }
+    in
+    let init_or_assign = convert_init_or_assign initialization_or_assignment in
+    let value : H.simple_or_prim =
+      match Lambda.Shape.get shape field with
+      | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word -> value
+      | Float_boxed _ -> unbox_float value
+    in
+    [ Binary
+        ( Block_set { kind = block_access; init = init_or_assign; field = imm },
+          block,
+          value ) ]
   | Pdivint Unsafe, [[arg1]; [arg2]] ->
     [Binary (Int_arith (I.Tagged_immediate, Div), arg1, arg2)]
   | Pdivint Safe, [[arg1]; [arg2]] ->

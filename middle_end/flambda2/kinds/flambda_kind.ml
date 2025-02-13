@@ -299,14 +299,19 @@ module Mixed_block_shape = struct
       Misc.Stdlib.Array.compare Flat_suffix_element0.compare flat_suffix1
         flat_suffix2
 
-  let from_lambda (_shape : Lambda.mixed_block_shape) =
-    Misc.fatal_error "fixme for Xavier"
-
-  (* let value_prefix_kinds = Array.init value_prefix_len (fun _ -> value) in
-     let flat_suffix = Array.map Flat_suffix_element0.from_lambda flat_suffix in
-     let flat_suffix_kinds = Array.map Flat_suffix_element0.kind flat_suffix in
-     { flat_suffix; value_prefix_size = value_prefix_len; field_kinds =
-     Array.concat [value_prefix_kinds; flat_suffix_kinds] } *)
+  let from_lambda (shape : Lambda.mixed_block_shape) : t =
+    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let value_prefix_kinds =
+      Array.map (fun _ -> value) (Lambda.Shape.prefix shape)
+    in
+    let flat_suffix =
+      Array.map Flat_suffix_element0.from_lambda (Lambda.Shape.suffix shape)
+    in
+    let flat_suffix_kinds = Array.map Flat_suffix_element0.kind flat_suffix in
+    { flat_suffix;
+      value_prefix_size = Array.length value_prefix_kinds;
+      field_kinds = Array.concat [value_prefix_kinds; flat_suffix_kinds]
+    }
 end
 
 module Scannable_block_shape = struct
@@ -882,13 +887,35 @@ module With_subkind = struct
                     | Constructor_uniform fields ->
                       ( Scannable Value_only,
                         List.map from_lambda_value_kind fields )
-                    | Constructor_mixed _mixed_block_shape ->
-                      Misc.fatal_error "fixme for Xavier"
-                    (* let mixed_block_shape = Mixed_block_shape.from_lambda
-                       mixed_block_shape in let fields = List.map
-                       from_lambda_value_kind value_prefix @ List.map
-                       of_lambda_flat_element_kind flat_suffix in Scannable
-                       (Mixed_record mixed_block_shape), fields *)
+                    | Constructor_mixed mixed_block_shape ->
+                      let mixed_block_shape =
+                        Lambda.Shape.of_mixed_block_elements mixed_block_shape
+                      in
+                      let from_mixed_block_element :
+                          _ Lambda.mixed_block_element -> t =
+                        (* CR-soon xclerc for xclerc: is there already a
+                           function for that? *)
+                        function
+                        | Value (value_kind : Lambda.value_kind) ->
+                          from_lambda_value_kind value_kind
+                        | Float_boxed _ -> boxed_float
+                        | Float64 -> boxed_float
+                        | Float32 -> boxed_float32
+                        | Bits32 -> boxed_int32
+                        | Bits64 -> boxed_int64
+                        | Vec128 -> boxed_vec128
+                        | Word -> boxed_nativeint
+                      in
+                      let fields : t array =
+                        Array.map from_mixed_block_element
+                          (Lambda.Shape.reordered_shape mixed_block_shape)
+                      in
+                      let mixed_block_shape =
+                        Mixed_block_shape.from_lambda
+                          (Lambda.Shape.reordered_shape mixed_block_shape)
+                      in
+                      ( Scannable (Mixed_record mixed_block_shape),
+                        Array.to_list fields )
                   in
                   Tag.Scannable.Map.add tag shape_and_fields non_consts
                 | None ->

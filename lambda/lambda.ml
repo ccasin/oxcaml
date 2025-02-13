@@ -2592,3 +2592,97 @@ let rec ignorable_product_element_kind_involves_int
   | Punboxedfloat_ignorable _ | Punboxedint_ignorable _ -> false
   | Pproduct_ignorable kinds ->
     List.exists ignorable_product_element_kind_involves_int kinds
+
+module Shape = struct
+
+  type subst = int array
+
+  type 'a shape = 'a mixed_block_element array
+
+  type 'a t = {
+    original_shape : 'a shape;
+    prefix : 'a shape;
+    suffix : 'a shape;
+    reordered_shape : 'a shape;
+    new_index_to_old_index : subst;
+    old_index_to_new_index : subst;
+  }
+
+  let of_mixed_block_elements (original_shape : 'a shape) : 'a t =
+    let prefix = ref [] in
+    let suffix = ref [] in
+    for idx = Array.length original_shape - 1 downto 0 do
+      let elem = original_shape.(idx) in
+      let is_value =
+        match elem with
+        | Value _ -> true
+        | Float_boxed _
+        | Float64
+        | Float32
+        | Bits32
+        | Bits64
+        | Vec128
+        | Word -> false
+      in
+      if is_value then
+        prefix := (elem, idx) :: !prefix
+      else
+        suffix := (elem, idx) :: !suffix
+    done;
+    let prefix = Array.of_list !prefix in
+    let suffix = Array.of_list !suffix in
+    let reordered_shape_with_indices = Array.append prefix suffix in
+    let reordered_shape, new_index_to_old_index = Array.split reordered_shape_with_indices in
+    let old_index_to_new_index = Array.make (Array.length new_index_to_old_index) (-1) in
+    Array.iteri
+      (fun new_index old_index ->
+         old_index_to_new_index.(old_index) <- new_index)
+      new_index_to_old_index;
+    { original_shape;
+      prefix = Array.map fst prefix;
+      suffix = Array.map fst suffix;
+      reordered_shape;
+      new_index_to_old_index;
+      old_index_to_new_index; }
+
+  let reorder_array t src =
+    match Array.length src with
+    | 0 -> [||]
+    | len ->
+      let dst = Array.make len src.(0) in
+      for old_index = 0 to pred len do
+        let new_index = t.old_index_to_new_index.(old_index) in
+        dst.(new_index) <- src.(old_index)
+      done;
+      dst
+
+  let get t i = t.reordered_shape.(i)
+
+  let prefix t = t.prefix
+
+  let suffix t = t.suffix
+
+  let original_shape t = t.original_shape
+
+  let reordered_shape t = t.reordered_shape
+
+  let reordered_shape_unit t =
+    Array.map
+      (function
+        | Float_boxed _ -> Float_boxed ()
+        | (Value _
+          | Float64
+          | Float32
+          | Bits32
+          | Bits64
+          | Vec128
+          | Word) as elem -> elem)
+      t.reordered_shape
+
+  let old_index_to_new_index t i =
+    t.old_index_to_new_index.(i)
+
+  let new_index_to_old_index t i =
+    t.new_index_to_old_index.(i)
+
+end
