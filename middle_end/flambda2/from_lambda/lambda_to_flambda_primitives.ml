@@ -113,6 +113,16 @@ let standard_int_or_float_of_peek_or_poke (layout : L.peek_or_poke) :
 let convert_block_access_field_kind i_or_p : P.Block_access_field_kind.t =
   match i_or_p with L.Immediate -> Immediate | L.Pointer -> Any_value
 
+let convert_block_access_field_kind_from_value_kind
+    ({ raw_kind; nullable = _ } : L.value_kind) : P.Block_access_field_kind.t =
+  match raw_kind with
+  | Pintval -> Immediate
+  | Pvariant { consts = _; non_consts } -> (
+    match non_consts with [] -> Immediate | _ :: _ -> Any_value)
+  | Pgenval | Pboxedfloatval _ | Pboxedintval _ | Parrayval _
+  | Pboxedvectorval _ ->
+    Any_value
+
 let convert_init_or_assign (i_or_a : L.initialization_or_assignment) :
     P.Init_or_assign.t =
   match i_or_a with
@@ -1951,8 +1961,9 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     let block_access : P.Block_access_kind.t =
       let field_kind : P.Mixed_block_access_field_kind.t =
         match Mixed_block_shape.get shape field with
-        (* (* CR mshinwell: make use of the value_kind? *) *)
-        | Value _value_kind -> Value_prefix Any_value
+        | Value value_kind ->
+          Value_prefix
+            (convert_block_access_field_kind_from_value_kind value_kind)
         | (Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word) as
           mixed_block_element ->
           Flat_suffix (K.Flat_suffix_element.from_lambda mixed_block_element)
@@ -2019,23 +2030,8 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
         { field_kind =
             (match Mixed_block_shape.get shape field with
             | Value (value_kind : Lambda.value_kind) ->
-              let immediate_or_pointer =
-                (* CR-soon xclerc for xclerc: is there already a function for
-                   that? *)
-                match value_kind.raw_kind with
-                | Pgenval -> Lambda.Pointer
-                | Pintval -> Lambda.Immediate
-                | Pboxedfloatval _ -> Lambda.Pointer
-                | Pboxedintval _ -> Lambda.Pointer
-                | Pvariant { consts = _; non_consts } -> (
-                  match non_consts with
-                  | [] -> Lambda.Immediate
-                  | _ :: _ -> Lambda.Pointer)
-                | Parrayval _ -> Lambda.Pointer
-                | Pboxedvectorval _ -> Lambda.Pointer
-              in
               P.Mixed_block_access_field_kind.Value_prefix
-                (convert_block_access_field_kind immediate_or_pointer)
+                (convert_block_access_field_kind_from_value_kind value_kind)
             | Float_boxed _ | Float64 | Float32 | Bits32 | Bits64 | Vec128
             | Word ->
               Flat_suffix
