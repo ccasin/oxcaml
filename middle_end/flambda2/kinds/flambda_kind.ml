@@ -14,6 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+module Mixed_block_lambda_shape = Mixed_block_shape
+
 module Naked_number_kind = struct
   type t =
     | Naked_immediate
@@ -300,12 +302,13 @@ module Mixed_block_shape = struct
         flat_suffix2
 
   let from_lambda (shape : Lambda.mixed_block_shape) : t =
-    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let shape = Mixed_block_shape.of_mixed_block_elements shape in
     let value_prefix_kinds =
-      Array.map (fun _ -> value) (Lambda.Shape.prefix shape)
+      Array.map (fun _ -> value) (Mixed_block_shape.prefix shape)
     in
     let flat_suffix =
-      Array.map Flat_suffix_element0.from_lambda (Lambda.Shape.suffix shape)
+      Array.map Flat_suffix_element0.from_lambda
+        (Mixed_block_shape.suffix shape)
     in
     let flat_suffix_kinds = Array.map Flat_suffix_element0.kind flat_suffix in
     { flat_suffix;
@@ -889,7 +892,8 @@ module With_subkind = struct
                         List.map from_lambda_value_kind fields )
                     | Constructor_mixed mixed_block_shape ->
                       let mixed_block_shape =
-                        Lambda.Shape.of_mixed_block_elements mixed_block_shape
+                        Mixed_block_lambda_shape.of_mixed_block_elements
+                          mixed_block_shape
                       in
                       let from_mixed_block_element :
                           _ Lambda.mixed_block_element -> t =
@@ -908,11 +912,13 @@ module With_subkind = struct
                       in
                       let fields : t array =
                         Array.map from_mixed_block_element
-                          (Lambda.Shape.reordered_shape mixed_block_shape)
+                          (Mixed_block_lambda_shape.reordered_shape
+                             mixed_block_shape)
                       in
                       let mixed_block_shape =
                         Mixed_block_shape.from_lambda
-                          (Lambda.Shape.reordered_shape mixed_block_shape)
+                          (Mixed_block_lambda_shape.reordered_shape
+                             mixed_block_shape)
                       in
                       ( Scannable (Mixed_record mixed_block_shape),
                         Array.to_list fields )

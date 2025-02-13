@@ -1183,18 +1183,3 @@ val primitive_can_raise : primitive -> bool
 val count_initializers_array_kind : array_kind -> int
 val ignorable_product_element_kind_involves_int :
   ignorable_product_element_kind -> bool
-
-module Shape : sig
-  type 'a t
-
-  val of_mixed_block_elements : 'a mixed_block_element array -> 'a t
-  val reorder_array : 'a t -> 'b array -> 'b array
-  val get : 'a t -> int -> 'a mixed_block_element
-  val prefix : 'a t -> 'a mixed_block_element array
-  val suffix : 'a t -> 'a mixed_block_element array
-  val original_shape : 'a t -> 'a mixed_block_element array
-  val reordered_shape : 'a t -> 'a mixed_block_element array
-  val reordered_shape_unit : 'a t -> unit mixed_block_element array
-  val old_index_to_new_index : 'a t -> int -> int
-  val new_index_to_old_index : 'a t -> int -> int
-end

@@ -190,7 +190,7 @@ let rec declare_const acc dbg (const : Lambda.structured_constant) =
     in
     register_const acc dbg const "const_block"
   | Const_mixed_block (tag, shape, consts) ->
-    let shape = Lambda.Shape.of_mixed_block_elements shape in
+    let shape = Mixed_block_shape.of_mixed_block_elements shape in
     (* CR mshinwell: why do we need these "const" block cases? *)
     let unbox_float_constant (c : Lambda.structured_constant) :
         Lambda.structured_constant =
@@ -210,16 +210,16 @@ let rec declare_const acc dbg (const : Lambda.structured_constant) =
     in
     let consts =
       consts |> Array.of_list
-      |> Lambda.Shape.reorder_array shape
+      |> Mixed_block_shape.reorder_array shape
       |> Array.mapi (fun i c ->
-             match Lambda.Shape.get shape i with
+             match Mixed_block_shape.get shape i with
              | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word ->
                c
              | Float_boxed _ -> unbox_float_constant c)
       |> Array.to_list
     in
     let shape =
-      K.Mixed_block_shape.from_lambda (Lambda.Shape.reordered_shape shape)
+      K.Mixed_block_shape.from_lambda (Mixed_block_shape.reordered_shape shape)
     in
     let acc, fields =
       List.fold_left_map
