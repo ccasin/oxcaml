@@ -1032,6 +1032,10 @@ val transl_address : scoped_location -> Persistent_env.address -> lambda
 
 val transl_mixed_product_shape: Types.mixed_product_shape -> mixed_block_shape
 
+val transl_mixed_product_shape_for_read :
+  get_mode:(unit -> locality_mode) -> Types.mixed_product_shape
+  -> mixed_block_shape_with_locality_mode
+
 val make_sequence: ('a -> lambda) -> 'a list -> lambda
 
 val subst:

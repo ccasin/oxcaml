@@ -1392,6 +1392,21 @@ let transl_prim mod_name name =
 let transl_mixed_product_shape : Types.mixed_product_shape -> mixed_block_shape =
   fun _x -> failwith "FIXME"
 
+let transl_mixed_product_shape_for_read ~get_mode shape =
+  Array.map (fun (elt : Types.mixed_block_element) ->
+    match elt with
+    | Value ->
+      (* CR mshinwell: take the value kind info somehow *)
+      Value generic_value
+    | Float_boxed -> Float_boxed (get_mode ())
+    | Float64 -> Float64
+    | Float32 -> Float32
+    | Bits32 -> Bits32
+    | Bits64 -> Bits64
+    | Vec128 -> Vec128
+    | Word -> Word
+  ) shape
+
 (* Compile a sequence of expressions *)
 
 let rec make_sequence fn = function
