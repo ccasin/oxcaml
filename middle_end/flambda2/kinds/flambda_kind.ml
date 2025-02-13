@@ -152,6 +152,8 @@ include Container_types.Make (struct
       else Format.fprintf ppf "Rec"
 end)
 
+let print_kind = print
+
 let is_value t =
   match t with Value -> true | Naked_number _ | Region | Rec_info -> false
 
@@ -654,8 +656,23 @@ module With_subkind = struct
           Format.fprintf ppf "%t=boxed_@<1>\u{2115}@<1>\u{1d54d}128%t" colour
             Flambda_colours.pop
         | Variant { consts; non_consts } ->
-          let print_field ppf { kind = _; value_subkind; nullable = _ } =
-            print ppf value_subkind
+          let print_field ppf { kind; value_subkind; nullable } =
+            (* CR mshinwell: share code with "print", below *)
+            match kind, value_subkind, nullable with
+            | _, Anything, Non_nullable -> print_kind ppf kind
+            | Value, value_subkind, nullable ->
+              Format.fprintf ppf "@[%a%a%a@]" print_kind kind print
+                value_subkind Nullable.print nullable
+            | ( (Naked_number _ | Region | Rec_info),
+                ( Boxed_float | Boxed_float32 | Boxed_int32 | Boxed_int64
+                | Boxed_nativeint | Boxed_vec128 | Tagged_immediate | Variant _
+                | Float_block _ | Float_array | Immediate_array | Value_array
+                | Generic_array | Unboxed_float32_array | Unboxed_int32_array
+                | Unboxed_int64_array | Unboxed_nativeint_array
+                | Unboxed_vec128_array | Unboxed_product_array ),
+                Non_nullable )
+            | (Naked_number _ | Region | Rec_info), _, Nullable ->
+              assert false
           in
           Format.fprintf ppf "%t=Variant((consts (%a))@ (non_consts (%a)))%t"
             colour Targetint_31_63.Set.print consts
@@ -903,12 +920,12 @@ module With_subkind = struct
                         | Value (value_kind : Lambda.value_kind) ->
                           from_lambda_value_kind value_kind
                         | Float_boxed _ -> boxed_float
-                        | Float64 -> boxed_float
-                        | Float32 -> boxed_float32
-                        | Bits32 -> boxed_int32
-                        | Bits64 -> boxed_int64
-                        | Vec128 -> boxed_vec128
-                        | Word -> boxed_nativeint
+                        | Float64 -> naked_float
+                        | Float32 -> naked_float32
+                        | Bits32 -> naked_int32
+                        | Bits64 -> naked_int64
+                        | Vec128 -> naked_vec128
+                        | Word -> naked_nativeint
                       in
                       let fields : t array =
                         Array.map from_mixed_block_element
