@@ -919,8 +919,7 @@ module With_subkind = struct
                         function
                         | Value (value_kind : Lambda.value_kind) ->
                           from_lambda_value_kind value_kind
-                        | Float_boxed _ -> boxed_float
-                        | Float64 -> naked_float
+                        | Float_boxed _ | Float64 -> naked_float
                         | Float32 -> naked_float32
                         | Bits32 -> naked_int32
                         | Bits64 -> naked_int64
