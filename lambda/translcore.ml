@@ -694,13 +694,12 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
               ~get_value_kind:(fun i ->
                 if i <> lbl.lbl_num then Lambda.generic_value
                 else
-                  match maybe_pointer e with
-                  | Pointer -> Lambda.generic_value
-                  | Immediate ->
-                    { Lambda.
-                      raw_kind = Pintval;
-                      nullable = Non_nullable; (* XXX is this correct? *)
-                    })
+                  let pointerness, nullable = representation_properties e in
+                  let raw_kind = match pointerness with
+                    | Pointer -> Pgenval
+                    | Immediate -> Pintval
+                  in
+                  Lambda.{ raw_kind; nullable })
               ~get_mode:(fun i ->
                 if i <> lbl.lbl_num then Lambda.alloc_heap
                 else
@@ -761,13 +760,14 @@ and transl_exp0 ~in_new_scope ~scopes sort e =
               ~get_value_kind:(fun i ->
                 if i <> lbl.lbl_num then Lambda.generic_value
                 else
-                  match maybe_pointer newval with
-                  | Pointer -> Lambda.generic_value
-                  | Immediate ->
-                    { Lambda.
-                      raw_kind = Pintval;
-                      nullable = Non_nullable; (* XXX is this correct? *)
-                    })
+                  let pointerness, nullable =
+                    representation_properties newval
+                  in
+                  let raw_kind = match pointerness with
+                    | Pointer -> Pgenval
+                    | Immediate -> Pintval
+                  in
+                  Lambda.{ raw_kind; nullable })
               shape
             in
             Psetmixedfield(lbl.lbl_pos, shape, mode)
@@ -1932,13 +1932,14 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                     ~get_value_kind:(fun i ->
                       if i <> lbl.lbl_num then Lambda.generic_value
                       else
-                        match maybe_pointer expr with
-                        | Pointer -> Lambda.generic_value
-                        | Immediate ->
-                          { Lambda.
-                            raw_kind = Pintval;
-                            nullable = Non_nullable; (* XXX is this correct? *)
-                          })
+                        let pointerness, nullable =
+                          representation_properties expr
+                        in
+                        let raw_kind = match pointerness with
+                          | Pointer -> Pgenval
+                          | Immediate -> Pintval
+                        in
+                        Lambda.{ raw_kind; nullable })
                     shape
                   in
 
@@ -2002,13 +2003,14 @@ and transl_record ~scopes loc env mode fields repres opt_init_expr =
                        ~get_value_kind:(fun i ->
                          if i <> lbl.lbl_num then Lambda.generic_value
                          else
-                           match maybe_pointer_type env typ with
-                           | Pointer -> Lambda.generic_value
-                           | Immediate ->
-                             { Lambda.
-                               raw_kind = Pintval;
-                               nullable = Non_nullable; (* XXX is this correct? *)
-                             })
+                           let pointerness, nullable =
+                             representation_properties_type env typ
+                           in
+                           let raw_kind = match pointerness with
+                             | Pointer -> Pgenval
+                             | Immediate -> Pintval
+                           in
+                           Lambda.{ raw_kind; nullable })
                        ~get_mode:(fun _i ->
                           (* See the handling of [Record_float] above for
                              why we choose Alloc_heap. *)
