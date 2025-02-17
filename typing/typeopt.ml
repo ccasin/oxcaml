@@ -111,7 +111,7 @@ let representation_properties_type env ty =
   let ty = scrape_ty env ty in
   let pointer = maybe_pointer_scraped_ty env ty in
   let nullable =
-    if Ctype.check_type_nullability env ty Jkind.Nullability.Non_null
+    if Ctype.check_type_nullability env ty Jkind_axis.Nullability.Non_null
     then Non_nullable
     else Nullable
   in
