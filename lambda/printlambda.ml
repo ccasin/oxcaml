@@ -416,7 +416,32 @@ let block_shape ppf shape = match shape with
         t;
       Format.fprintf ppf ")"
 
-let mixed_block_shape _ppf _ = assert false (* XXX { value_prefix_len; flat_suffix } =
+let mixed_block_element print_mode ppf (elt : _ mixed_block_element) =
+  match elt with
+  | Value vk -> value_kind value_kind_non_null ppf vk
+  | Float_boxed param -> fprintf ppf "float_boxed(%a)" print_mode param
+  | Float64 -> fprintf ppf "float64"
+  | Float32 -> fprintf ppf "float32"
+  | Bits32 -> fprintf ppf "bits32"
+  | Bits64 -> fprintf ppf "bits64"
+  | Vec128 -> fprintf ppf "vec128"
+  | Word -> fprintf ppf "word"
+
+let mixed_block_shape print_mode ppf shape =
+  match Array.length shape with
+  | 0 -> ()
+  | 1 -> fprintf ppf " (%a)" (mixed_block_element print_mode) shape.(0)
+  | _ -> begin
+    Array.iteri (fun i elt ->
+      if i = 0 then
+        fprintf ppf " (%a" (mixed_block_element print_mode) elt
+      else
+        fprintf ppf ",%a" (mixed_block_element print_mode) elt)
+      shape;
+    fprintf ppf ")"
+  end
+
+(* XXX { value_prefix_len; flat_suffix } =
   begin match value_prefix_len with
     | 0 -> ()
     | n -> fprintf ppf " (prefix=%d)" n
@@ -505,13 +530,13 @@ let primitive ppf = function
         (locality_mode_if_local mode)
   | Pmakemixedblock (tag, Immutable, abs, mode) ->
       fprintf ppf "make%amixedblock %i Immutable%a"
-        locality_mode mode tag mixed_block_shape abs
+        locality_mode mode tag (mixed_block_shape (fun _ _ -> ())) abs
   | Pmakemixedblock (tag, Immutable_unique, abs, mode) ->
      fprintf ppf "make%amixedblock %i Immutable_unique%a"
-        locality_mode mode tag mixed_block_shape abs
+        locality_mode mode tag (mixed_block_shape (fun _ _ -> ())) abs
   | Pmakemixedblock (tag, Mutable, abs, mode) ->
      fprintf ppf "make%amixedblock %i Mutable%a"
-        locality_mode mode tag mixed_block_shape abs
+        locality_mode mode tag (mixed_block_shape (fun _ _ -> ())) abs
   | Pfield (n, ptr, sem) ->
       let instr =
         match ptr, sem with
@@ -558,7 +583,10 @@ let primitive ppf = function
         field_read_semantics sem n
   | Pmixedfield (n, shape, sem) ->
       fprintf ppf "mixedfield%a %i %a"
-        field_read_semantics sem n mixed_block_shape shape
+        field_read_semantics sem n
+        (mixed_block_shape
+          (fun ppf mode -> fprintf ppf "%s" (locality_mode_if_local mode)))
+        shape
   | Psetfloatfield (n, init) ->
       let init =
         match init with
@@ -586,7 +614,8 @@ let primitive ppf = function
         | Assignment Modify_maybe_stack -> "(maybe-stack)"
       in
       fprintf ppf "setmixedfield%s %i %a"
-        init n mixed_block_shape shape
+        init n
+        (mixed_block_shape (fun _ _ -> ())) shape
   | Pduprecord (rep, size) -> fprintf ppf "duprecord %a %i" record_rep rep size
   | Prunstack -> fprintf ppf "runstack"
   | Pperform -> fprintf ppf "perform"
