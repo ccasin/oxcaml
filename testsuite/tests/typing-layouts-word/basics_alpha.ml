@@ -234,11 +234,12 @@ type ('a : word) t5_7 = A of int
 type ('a : word) t5_8 = A of 'a
 |}]
 
-(* not allowed: value in flat suffix *)
-type 'a t_disallowed = A of t_word * 'a
+(* No mixed block restriction: the compiler reorders the block for you, moving
+   the unboxed type to the flat suffix. *)
+type 'a t_reordered = A of t_word * 'a
 
 [%%expect{|
-type 'a t_disallowed = A of t_word * 'a
+type 'a t_reordered = A of t_word * 'a
 |}]
 
 type t5_6 = A of t_word [@@unboxed];;
@@ -527,7 +528,7 @@ Error: Extensible types can't have fields of unboxed type.
        Consider wrapping the unboxed fields in a record.
 |}]
 
-(* not allowed: value in flat suffix *)
+(* not allowed: extensible variant with unboxed field *)
 type 'a t11_2 += C : 'a * 'b -> 'a t11_2
 
 [%%expect{|
