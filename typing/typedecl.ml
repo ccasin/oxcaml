@@ -1512,7 +1512,8 @@ module Element_repr = struct
     let unboxed_elements =
       List.fold_left (fun acc (t,_) ->
         match t with
-        | Unboxed_element _ | Element_without_runtime_component _ -> acc+1
+        | Unboxed_element _ -> acc+1
+        | Element_without_runtime_component _
         | Float_element | Imm_element | Value_element -> acc) 0 ts
     in
     let mixed = unboxed_elements >= 1 in
@@ -4264,7 +4265,7 @@ let report_error ppf = function
             (Mixed_product_kind.to_plural_string mixed_product_kind)
       | Extension_constructor ->
           fprintf ppf
-            "@[Extensible types can't have fields of unboxed type. Consider \
+            "@[Extensible types can't have fields of unboxed type.@ Consider \
              wrapping the unboxed fields in a record.@]"
       | Value_prefix_too_long
           { value_prefix_len; max_value_prefix_len; mixed_product_kind } ->
