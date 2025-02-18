@@ -1826,24 +1826,20 @@ let primitive_may_allocate : primitive -> locality_mode option = function
   | Pfield _ | Pfield_computed _ | Psetfield _ | Psetfield_computed _ -> None
   | Pfloatfield (_, _, m) -> Some m
   | Pufloatfield _ -> None
-  | Pmixedfield (_, shape, _) ->
-      Array.fold_left
-        (fun result (elt : locality_mode mixed_block_element) ->
-          match elt with
-          | Float_boxed mode -> (
-              match result with
-              | None -> Some mode
-              | Some result -> Some (join_locality_mode mode result)
-            )
-          | Value _
-          | Float64
-          | Float32
-          | Bits32
-          | Bits64
-          | Vec128
-          | Word -> None)
-        None
-        shape
+  | Pmixedfield (field, shape, _) -> (
+      if field < 0 || field >= Array.length shape then
+        Misc.fatal_errorf "primitive_may_allocate: field index out of bounds \
+          for Pmixedfield:@ %d" field;
+      match shape.(field) with
+      | Float_boxed mode -> Some mode
+      | Value _
+      | Float64
+      | Float32
+      | Bits32
+      | Bits64
+      | Vec128
+      | Word -> None
+  )
   | Psetfloatfield _ -> None
   | Psetufloatfield _ -> None
   | Psetmixedfield _ -> None
