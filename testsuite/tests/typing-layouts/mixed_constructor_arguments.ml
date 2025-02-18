@@ -39,7 +39,8 @@ type t_ext += A of float * float#
 Line 1, characters 14-33:
 1 | type t_ext += A of float * float#
                   ^^^^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* The fact that the float args aren't flat is evidenced by the fact this
@@ -48,21 +49,13 @@ Error: Extensible types can't have fields of unboxed type. Consider wrapping the
 type t_cstr_boxed_float_bad = A of float# * float
 
 [%%expect{|
-Line 1, characters 30-49:
-1 | type t_cstr_boxed_float_bad = A of float# * float
-                                  ^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+type t_cstr_boxed_float_bad = A of float# * float
 |}];;
 
 type t_cstr_boxed_float_bad_record = A of { x : float#; y : float }
 
 [%%expect{|
-Line 1, characters 44-55:
-1 | type t_cstr_boxed_float_bad_record = A of { x : float#; y : float }
-                                                ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type t_cstr_boxed_float_bad_record = A of { x : float#; y : float; }
 |}];;
 
 type t_ext += A of float# * float
@@ -71,8 +64,8 @@ type t_ext += A of float# * float
 Line 1, characters 14-33:
 1 | type t_ext += A of float# * float
                   ^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* You can't trick the type-checker by adding more constructors *)
@@ -81,11 +74,7 @@ type t_cstr_boxed_float_bad_multi_constr =
   | A of float# * float
 
 [%%expect{|
-Line 3, characters 2-23:
-3 |   | A of float# * float
-      ^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+type t_cstr_boxed_float_bad_multi_constr = Const | A of float# * float
 |}];;
 
 type t_cstr_boxed_float_bad_multi_constr_record =
@@ -93,11 +82,9 @@ type t_cstr_boxed_float_bad_multi_constr_record =
   | A of { x : float#; y : float }
 
 [%%expect{|
-Line 3, characters 11-22:
-3 |   | A of { x : float#; y : float }
-               ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type t_cstr_boxed_float_bad_multi_constr_record =
+    Const
+  | A of { x : float#; y : float; }
 |}];;
 
 type t_ext +=
@@ -108,8 +95,8 @@ type t_ext +=
 Line 3, characters 2-23:
 3 |   | A of float# * float
       ^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* When a non-float/float# field appears, [float]
@@ -118,22 +105,15 @@ type t_cstr_boxed_float_plus_more =
   | A of float# * float * int
 
 [%%expect{|
-Line 2, characters 2-29:
-2 |   | A of float# * float * int
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+type t_cstr_boxed_float_plus_more = A of float# * float * int
 |}];;
 
 type t_cstr_boxed_float_plus_more_record =
   | A of { x : float#; y : float; z : int }
 
 [%%expect{|
-Line 2, characters 11-22:
-2 |   | A of { x : float#; y : float; z : int }
-               ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type t_cstr_boxed_float_plus_more_record =
+    A of { x : float#; y : float; z : int; }
 |}];;
 
 type t_ext +=
@@ -143,8 +123,8 @@ type t_ext +=
 Line 2, characters 2-29:
 2 |   | A of float# * float * int
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* [float] appearing as a non-flat field in the value prefix. *)
@@ -166,29 +146,23 @@ type t_ext += A of float * float# * int
 Line 1, characters 14-39:
 1 | type t_ext += A of float * float# * int
                   ^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* The third field can't be flat because a non-float/float# field [d] appears.*)
 type t_cstr_multi_boxed_float_bad = A of float * float# * float * int
 
 [%%expect{|
-Line 1, characters 36-69:
-1 | type t_cstr_multi_boxed_float_bad = A of float * float# * float * int
-                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+type t_cstr_multi_boxed_float_bad = A of float * float# * float * int
 |}];;
 
 type t_cstr_multi_boxed_float_record_bad = A of { a : float; b : float#;
                                                   c : float; d : int; }
 
 [%%expect{|
-Line 1, characters 61-72:
-1 | type t_cstr_multi_boxed_float_record_bad = A of { a : float; b : float#;
-                                                                 ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "b",
-       but found boxed field, "c".
+type t_cstr_multi_boxed_float_record_bad =
+    A of { a : float; b : float#; c : float; d : int; }
 |}];;
 
 type t_ext += A of float * float# * float * int
@@ -197,29 +171,21 @@ type t_ext += A of float * float# * float * int
 Line 1, characters 14-47:
 1 | type t_ext += A of float * float# * float * int
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "float".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* String can't appear in the flat suffix *)
 type t_cstr_flat_string_bad1 = A of float# * string
 
 [%%expect{|
-Line 1, characters 31-51:
-1 | type t_cstr_flat_string_bad1 = A of float# * string
-                                   ^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "string".
+type t_cstr_flat_string_bad1 = A of float# * string
 |}];;
 
 type t_cstr_flat_string_record_bad1 = A of { x : float#; y : string }
 
 [%%expect{|
-Line 1, characters 45-56:
-1 | type t_cstr_flat_string_record_bad1 = A of { x : float#; y : string }
-                                                 ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type t_cstr_flat_string_record_bad1 = A of { x : float#; y : string; }
 |}];;
 
 type t_ext += A of float# * string
@@ -228,29 +194,22 @@ type t_ext += A of float# * string
 Line 1, characters 14-34:
 1 | type t_ext += A of float# * string
                   ^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "string".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* The string can't appear in the flat suffix. *)
 type t_cstr_flat_string_bad2 = A of float# * float# * string
 
 [%%expect{|
-Line 1, characters 31-60:
-1 | type t_cstr_flat_string_bad2 = A of float# * float# * string
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "string".
+type t_cstr_flat_string_bad2 = A of float# * float# * string
 |}];;
 
 type t_cstr_flat_string_record_bad2 = A of { x : float#; y : float#; z : string }
 
 [%%expect{|
-Line 1, characters 45-56:
-1 | type t_cstr_flat_string_record_bad2 = A of { x : float#; y : float#; z : string }
-                                                 ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "z".
+type t_cstr_flat_string_record_bad2 =
+    A of { x : float#; y : float#; z : string; }
 |}];;
 
 type t_ext += A of float# * float# * string
@@ -259,8 +218,8 @@ type t_ext += A of float# * float# * string
 Line 1, characters 14-43:
 1 | type t_ext += A of float# * float# * string
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "string".
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* The int [c] can appear in the flat suffix. *)
@@ -282,7 +241,8 @@ type t_ext += A of float# * float# * int
 Line 1, characters 14-40:
 1 | type t_ext += A of float# * float# * int
                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 type t_cstr_flat_int_multi =
@@ -328,7 +288,8 @@ type t_ext +=
 Line 2, characters 2-30:
 2 |   | A of float# * float# * int
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 (* Parameterized types *)
@@ -350,7 +311,8 @@ type ('a : float64) t_cstr_param_ext1 = ..
 Line 2, characters 29-45:
 2 | type 'a t_cstr_param_ext1 += A of string * 'a
                                  ^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 type ('a : float64, 'b : immediate) t_cstr_param2 = A of string * 'a * 'b
@@ -373,27 +335,20 @@ type ('a : float64, 'b : immediate) t_cstr_param_ext2 = ..
 Line 2, characters 35-56:
 2 | type ('a, 'b) t_cstr_param_ext2 += A of string * 'a * 'b;;
                                        ^^^^^^^^^^^^^^^^^^^^^
-Error: Extensible types can't have fields of unboxed type. Consider wrapping the unboxed fields in a record.
+Error: Extensible types can't have fields of unboxed type.
+       Consider wrapping the unboxed fields in a record.
 |}];;
 
 type 'a t_cstr_bad_value_after_float = C of float# * 'a
 
 [%%expect{|
-Line 1, characters 39-55:
-1 | type 'a t_cstr_bad_value_after_float = C of float# * 'a
-                                           ^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "'a".
+type 'a t_cstr_bad_value_after_float = C of float# * 'a
 |}];;
 
 type 'a t_cstr_bad_value_after_float_record = C of { x : float#; y : 'a }
 
 [%%expect{|
-Line 1, characters 53-64:
-1 | type 'a t_cstr_bad_value_after_float_record = C of { x : float#; y : 'a }
-                                                         ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type 'a t_cstr_bad_value_after_float_record = C of { x : float#; y : 'a; }
 |}];;
 
 (* Types with external mode are allowed in flat suffix *)
@@ -674,20 +629,13 @@ type ('a : any) t_gadt_any_bad =
   | A : float# * 'a tv -> 'a t_gadt_any_bad
 
 [%%expect{|
-Line 2, characters 2-43:
-2 |   | A : float# * 'a tv -> 'a t_gadt_any_bad
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Expected all flat constructor arguments after non-value argument, "
-       float#", but found boxed argument, "'a tv".
+type ('a : any) t_gadt_any_bad = A : float# * 'a tv -> 'a t_gadt_any_bad
 |}]
 
 type ('a : any) t_gadt_any_record_bad =
   | A : { x : float#; y : 'a tv } -> 'a t_gadt_any_record_bad
 
 [%%expect{|
-Line 2, characters 10-21:
-2 |   | A : { x : float#; y : 'a tv } -> 'a t_gadt_any_record_bad
-              ^^^^^^^^^^^
-Error: Expected all flat fields after non-value field, "x",
-       but found boxed field, "y".
+type ('a : any) t_gadt_any_record_bad =
+    A : { x : float#; y : 'a tv; } -> 'a t_gadt_any_record_bad
 |}]
