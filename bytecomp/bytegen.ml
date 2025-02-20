@@ -509,11 +509,18 @@ let comp_primitive stack_info p sz args =
       Kccall(indexing_primitive index_kind "caml_bytes_getf32", 2)
   | Pbytes_load_64 { index_kind; _ } ->
       Kccall(indexing_primitive index_kind "caml_bytes_get64", 2)
-  | Parraylength _ -> Kvectlength
+  (* Array reinterpret operations are not yet supported in bytecode *)
+  | Parrayrefs (_, _, _, _, Preinterp_access)
+  | Parrayrefu (_, _, _, _, Preinterp_access)
+  | Parraysets (_, _, _, Preinterp_access)
+  | Parraysetu (_, _, _, Preinterp_access) ->
+      Misc.fatal_error "Array reinterpret operations are not yet supported \
+        in bytecode.  Please report this error to the Jane Street compilers \
+        team if their absence is causing difficulty."
   (* In bytecode, nothing is ever actually stack-allocated, so we ignore the
      array modes (allocation for [Parrayref{s,u}], modification for
      [Parrayset{s,u}]). *)
-  (* XXX think about reinterpret cases for bytecode *)
+  | Parraylength _ -> Kvectlength
   | Parrayrefs (Pgenarray_ref _, _, index_kind, _, _)
   | Parrayrefs ((Paddrarray_ref | Pintarray_ref | Pfloatarray_ref _
                 | Punboxedfloatarray_ref (Unboxed_float64 | Unboxed_float32)

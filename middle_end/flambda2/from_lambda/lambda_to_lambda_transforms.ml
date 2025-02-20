@@ -126,7 +126,8 @@ let initialize_array0 env loc ~length array_kind array_set_kind width
     | Thirty_two { zero_init } ->
       let zero_init_last_field =
         L.Lprim
-          ( Parraysetu (array_set_kind, array_kind, Ptagged_int_index, Pnormal_access),
+          ( Parraysetu
+              (array_set_kind, array_kind, Ptagged_int_index, Pnormal_access),
             (* [Popaque] is used to conceal the out-of-bounds write. *)
             [Lprim (Popaque L.layout_unit, [Lvar array], loc); length; zero_init],
             loc )
@@ -155,8 +156,8 @@ let initialize_array0 env loc ~length array_kind array_set_kind width
       (L.Lprim (Psubint, [length; Lconst (L.const_int 1)], loc))
       Upto
       (Lprim
-         ( Parraysetu (array_set_kind, array_kind, Ptagged_int_index,
-                       Pnormal_access),
+         ( Parraysetu
+             (array_set_kind, array_kind, Ptagged_int_index, Pnormal_access),
            [Lvar array; Lvar index; init],
            loc ))
   in
@@ -509,8 +510,11 @@ let arrayblit env ~(src_mutability : L.mutable_flag) array_kind
       in
       rec_catch_for_for_loop env loc src_index start_pos end_pos direction
         (Lprim
-           ( Parraysetu (dst_array_set_kind, array_kind, Ptagged_int_index,
-                         Pnormal_access),
+           ( Parraysetu
+               ( dst_array_set_kind,
+                 array_kind,
+                 Ptagged_int_index,
+                 Pnormal_access ),
              [ Lvar dst;
                Lprim
                  ( Paddint,
@@ -522,9 +526,9 @@ let arrayblit env ~(src_mutability : L.mutable_flag) array_kind
                        array_kind,
                        Ptagged_int_index,
                        (match src_mutability with
-                        | Immutable | Immutable_unique -> Immutable
-                        | Mutable -> Mutable),
-                       Pnormal_access),
+                       | Immutable | Immutable_unique -> Immutable
+                       | Mutable -> Mutable),
+                       Pnormal_access ),
                    [Lvar src; Lvar src_index],
                    loc ) ],
              loc ))
@@ -704,7 +708,11 @@ let transform_primitive env (prim : L.primitive) args loc =
   match prim with
   | Pmakearray_dynamic (lambda_array_kind, mode, has_init) ->
     makearray_dynamic env lambda_array_kind mode has_init args loc
-  | Parrayblit { src_mutability; array_kind; dst_array_set_kind } ->
+  | Parrayblit
+      { src_mutability;
+        array_kind;
+        dst_array_set_kind;
+      } ->
     arrayblit env ~src_mutability array_kind ~dst_array_set_kind args loc
   | _ -> env, transform_primitive0 env prim args loc
   [@@ocaml.warning "-fragile-match"]
