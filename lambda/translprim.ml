@@ -496,19 +496,10 @@ let lookup_primitive loc ~poly_mode ~poly_sort pos p =
       Primitive
         ((Parrayrefs (gen_array_ref_kind mode, gen_array_kind,
           Ptagged_int_index, Mutable, Pnormal_access)), 2)
-    | "%magic_reinterp_array_safe_get" ->
-      Primitive
-        ((Parrayrefs (gen_array_ref_kind mode, gen_array_kind,
-          Ptagged_int_index, Mutable, Preinterp_access)), 2)
     | "%array_safe_set" ->
       Primitive
         (Parraysets (gen_array_set_kind (get_first_arg_mode ()), gen_array_kind,
           Ptagged_int_index, Pnormal_access),
-         3)
-    | "%magic_reinterp_array_safe_set" ->
-      Primitive
-        (Parraysets (gen_array_set_kind (get_first_arg_mode ()), gen_array_kind,
-          Ptagged_int_index, Preinterp_access),
          3)
     | "%array_unsafe_get" ->
       Primitive
