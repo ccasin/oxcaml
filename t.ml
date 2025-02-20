@@ -1,5 +1,8 @@
 open Stdlib_upstream_compatible
 
+external[@layout_poly] unsafe_set : ('a : any_non_null). 'a array -> int -> 'a -> unit =
+  "%array_unsafe_set"
+
 module I64 = struct
   type elt = int64#
 
@@ -14,9 +17,6 @@ module I64 = struct
   external create_uninitialized
     :  len:int -> t
     = "caml_make_unboxed_int64_vect_bytecode" "caml_make_unboxed_int64_vect"
-
-  external unsafe_set : t -> int -> elt -> unit =
-    "%array_unsafe_set"
 
   let init len ~f =
     let r = create_uninitialized ~len in
@@ -75,13 +75,10 @@ module Floatuarray = struct
   external[@layout_poly] make_vect : ('a : any_non_null) . int -> 'a -> 'a array =
     "%makearray_dynamic"
 
-  external[@layout_poly] set :
-    ('a : any_non_null) . 'a array -> int -> 'a -> unit = "%array_unsafe_set"
-
   let init len ~f =
     let r = make_vect len (f 0) in
     for i = 0 to len - 1 do
-      set r i (f i)
+      unsafe_set r i (f i)
     done;
     r
   ;;
