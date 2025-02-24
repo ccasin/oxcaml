@@ -103,77 +103,77 @@ let check_reachable_words expected actual message =
 (* Type declarations *)
 type t0 = { mutable float0 : float; mutable float_u1 : float# }
 type t1 = { float0 : float; mutable float_u1 : float# }
-type t2 = { mutable float0 : float; float_u1 : float# }
+type t2 = { float_u1 : float#; mutable float0 : float }
 type t3 = { float0 : float; float_u1 : float# }
 type t4 = { mutable float_u0 : float#; mutable float1 : float }
 type t5 = { float_u0 : float#; mutable float1 : float }
-type t6 = { mutable float_u0 : float#; float1 : float }
+type t6 = { float1 : float; mutable float_u0 : float# }
 type t7 = { float_u0 : float#; float1 : float }
-type t8 = { mutable float0 : float; mutable float_u1 : float#; mutable float_u2 : float# }
+type t8 = { mutable float_u2 : float#; mutable float0 : float; mutable float_u1 : float# }
 type t9 = { float0 : float; mutable float_u1 : float#; mutable float_u2 : float# }
-type t10 = { mutable float0 : float; float_u1 : float#; mutable float_u2 : float# }
-type t11 = { float0 : float; float_u1 : float#; mutable float_u2 : float# }
-type t12 = { mutable float_u0 : float#; mutable float1 : float; mutable float_u2 : float# }
-type t13 = { float_u0 : float#; mutable float1 : float; mutable float_u2 : float# }
-type t14 = { mutable float0 : float; mutable float1 : float; mutable float_u2 : float# }
-type t15 = { float0 : float; mutable float1 : float; mutable float_u2 : float# }
-type t16 = { mutable float_u0 : float#; float1 : float; mutable float_u2 : float# }
-type t17 = { float_u0 : float#; float1 : float; mutable float_u2 : float# }
+type t10 = { float_u1 : float#; mutable float_u2 : float#; mutable float0 : float }
+type t11 = { mutable float_u2 : float#; float_u1 : float#; float0 : float }
+type t12 = { mutable float_u2 : float#; mutable float1 : float; mutable float_u0 : float# }
+type t13 = { mutable float_u2 : float#; float_u0 : float#; mutable float1 : float }
+type t14 = { mutable float_u2 : float#; mutable float0 : float; mutable float1 : float }
+type t15 = { mutable float1 : float; mutable float_u2 : float#; float0 : float }
+type t16 = { mutable float_u2 : float#; float1 : float; mutable float_u0 : float# }
+type t17 = { mutable float_u2 : float#; float_u0 : float#; float1 : float }
 type t18 = { mutable int64x2_u0 : int64x2# }
-type t19 = { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+type t19 = { mutable int64x2_u1 : int64x2#; mutable str0 : string }
 type t20 = { int64x2_u0 : int64x2# }
-type t21 = { str0 : string; mutable int64x2_u1 : int64x2# }
-type t22 = { mutable str0 : string; int64x2_u1 : int64x2# }
-type t23 = { mutable float0 : float; mutable int64x2_u1 : int64x2# }
+type t21 = { mutable int64x2_u1 : int64x2#; str0 : string }
+type t22 = { int64x2_u1 : int64x2#; mutable str0 : string }
+type t23 = { mutable int64x2_u1 : int64x2#; mutable float0 : float }
 type t24 = { str0 : string; int64x2_u1 : int64x2# }
 type t25 = { mutable str0 : string; mutable float_u1 : float# }
 type t26 = { float0 : float; mutable int64x2_u1 : int64x2# }
-type t27 = { mutable float0 : float; int64x2_u1 : int64x2# }
-type t28 = { str0 : string; mutable float_u1 : float# }
+type t27 = { int64x2_u1 : int64x2#; mutable float0 : float }
+type t28 = { mutable float_u1 : float#; str0 : string }
 type t29 = { mutable str0 : string; float_u1 : float# }
 type t30 = { mutable float32_u0 : float32# }
-type t31 = { mutable str0 : string; mutable str1 : string; mutable int64x2_u2 : int64x2# }
+type t31 = { mutable str0 : string; mutable int64x2_u2 : int64x2#; mutable str1 : string }
 type t32 = { float0 : float; int64x2_u1 : int64x2# }
-type t33 = { str0 : string; float_u1 : float# }
-type t34 = { mutable str0 : string; mutable float32_u1 : float32# }
+type t33 = { float_u1 : float#; str0 : string }
+type t34 = { mutable float32_u1 : float32#; mutable str0 : string }
 type t35 = { float32_u0 : float32# }
-type t36 = { str0 : string; mutable str1 : string; mutable int64x2_u2 : int64x2# }
-type t37 = { mutable str0 : string; mutable str1 : string; int64x2_u2 : int64x2# }
+type t36 = { mutable str1 : string; mutable int64x2_u2 : int64x2#; str0 : string }
+type t37 = { int64x2_u2 : int64x2#; mutable str0 : string; mutable str1 : string }
 type t38 = { str0 : string; mutable float32_u1 : float32# }
 type t39 = { mutable str0 : string; float32_u1 : float32# }
 type t40 = { mutable i32_0 : int32# }
-type t41 = { mutable float0 : float; mutable str1 : string; mutable int64x2_u2 : int64x2# }
-type t42 = { str0 : string; mutable str1 : string; int64x2_u2 : int64x2# }
-type t43 = { mutable str0 : string; mutable str1 : string; mutable float_u2 : float# }
-type t44 = { mutable float0 : float; mutable float32_u1 : float32# }
-type t45 = { str0 : string; float32_u1 : float32# }
-type t46 = { mutable str0 : string; mutable i32_1 : int32# }
+type t41 = { mutable float0 : float; mutable int64x2_u2 : int64x2#; mutable str1 : string }
+type t42 = { mutable str1 : string; int64x2_u2 : int64x2#; str0 : string }
+type t43 = { mutable float_u2 : float#; mutable str1 : string; mutable str0 : string }
+type t44 = { mutable float32_u1 : float32#; mutable float0 : float }
+type t45 = { float32_u1 : float32#; str0 : string }
+type t46 = { mutable i32_1 : int32#; mutable str0 : string }
 type t47 = { i32_0 : int32# }
-type t48 = { float0 : float; mutable str1 : string; mutable int64x2_u2 : int64x2# }
-type t49 = { mutable float0 : float; mutable str1 : string; int64x2_u2 : int64x2# }
-type t50 = { str0 : string; mutable str1 : string; mutable float_u2 : float# }
-type t51 = { mutable str0 : string; mutable str1 : string; float_u2 : float# }
-type t52 = { float0 : float; mutable float32_u1 : float32# }
+type t48 = { mutable str1 : string; float0 : float; mutable int64x2_u2 : int64x2# }
+type t49 = { mutable str1 : string; int64x2_u2 : int64x2#; mutable float0 : float }
+type t50 = { str0 : string; mutable float_u2 : float#; mutable str1 : string }
+type t51 = { mutable str1 : string; float_u2 : float#; mutable str0 : string }
+type t52 = { mutable float32_u1 : float32#; float0 : float }
 type t53 = { mutable float0 : float; float32_u1 : float32# }
-type t54 = { str0 : string; mutable i32_1 : int32# }
-type t55 = { mutable str0 : string; i32_1 : int32# }
+type t54 = { mutable i32_1 : int32#; str0 : string }
+type t55 = { i32_1 : int32#; mutable str0 : string }
 type t56 = { mutable i64_0 : int64# }
-type t57 = { mutable imm0 : int; mutable str1 : string; mutable int64x2_u2 : int64x2# }
-type t58 = { float0 : float; mutable str1 : string; int64x2_u2 : int64x2# }
-type t59 = { mutable float0 : float; mutable str1 : string; mutable float_u2 : float# }
-type t60 = { str0 : string; mutable str1 : string; float_u2 : float# }
-type t61 = { mutable str0 : string; mutable str1 : string; mutable float32_u2 : float32# }
-type t62 = { float0 : float; float32_u1 : float32# }
-type t63 = { mutable float0 : float; mutable i32_1 : int32# }
+type t57 = { mutable int64x2_u2 : int64x2#; mutable str1 : string; mutable imm0 : int }
+type t58 = { mutable str1 : string; float0 : float; int64x2_u2 : int64x2# }
+type t59 = { mutable str1 : string; mutable float0 : float; mutable float_u2 : float# }
+type t60 = { mutable str1 : string; str0 : string; float_u2 : float# }
+type t61 = { mutable float32_u2 : float32#; mutable str1 : string; mutable str0 : string }
+type t62 = { float32_u1 : float32#; float0 : float }
+type t63 = { mutable i32_1 : int32#; mutable float0 : float }
 type t64 = { str0 : string; i32_1 : int32# }
-type t65 = { mutable str0 : string; mutable i64_1 : int64# }
+type t65 = { mutable i64_1 : int64#; mutable str0 : string }
 type t66 = { i64_0 : int64# }
-type t67 = { imm0 : int; mutable str1 : string; mutable int64x2_u2 : int64x2# }
-type t68 = { mutable imm0 : int; mutable str1 : string; int64x2_u2 : int64x2# }
-type t69 = { float0 : float; mutable str1 : string; mutable float_u2 : float# }
-type t70 = { mutable float0 : float; mutable str1 : string; float_u2 : float# }
-type t71 = { str0 : string; mutable str1 : string; mutable float32_u2 : float32# }
-type t72 = { mutable str0 : string; mutable str1 : string; float32_u2 : float32# }
+type t67 = { mutable int64x2_u2 : int64x2#; imm0 : int; mutable str1 : string }
+type t68 = { mutable str1 : string; int64x2_u2 : int64x2#; mutable imm0 : int }
+type t69 = { float0 : float; mutable float_u2 : float#; mutable str1 : string }
+type t70 = { mutable float0 : float; float_u2 : float#; mutable str1 : string }
+type t71 = { str0 : string; mutable float32_u2 : float32#; mutable str1 : string }
+type t72 = { float32_u2 : float32#; mutable str1 : string; mutable str0 : string }
 type t73 = { float0 : float; mutable i32_1 : int32# }
 type t74 = { mutable float0 : float; i32_1 : int32# }
 type t75 =
@@ -200,7 +200,7 @@ type t82 =
   | B of int64x2#
   | C of int64x2#
 type t83 =
-  | A of string * int64x2#
+  | A of int64x2# * string
   | B of int64x2#
 type t84 =
   | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
@@ -217,7 +217,7 @@ type t87 =
   | B of int64x2#
   | C of int64x2#
 type t88 =
-  | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
   | B of int64x2#
 type t89 =
   | A of float#
@@ -244,7 +244,7 @@ type t95 =
   | A of { int64x2_u0 : int64x2# }
 type t96 =
   | A of int64x2#
-  | B of string * int64x2#
+  | B of int64x2# * string
 type t97 =
   | A of { mutable int64x2_u0 : int64x2# }
   | B of { mutable int64x2_u0 : int64x2# }
@@ -255,7 +255,7 @@ type t98 =
   | C of int64x2#
   | D of int64x2#
 type t99 =
-  | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
   | B of { mutable int64x2_u0 : int64x2# }
 type t100 =
   | A of float#
@@ -265,7 +265,7 @@ type t101 =
   | A of { int64x2_u0 : int64x2# }
   | B of int64x2#
 type t102 =
-  | A of float * int64x2#
+  | A of int64x2# * float
 type t103 =
   | A of int64x2#
   | B of int64x2#
@@ -304,10 +304,10 @@ type t112 =
   | B of int64x2#
   | C of { mutable int64x2_u0 : int64x2# }
 type t113 =
-  | A of string * int64x2#
+  | A of int64x2# * string
   | B of string * int64x2#
 type t114 =
-  | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
   | B of { mutable int64x2_u0 : int64x2# }
   | C of int64x2#
 type t115 =
@@ -319,17 +319,17 @@ type t116 =
   | A of { int64x2_u0 : int64x2# }
   | B of { mutable int64x2_u0 : int64x2# }
 type t117 =
-  | A of float * int64x2#
+  | A of int64x2# * float
   | B of int64x2#
   | C of int64x2#
 type t118 =
   | A of { str0 : string; mutable int64x2_u1 : int64x2# }
   | B of int64x2#
 type t119 =
-  | A of string * float#
+  | A of float# * string
 type t120 =
   | A of int64x2#
-  | B of string * int64x2#
+  | B of int64x2# * string
   | C of int64x2#
 type t121 =
   | A of { mutable int64x2_u0 : int64x2# }
@@ -337,11 +337,11 @@ type t121 =
   | C of int64x2#
   | D of int64x2#
 type t122 =
-  | A of string * int64x2#
+  | A of int64x2# * string
   | B of int64x2#
   | C of { mutable int64x2_u0 : int64x2# }
 type t123 =
-  | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
   | B of string * int64x2#
 type t124 =
   | A of float#
@@ -356,28 +356,28 @@ type t126 =
   | A of float * int64x2#
   | B of { mutable int64x2_u0 : int64x2# }
 type t127 =
-  | A of { str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; str0 : string }
   | B of int64x2#
   | C of int64x2#
 type t128 =
-  | A of string * float#
+  | A of float# * string
   | B of int64x2#
 type t129 =
-  | A of { mutable str0 : string; int64x2_u1 : int64x2# }
+  | A of { int64x2_u1 : int64x2#; mutable str0 : string }
 type t130 =
   | A of int64x2#
-  | B of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | B of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
 type t131 =
   | A of { mutable int64x2_u0 : int64x2# }
-  | B of string * int64x2#
+  | B of int64x2# * string
   | C of int64x2#
 type t132 =
-  | A of string * int64x2#
+  | A of int64x2# * string
   | B of { mutable int64x2_u0 : int64x2# }
   | C of int64x2#
   | D of int64x2#
 type t133 =
-  | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | A of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
   | B of int64x2#
   | C of { mutable int64x2_u0 : int64x2# }
 type t134 =
@@ -388,7 +388,7 @@ type t135 =
   | B of { mutable int64x2_u0 : int64x2# }
   | C of int64x2#
 type t136 =
-  | A of float * int64x2#
+  | A of int64x2# * float
   | B of int64x2#
   | C of int64x2#
   | D of int64x2#
@@ -396,11 +396,11 @@ type t137 =
   | A of { str0 : string; mutable int64x2_u1 : int64x2# }
   | B of { mutable int64x2_u0 : int64x2# }
 type t138 =
-  | A of string * float#
+  | A of float# * string
   | B of int64x2#
   | C of int64x2#
 type t139 =
-  | A of { mutable str0 : string; int64x2_u1 : int64x2# }
+  | A of { int64x2_u1 : int64x2#; mutable str0 : string }
   | B of int64x2#
 type t140 =
   | A of float32#
@@ -412,10 +412,10 @@ type t141 =
   | E of int64x2#
 type t142 =
   | A of { mutable int64x2_u0 : int64x2# }
-  | B of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
+  | B of { mutable int64x2_u1 : int64x2#; mutable str0 : string }
 type t143 =
-  | A of string * int64x2#
-  | B of string * int64x2#
+  | A of int64x2# * string
+  | B of int64x2# * string
   | C of int64x2#
 type t144 =
   | A of { mutable str0 : string; mutable int64x2_u1 : int64x2# }
@@ -428,7 +428,7 @@ type t145 =
   | C of { mutable int64x2_u0 : int64x2# }
 type t146 =
   | A of { int64x2_u0 : int64x2# }
-  | B of string * int64x2#
+  | B of int64x2# * string
 type t147 =
   | A of float * int64x2#
   | B of { mutable int64x2_u0 : int64x2# }
