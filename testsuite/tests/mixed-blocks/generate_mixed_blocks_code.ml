@@ -356,7 +356,7 @@ module Mixed_record = struct
           in
           i+1, field)
     in
-    let fields = prefix_fields @ suffix_fields in
+    let fields = shuffle (prefix_fields @ suffix_fields) in
     { fields; index }
   ;;
 
@@ -366,7 +366,7 @@ module Mixed_record = struct
   let fields_to_type_decl fields =
     String.concat
       ~sep:"; "
-      (List.map (shuffle fields) ~f:(fun { type_; name; mutable_ } ->
+      (List.map fields ~f:(fun { type_; name; mutable_ } ->
            sprintf
              "%s%s : %s"
              (if mutable_ then "mutable " else "")
@@ -429,7 +429,7 @@ module Mixed_variant = struct
               (Nonempty_list.to_list cstr_suffix)
               ~f:flat_element_to_type
           in
-          Args_tuple (prefix_args @ suffix_args)
+          Args_tuple (shuffle (prefix_args @ suffix_args))
       | Cstr_record record ->
           let { fields; _ } : Mixed_record.t = Mixed_record.of_block index record in
           Args_record fields
@@ -452,7 +452,7 @@ module Mixed_variant = struct
       cstr.name
       (match cstr.args with
        | Args_tuple args ->
-           String.concat ~sep:" * " (List.map (shuffle args) ~f:type_to_string)(*XXX*)
+           String.concat ~sep:" * " (List.map args ~f:type_to_string)
        | Args_record fields ->
            sprintf "{ %s }" (Mixed_record.fields_to_type_decl fields))
   ;;
