@@ -212,7 +212,7 @@ let rec declare_const acc dbg (const : Lambda.structured_constant) =
       consts |> Array.of_list
       |> Mixed_block_shape.reorder_array shape
       |> Array.mapi (fun i c ->
-             match Mixed_block_shape.get shape i with
+             match Mixed_block_shape.get_reordered shape i with
              | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word ->
                c
              | Float_boxed _ -> unbox_float_constant c)

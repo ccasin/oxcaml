@@ -1456,7 +1456,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     let args =
       List.mapi
         (fun i arg ->
-          match Mixed_block_shape.get shape i with
+          match Mixed_block_shape.get_reordered shape i with
           | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word -> arg
           | Float_boxed _ -> unbox_float arg)
         args
@@ -1960,7 +1960,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     let mutability = convert_field_read_semantics sem in
     let block_access : P.Block_access_kind.t =
       let field_kind : P.Mixed_block_access_field_kind.t =
-        match Mixed_block_shape.get shape field with
+        match Mixed_block_shape.get_reordered shape field with
         | Value value_kind ->
           Value_prefix
             (convert_block_access_field_kind_from_value_kind value_kind)
@@ -1979,7 +1979,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
       Unary
         (Block_load { kind = block_access; mut = mutability; field = imm }, arg)
     in
-    match Mixed_block_shape.get shape field with
+    match Mixed_block_shape.get_reordered shape field with
     | Float_boxed (mode : Lambda.locality_mode) ->
       [box_float mode block_access ~current_region]
     | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word ->
@@ -2028,7 +2028,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     let block_access : P.Block_access_kind.t =
       Mixed
         { field_kind =
-            (match Mixed_block_shape.get shape field with
+            (match Mixed_block_shape.get_reordered shape field with
             | Value (value_kind : Lambda.value_kind) ->
               P.Mixed_block_access_field_kind.Value_prefix
                 (convert_block_access_field_kind_from_value_kind value_kind)
@@ -2036,7 +2036,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
             | Word ->
               Flat_suffix
                 (K.Flat_suffix_element.from_lambda
-                   (Mixed_block_shape.get shape field)));
+                   (Mixed_block_shape.get_reordered shape field)));
           shape =
             K.Mixed_block_shape.from_lambda
               (Mixed_block_shape.reordered_shape shape);
@@ -2046,7 +2046,7 @@ let convert_lprim ~big_endian (prim : L.primitive) (args : Simple.t list list)
     in
     let init_or_assign = convert_init_or_assign initialization_or_assignment in
     let value : H.simple_or_prim =
-      match Mixed_block_shape.get shape field with
+      match Mixed_block_shape.get_reordered shape field with
       | Value _ | Float64 | Float32 | Bits32 | Bits64 | Vec128 | Word -> value
       | Float_boxed _ -> unbox_float value
     in

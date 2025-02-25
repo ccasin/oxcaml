@@ -31,7 +31,9 @@ type subst = int array
 type 'a shape = 'a Lambda.mixed_block_element array
 
 type 'a t =
-  { original_shape : 'a shape;
+  { (* CR-soon xclerc for xclerc: once the nesting/flatenning work is done,
+       revisit this record to only keep the fields actually needed. *)
+    original_shape : 'a shape;
     prefix : 'a shape;
     suffix : 'a shape;
     reordered_shape : 'a shape;
@@ -85,11 +87,11 @@ let reorder_array t src =
     done;
     dst
 
-let get t i = t.reordered_shape.(i)
+let get_reordered t i = t.reordered_shape.(i)
 
-let prefix t = t.prefix
+let value_prefix t = t.prefix
 
-let suffix t = t.suffix
+let flat_suffix t = t.suffix
 
 let value_prefix_len t = Array.length t.prefix
 

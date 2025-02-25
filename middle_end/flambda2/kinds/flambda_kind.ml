@@ -306,11 +306,11 @@ module Mixed_block_shape = struct
   let from_lambda (shape : Lambda.mixed_block_shape) : t =
     let shape = Mixed_block_shape.of_mixed_block_elements shape in
     let value_prefix_kinds =
-      Array.map (fun _ -> value) (Mixed_block_shape.prefix shape)
+      Array.map (fun _ -> value) (Mixed_block_shape.value_prefix shape)
     in
     let flat_suffix =
       Array.map Flat_suffix_element0.from_lambda
-        (Mixed_block_shape.suffix shape)
+        (Mixed_block_shape.flat_suffix shape)
     in
     let flat_suffix_kinds = Array.map Flat_suffix_element0.kind flat_suffix in
     { flat_suffix;
