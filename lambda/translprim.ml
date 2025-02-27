@@ -505,7 +505,7 @@ let lookup_primitive loc ~poly_mode ~poly_sort pos p =
       Primitive
         (Parrayrefu (gen_array_ref_kind mode, gen_array_kind,
           Ptagged_int_index, Mutable, Pnormal_access), 2)
-    | "%magic_reinterp_array_unsafe_get" ->
+    | "%obj_reinterp_array_unsafe_get" ->
       Primitive
         (Parrayrefu (gen_array_ref_kind mode, gen_array_kind,
           Ptagged_int_index, Mutable, Preinterp_access), 2)
@@ -514,7 +514,7 @@ let lookup_primitive loc ~poly_mode ~poly_sort pos p =
         ((Parraysetu (gen_array_set_kind (get_first_arg_mode ()),
           gen_array_kind, Ptagged_int_index, Pnormal_access)),
         3)
-    | "%magic_reinterp_array_unsafe_set" ->
+    | "%obj_reinterp_array_unsafe_set" ->
       Primitive
         ((Parraysetu (gen_array_set_kind (get_first_arg_mode ()),
           gen_array_kind, Ptagged_int_index, Preinterp_access)),

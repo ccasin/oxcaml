@@ -116,10 +116,10 @@ let for_type n t =
   line "  type t = %s" t.array_type;
   line {|
   external[@layout_poly] reinterp_get :
-    ('a : any). t -> int -> 'a = "%%magic_reinterp_array_unsafe_get"
+    ('a : any). t -> int -> 'a = "%%obj_reinterp_array_unsafe_get"
 
   external[@layout_poly] reinterp_set :
-    ('a : any). t -> int -> 'a -> unit = "%%magic_reinterp_array_unsafe_set"
+    ('a : any). t -> int -> 'a -> unit = "%%obj_reinterp_array_unsafe_set"
 
   |};
   line "  let a = %s %d ~f:(fun i -> %s i)" t.init n t.array_elt_of_int;
@@ -143,7 +143,7 @@ let main n =
  {
    native;
  }|};
-  (* XXX bytecode broken now. *)
+ (* CR ccasinghino: In the future, this may work in bytecode. *)
  (*  line {| {
   *   bytecode;
   * }|}; *)

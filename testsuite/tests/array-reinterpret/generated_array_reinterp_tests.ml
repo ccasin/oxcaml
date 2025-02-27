@@ -33,10 +33,10 @@ module Int64 = struct
   type t = int64# array
 
   external[@layout_poly] reinterp_get :
-    ('a : any). t -> int -> 'a = "%magic_reinterp_array_unsafe_get"
+    ('a : any). t -> int -> 'a = "%obj_reinterp_array_unsafe_get"
 
   external[@layout_poly] reinterp_set :
-    ('a : any). t -> int -> 'a -> unit = "%magic_reinterp_array_unsafe_set"
+    ('a : any). t -> int -> 'a -> unit = "%obj_reinterp_array_unsafe_set"
 
   
   let a = init_int64 21 ~f:(fun i -> Int64_u.of_int i)
@@ -218,10 +218,10 @@ module Float64 = struct
   type t = floatarray
 
   external[@layout_poly] reinterp_get :
-    ('a : any). t -> int -> 'a = "%magic_reinterp_array_unsafe_get"
+    ('a : any). t -> int -> 'a = "%obj_reinterp_array_unsafe_get"
 
   external[@layout_poly] reinterp_set :
-    ('a : any). t -> int -> 'a -> unit = "%magic_reinterp_array_unsafe_set"
+    ('a : any). t -> int -> 'a -> unit = "%obj_reinterp_array_unsafe_set"
 
   
   let a = Float.ArrayLabels.init 21 ~f:(fun i -> Float.of_int i)
@@ -403,10 +403,10 @@ module Strings = struct
   type t = string array
 
   external[@layout_poly] reinterp_get :
-    ('a : any). t -> int -> 'a = "%magic_reinterp_array_unsafe_get"
+    ('a : any). t -> int -> 'a = "%obj_reinterp_array_unsafe_get"
 
   external[@layout_poly] reinterp_set :
-    ('a : any). t -> int -> 'a -> unit = "%magic_reinterp_array_unsafe_set"
+    ('a : any). t -> int -> 'a -> unit = "%obj_reinterp_array_unsafe_set"
 
   
   let a = ArrayLabels.init 21 ~f:(fun i -> string_of_int i)

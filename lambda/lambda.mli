@@ -443,7 +443,7 @@ and array_index_kind =
 
 (** [array_access_reinterp] records whether the user wrote a normal array access
     like ["%array_safe_get"] or one of the special reinterpret primitives like
-    ["%magic_reinterp_safe_get"]. These are both the same lambda primitive,
+    ["%obj_reinterp_safe_get"]. These are both the same lambda primitive,
     which has an argument of this type to distinguish them. This information is
     needed for checks during specialization ([Translprim.specialize_primitive]),
     but is not needed by the translation to flambda2. *)
