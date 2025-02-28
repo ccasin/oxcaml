@@ -64,14 +64,6 @@ type mixed_product_violation =
         max_value_prefix_len : int;
         mixed_product_kind : Mixed_product_kind.t;
       }
-  | Flat_field_expected of
-      { boxed_lbl : Ident.t;
-        non_value_lbl : Ident.t;
-      }
-  | Flat_constructor_arg_expected of
-      { boxed_arg : type_expr;
-        non_value_arg : type_expr;
-      }
   | Insufficient_level of
       { required_layouts_level : Language_extension.maturity;
         mixed_product_kind : Mixed_product_kind.t;
@@ -1538,14 +1530,6 @@ let update_constructor_representation
             arg_types_and_modes arg_jkinds
         in
         Element_repr.mixed_product_shape loc arg_reprs Cstr_tuple
-          (* ~on_flat_field_expected:(fun ~non_value ~boxed ->
-           *     let violation =
-           *       Flat_constructor_arg_expected
-           *         { non_value_arg = non_value;
-           *           boxed_arg = boxed;
-           *         }
-           *     in
-           *     raise (Error (loc, Illegal_mixed_product violation))) *)
     | Cstr_record fields ->
         let arg_reprs =
           List.map2 (fun ld arg_jkind ->
@@ -1555,15 +1539,6 @@ let update_constructor_representation
             fields arg_jkinds
         in
         Element_repr.mixed_product_shape loc arg_reprs Cstr_record
-          (* ~on_flat_field_expected:(fun ~non_value ~boxed ->
-           *   let violation =
-           *     Flat_field_expected
-           *       { non_value_lbl = non_value.Types.ld_id;
-           *         boxed_lbl = boxed.Types.ld_id;
-           *       }
-           *   in
-           *   raise (Error (non_value.Types.ld_loc,
-           *                 Illegal_mixed_product violation))) *)
   in
   match flat_suffix with
   | None -> Constructor_uniform_value
@@ -1678,15 +1653,6 @@ let update_decl_jkind env id decl =
         | { non_float64_unboxed_fields = true } ->
             let shape =
               Element_repr.mixed_product_shape loc reprs Record
-                (* ~on_flat_field_expected:(fun ~non_value ~boxed ->
-                 *   let violation =
-                 *     Flat_field_expected
-                 *       { non_value_lbl = non_value.Types.ld_id;
-                 *         boxed_lbl = boxed.Types.ld_id;
-                 *       }
-                 *   in
-                 *   raise (Error (boxed.Types.ld_loc,
-                 *                 Illegal_mixed_product violation))) *)
             in
             let shape =
               match shape with
@@ -4247,18 +4213,6 @@ let report_error ppf = function
       struct_desc
   | Illegal_mixed_product error -> begin
       match error with
-      | Flat_field_expected { boxed_lbl; non_value_lbl } ->
-          fprintf ppf
-            "@[Expected all flat fields after non-value field, %a,@]@,@ \
-             @[but found boxed field, %a.@]"
-            Style.inline_code (Ident.name non_value_lbl)
-            Style.inline_code (Ident.name boxed_lbl)
-      | Flat_constructor_arg_expected { boxed_arg; non_value_arg } ->
-          fprintf ppf
-            "@[Expected all flat constructor arguments after non-value \
-             argument, %a,@]@,@ @[but found boxed argument, %a.@]"
-            (Style.as_inline_code Printtyp.type_expr) non_value_arg
-            (Style.as_inline_code Printtyp.type_expr) boxed_arg
       | Runtime_support_not_enabled mixed_product_kind ->
           fprintf ppf
             "@[This OCaml runtime doesn't support mixed %s.@]"
