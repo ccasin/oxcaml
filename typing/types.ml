@@ -515,6 +515,7 @@ and mixed_block_element =
   | Bits64
   | Vec128
   | Word
+  | Product of mixed_product_shape
 
 and mixed_product_shape = mixed_block_element array
 
@@ -831,19 +832,24 @@ let compare_tag t1 t2 =
   | Extension _, Null -> -1
   | Null, Extension _ -> 1
 
-let equal_mixed_block_element e1 e2 =
+let rec equal_mixed_block_element e1 e2 =
   match e1, e2 with
   | Value, Value | Float64, Float64 | Float32, Float32 | Float_boxed, Float_boxed
   | Word, Word | Bits32, Bits32 | Bits64, Bits64 | Vec128, Vec128
     -> true
-  | (Value | Float64 | Float32 | Float_boxed | Word | Bits32 | Bits64 | Vec128), _
+  | Product es1, Product es2
+    -> Misc.Stdlib.Array.equal equal_mixed_block_element es1 es2
+  | ( Value | Float64 | Float32 | Float_boxed | Word | Bits32 | Bits64 | Vec128
+    | Product _ ), _
     -> false
 
-let compare_mixed_block_element e1 e2 =
+let rec compare_mixed_block_element e1 e2 =
   match e1, e2 with
   | Value, Value | Float_boxed, Float_boxed | Float64, Float64 | Float32, Float32
   | Word, Word | Bits32, Bits32 | Bits64, Bits64 | Vec128, Vec128
     -> 0
+  | Product es1, Product es2
+    -> Misc.Stdlib.Array.compare compare_mixed_block_element es1 es2
   | Value, _ -> -1
   | _, Value -> 1
   | Float_boxed, _ -> -1
@@ -858,6 +864,8 @@ let compare_mixed_block_element e1 e2 =
   | _, Bits32 -> 1
   | Vec128, _ -> -1
   | _, Vec128 -> 1
+  | Product _, _ -> -1
+  | _, Product _ -> 1
 
 let equal_mixed_product_shape r1 r2 = r1 == r2 ||
   Misc.Stdlib.Array.equal equal_mixed_block_element r1 r2
@@ -999,7 +1007,7 @@ let signature_item_id = function
   | Sig_class_type (id, _, _, _)
     -> id
 
-let mixed_block_element_to_string = function
+let rec mixed_block_element_to_string = function
   | Value -> "Value"
   | Float_boxed -> "Float_boxed"
   | Float32 -> "Float32"
@@ -1008,6 +1016,11 @@ let mixed_block_element_to_string = function
   | Bits64 -> "Bits64"
   | Vec128 -> "Vec128"
   | Word -> "Word"
+  | Product es ->
+    "Product ["
+    ^ (String.concat ", "
+         (Array.to_list (Array.map mixed_block_element_to_string es)))
+    ^ "]"
 
 let mixed_block_element_to_lowercase_string = function
   | Value -> "value"
@@ -1018,6 +1031,11 @@ let mixed_block_element_to_lowercase_string = function
   | Bits64 -> "bits64"
   | Vec128 -> "vec128"
   | Word -> "word"
+  | Product es ->
+    "product ["
+    ^ (String.concat ", "
+         (Array.to_list (Array.map mixed_block_element_to_string es)))
+    ^ "]"
 
 let equal_unsafe_mode_crossing umc1 umc2 =
     let { modal_upper_bounds = mub1;
