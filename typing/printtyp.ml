@@ -769,7 +769,7 @@ let apply_subst s1 tyl =
   (* cf. PR#7543: Typemod.type_package doesn't respect type constructor arity *)
   else
     match s1 with
-      Nth n1 -> [List.nth tyl n1]
+      Nth n1 -> if n1 < List.length tyl then [List.nth tyl n1] else tyl
     | Map l1 -> List.map (List.nth tyl) l1
     | Id -> tyl
 
