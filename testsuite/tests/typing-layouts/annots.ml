@@ -1701,3 +1701,16 @@ type t = int
 type t = int
 type t = nativeint#
 |}]
+
+(*********************************************************)
+(* Test 14: annotation on existential variable in unpack *)
+type packed = T : ('a : float64) . 'a -> packed
+
+let f p =
+  match p with
+  | T (type (a : float64)) (_ : a) -> ()
+
+[%%expect{|
+type packed = T : ('a : float64). 'a -> packed
+val f : packed -> unit = <fun>
+|}]
