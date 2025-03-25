@@ -3620,6 +3620,65 @@ let check_for_hidden_arrow env loc ty =
       check()
   | Assert_default -> ()
 
+let warn_on_mixed_block_with_imm env loc ty =
+  let is_mixed_block_shape_with_imm (shape : flat_element array) =
+    Array.exists (fun e -> e = Imm) shape
+  in
+  let is_mixed_block_kind_with_imm = function
+    | Type_abstract _ | Type_record_unboxed_product _ | Type_open -> false
+    | Type_record (_, rep, _) ->
+      begin match rep with
+      | Record_unboxed | Record_inlined _ | Record_boxed _ | Record_float
+      | Record_ufloat -> false
+      | Record_mixed { flat_suffix; _ } ->
+        is_mixed_block_shape_with_imm flat_suffix
+      end
+    | Type_variant (_, rep, _) ->
+      begin match rep with
+      | Variant_unboxed | Variant_extensible | Variant_with_null -> false
+      | Variant_boxed shapes ->
+        Array.exists
+          (fun c ->
+             match c with
+             | Constructor_uniform_value, _ -> false
+             | Constructor_mixed { flat_suffix; _ }, _ ->
+               is_mixed_block_shape_with_imm flat_suffix)
+          shapes
+      end
+  in
+  let is_mixed_block_with_imm ty =
+    match get_desc ((Ctype.get_unboxed_type_approximation env ty).ty) with
+    | Tconstr(p, _, _) ->
+      begin
+        try
+          let { type_kind; _ } = Env.find_type p env in
+          if is_mixed_block_kind_with_imm type_kind
+          then Some (Path.last p)
+          else None
+        with
+        | _ -> None
+      end
+    | _ -> None
+  in
+  let module E = struct exception Done end in
+  let iterator =
+    { Btype.type_iterators with
+      it_type_expr = fun it ty ->
+        match is_mixed_block_with_imm ty with
+        | None -> Btype.type_iterators.it_type_expr it ty
+        | Some s -> begin
+            Location.prerr_warning loc
+              (Warnings.C_mixed_block_with_immediate_in_suffix s);
+            raise E.Done
+          end
+    }
+  in
+  (try
+     iterator.it_type_expr iterator ty
+   with
+   | E.Done -> ());
+  Btype.(unmark_iterators.it_type_expr unmark_iterators) ty
+
 (* Translate a value declaration *)
 let transl_value_decl env loc ~sig_modalities valdecl =
   let cty = Typetexp.transl_type_scheme env valdecl.pval_type in
@@ -3707,6 +3766,7 @@ let transl_value_decl env loc ~sig_modalities valdecl =
       if is_layout_poly &&
          not (has_ty_var_with_layout_any ty) then
         raise(Error(valdecl.pval_type.ptyp_loc, Useless_layout_poly));
+      warn_on_mixed_block_with_imm env valdecl.pval_type.ptyp_loc ty;
       let native_repr_args, native_repr_res =
         parse_native_repr_attributes
           env valdecl.pval_type ty Prim_global ~global_repr ~is_layout_poly

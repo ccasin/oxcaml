@@ -122,6 +122,7 @@ type t =
   | Unused_tmc_attribute                    (* 71 *)
   | Tmc_breaks_tailcall                     (* 72 *)
   | Generative_application_expects_unit     (* 73 *)
+  | C_mixed_block_with_immediate_in_suffix of string (* 186 *)
   | Incompatible_with_upstream of upstream_compat_warning (* 187 *)
   | Unerasable_position_argument            (* 188 *)
   | Unnecessarily_partial_tuple_pattern     (* 189 *)
@@ -212,6 +213,7 @@ let number = function
   | Unused_tmc_attribute -> 71
   | Tmc_breaks_tailcall -> 72
   | Generative_application_expects_unit -> 73
+  | C_mixed_block_with_immediate_in_suffix _ -> 186
   | Incompatible_with_upstream _ -> 187
   | Unerasable_position_argument -> 188
   | Unnecessarily_partial_tuple_pattern -> 189
@@ -1209,6 +1211,11 @@ let message = function
   | Generative_application_expects_unit ->
       "A generative functor\n\
        should be applied to '()'; using '(struct end)' is deprecated."
+  | C_mixed_block_with_immediate_in_suffix t ->
+      Printf.sprintf
+        "This C binding involves type %s, which is a mixed block with\n\
+         with an immediate in the suffix.\n"
+        t
   | Incompatible_with_upstream (Immediate_erasure id)  ->
       Printf.sprintf
       "Usage of layout immediate/immediate64 in %s \n\

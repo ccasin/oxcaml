@@ -128,6 +128,7 @@ type t =
   | Tmc_breaks_tailcall                     (* 72 *)
   | Generative_application_expects_unit     (* 73 *)
 (* Flambda_backend specific warnings: numbers should go down from 199 *)
+  | C_mixed_block_with_immediate_in_suffix of string (* 186 *)
   | Incompatible_with_upstream of upstream_compat_warning (* 187 *)
   | Unerasable_position_argument            (* 188 *)
   | Unnecessarily_partial_tuple_pattern     (* 189 *)
