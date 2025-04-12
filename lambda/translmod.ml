@@ -334,6 +334,8 @@ let init_shape id modl =
         :: init_shape_struct env rem
     | Sig_class_type _ :: rem ->
         init_shape_struct env rem
+    | Sig_jkind (id, jkdecl, _) :: rem ->
+        init_shape_struct (Env.add_jkind ~check:false id jkdecl env) rem
   in
   try
     Ok(undefined_location modl.mod_loc,
@@ -865,7 +867,8 @@ and transl_structure ~scopes loc fields cc rootpath final_env = function
           end
       | Tstr_modtype _
       | Tstr_class_type _
-      | Tstr_attribute _ ->
+      | Tstr_attribute _
+      | Tstr_jkind _->
           transl_structure ~scopes loc fields cc rootpath final_env rem
 
 (* construct functor application in "include functor" case *)
@@ -1232,7 +1235,8 @@ let transl_toplevel_item ~scopes item =
   | Tstr_modtype _
   | Tstr_type _
   | Tstr_class_type _
-  | Tstr_attribute _ ->
+  | Tstr_attribute _
+  | Tstr_jkind _ ->
       lambda_unit
 
 let transl_toplevel_item_and_close ~scopes itm =
