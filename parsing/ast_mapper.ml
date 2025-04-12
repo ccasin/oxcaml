@@ -58,6 +58,7 @@ type mapper = {
   include_declaration: mapper -> include_declaration -> include_declaration;
   include_description: mapper -> include_description -> include_description;
   jkind_annotation: mapper -> jkind_annotation -> jkind_annotation;
+  jkind_declaration: mapper -> jkind_declaration -> jkind_declaration;
   label_declaration: mapper -> label_declaration -> label_declaration;
   location: mapper -> Location.t -> Location.t;
   module_binding: mapper -> module_binding -> module_binding;
@@ -399,11 +400,7 @@ module MT = struct
         let attrs = sub.attributes sub attrs in
         extension ~loc ~attrs (sub.extension sub x)
     | Psig_attribute x -> attribute ~loc (sub.attribute sub x)
-    | Psig_kind_abbrev (name, jkind) ->
-        kind_abbrev
-          ~loc
-          (map_loc sub name)
-          (sub.jkind_annotation sub jkind)
+    | Psig_jkind x -> jkind ~loc (sub.jkind_declaration sub x)
 end
 
 
@@ -457,11 +454,7 @@ module M = struct
         let attrs = sub.attributes sub attrs in
         extension ~loc ~attrs (sub.extension sub x)
     | Pstr_attribute x -> attribute ~loc (sub.attribute sub x)
-    | Pstr_kind_abbrev (name, jkind) ->
-        kind_abbrev
-          ~loc
-          (map_loc sub name)
-          (sub.jkind_annotation sub jkind)
+    | Pstr_jkind x -> jkind ~loc (sub.jkind_declaration sub x)
 end
 
 module E = struct
@@ -963,25 +956,36 @@ let default_mapper =
          | PPat (x, g) -> PPat (this.pat this x, map_opt (this.expr this) g)
       );
 
-    jkind_annotation = (fun this { pjkind_loc; pjkind_desc } ->
-      let pjkind_loc = this.location this pjkind_loc in
-      let pjkind_desc =
-        match pjkind_desc with
-        | Pjk_default -> Pjk_default
-        | Pjk_abbreviation (s : string) -> Pjk_abbreviation s
-        | Pjk_mod (t, mode_list) ->
-          Pjk_mod (this.jkind_annotation this t, this.modes this mode_list)
-        | Pjk_with (t, ty, modalities) ->
-          Pjk_with (
+    jkind_annotation = (fun this { pjka_loc; pjka_desc } ->
+      let pjka_loc = this.location this pjka_loc in
+      let pjka_desc =
+        match pjka_desc with
+        | Pjka_default -> Pjka_default
+        | Pjka_abbreviation (s : Longident.t) -> Pjka_abbreviation s
+        | Pjka_mod (t, mode_list) ->
+          Pjka_mod (this.jkind_annotation this t, this.modes this mode_list)
+        | Pjka_with (t, ty, modalities) ->
+          Pjka_with (
             this.jkind_annotation this t,
             this.typ this ty,
             this.modalities this modalities
           )
-        | Pjk_kind_of ty -> Pjk_kind_of (this.typ this ty)
-        | Pjk_product ts ->
-          Pjk_product (List.map (this.jkind_annotation this) ts)
+        | Pjka_kind_of ty -> Pjka_kind_of (this.typ this ty)
+        | Pjka_product ts ->
+          Pjka_product (List.map (this.jkind_annotation this) ts)
       in
-      { pjkind_loc; pjkind_desc });
+      { pjka_loc; pjka_desc });
+
+    jkind_declaration =
+      (fun this { pjkind_name; pjkind_manifest; pjkind_attributes;
+                  pjkind_loc } ->
+         let pjkind_name = map_loc this pjkind_name in
+         let pjkind_manifest =
+           Option.map (this.jkind_annotation this) pjkind_manifest
+         in
+         let pjkind_attributes = this.attributes this pjkind_attributes in
+         let pjkind_loc = this.location this pjkind_loc in
+         { pjkind_name; pjkind_manifest; pjkind_attributes; pjkind_loc });
 
     modes = (fun this m ->
       List.map (map_loc this) m);

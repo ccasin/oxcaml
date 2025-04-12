@@ -404,20 +404,21 @@ let bigarray_specialize_kind_and_layout env ~kind ~layout typ =
       (kind, layout)
 
 let value_kind_of_value_jkind env jkind =
-  let layout = Jkind.get_layout_defaulting_to_value jkind in
+  let layout = Jkind.get_layout_defaulting_to_value env jkind in
   (* In other places, we use [Ctype.type_jkind_purely_if_principal]. Here, we omit
      the principality check, as we're just trying to compute optimizations. *)
   let context = Ctype.mk_jkind_context_always_principal env in
   let externality_upper_bound =
-    Jkind.get_externality_upper_bound ~context jkind
+    Jkind.get_externality_upper_bound ~context env jkind
   in
   match layout with
-  | Base Value ->
+  | Some (Base Value) ->
     value_kind_of_value_with_externality externality_upper_bound
-  | Any
-  | Product _
-  | Base (Void | Untagged_immediate | Float64 | Float32 | Word | Bits8 |
-          Bits16 | Bits32 | Bits64 | Vec128 | Vec256 | Vec512) ->
+  | None
+  | Some ( Any
+         | Product _
+         | Base ( Void | Untagged_immediate | Float64 | Float32 | Word | Bits8
+                | Bits16 | Bits32 | Bits64 | Vec128 | Vec256 | Vec512)) ->
     Misc.fatal_error "expected a layout of value"
 
 (* [value_kind] has a pre-condition that it is only called on values.  With the
@@ -500,7 +501,7 @@ let nullable raw_kind = { raw_kind; nullable = Nullable }
 let add_nullability_from_jkind env jkind raw_kind =
   let context = Ctype.mk_jkind_context_always_principal env in
   let nullable =
-    match Jkind.get_nullability ~context jkind with
+    match Jkind.get_nullability ~context env jkind with
     | Non_null -> Non_nullable
     | Maybe_null -> Nullable
   in

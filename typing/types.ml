@@ -376,14 +376,23 @@ and 'd with_bounds =
   | No_with_bounds : ('l * 'r) with_bounds
   | With_bounds : with_bounds_types -> ('l * Allowance.disallowed) with_bounds
 
-and ('layout, 'd) layout_and_axes =
-  { layout : 'layout;
+and 'layout jkind_base =
+  | Layout of 'layout
+  | Kconstr of Path.t
+
+and ('layout, 'd) base_and_axes =
+  { base : 'layout jkind_base;
     mod_bounds : Jkind_mod_bounds.t;
     with_bounds : 'd with_bounds
   }
   constraint 'd = 'l * 'r
 
-and 'd jkind_desc = (Jkind_types.Sort.t Jkind_types.Layout.t, 'd) layout_and_axes
+and 'd jkind_const_desc = (Jkind_types.Layout.Const.t, 'd) base_and_axes
+  constraint 'd = 'l * 'r
+and jkind_const_desc_lr =
+  (Jkind_types.Layout.Const.t, allowed * allowed) base_and_axes
+
+and 'd jkind_desc = (Jkind_types.Sort.t Jkind_types.Layout.t, 'd) base_and_axes
   constraint 'd = 'l * 'r
 
 and jkind_desc_packed = Pack_jkind_desc : ('l * 'r) jkind_desc -> jkind_desc_packed
@@ -406,6 +415,14 @@ and jkind_l = (allowed * disallowed) jkind
 and jkind_r = (disallowed * allowed) jkind
 and jkind_lr = (allowed * allowed) jkind
 and jkind_packed = Pack_jkind : ('l * 'r) jkind -> jkind_packed
+
+and jkind_declaration =
+  {
+    jkind_manifest : jkind_const_desc_lr option;
+    jkind_attributes : Parsetree.attributes;
+    jkind_uid : Shape.Uid.t;
+    jkind_loc : Location.t
+  }
 
 module TransientTypeOps = struct
   type t = type_expr
@@ -793,6 +810,7 @@ module type Wrapped = sig
   | Sig_modtype of Ident.t * modtype_declaration * visibility
   | Sig_class of Ident.t * class_declaration * rec_status * visibility
   | Sig_class_type of Ident.t * class_type_declaration * rec_status * visibility
+  | Sig_jkind of Ident.t * jkind_declaration * visibility
 
   and module_declaration =
   {
@@ -886,6 +904,8 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
         To.Sig_class (id,cd,rs,vis)
     | Sig_class_type (id,ctd,rs,vis) ->
         To.Sig_class_type (id,ctd,rs,vis)
+    | Sig_jkind (id,jkd,vis) ->
+        To.Sig_jkind (id,jkd,vis)
 end
 
 include Make_wrapped(struct type 'a t = 'a end)
@@ -1107,7 +1127,8 @@ let item_visibility = function
   | Sig_module (_, _, _, _, vis)
   | Sig_modtype (_, _, vis)
   | Sig_class (_, _, _, vis)
-  | Sig_class_type (_, _, _, vis) -> vis
+  | Sig_class_type (_, _, _, vis)
+  | Sig_jkind (_, _, vis) -> vis
 
 let rec bound_value_identifiers = function
     [] -> []
@@ -1127,6 +1148,7 @@ let signature_item_id = function
   | Sig_modtype (id, _, _)
   | Sig_class (id, _, _, _)
   | Sig_class_type (id, _, _, _)
+  | Sig_jkind (id, _, _)
     -> id
 
 let rec mixed_block_element_to_string = function
@@ -1915,9 +1937,9 @@ module Jkind_with_bounds = struct
       With_bounds (With_bounds_types.map_with_key (fun ty ti -> f ty, ti) tys)
 end
 
-module Jkind_layout_and_axes = struct
+module Jkind_base_and_axes = struct
   module Allow_disallow = Allowance.Magic_allow_disallow (struct
-    type (_, 'layout, 'd) sided = ('layout, 'd) layout_and_axes
+    type (_, 'layout, 'd) sided = ('layout, 'd) base_and_axes
 
     let disallow_left t =
       { t with with_bounds = Jkind_with_bounds.disallow_left t.with_bounds }
@@ -1936,34 +1958,40 @@ module Jkind_layout_and_axes = struct
 
   let try_allow_l :
       type l r.
-      ('layout, l * r) layout_and_axes ->
-      ('layout, Allowance.allowed * r) layout_and_axes option =
-   fun { layout; mod_bounds; with_bounds } ->
+      ('layout, l * r) base_and_axes ->
+      ('layout, Allowance.allowed * r) base_and_axes option =
+   fun { base; mod_bounds; with_bounds } ->
     match Jkind_with_bounds.try_allow_l with_bounds with
     | None -> None
     | Some with_bounds ->
-      Some { layout; mod_bounds = Obj.magic mod_bounds; with_bounds }
+      Some { base; mod_bounds = Obj.magic mod_bounds; with_bounds }
 
-  let try_allow_r { layout; mod_bounds; with_bounds } =
+  let try_allow_r { base; mod_bounds; with_bounds } =
     match Jkind_with_bounds.try_allow_r with_bounds with
     | Some with_bounds ->
-      Some { layout; mod_bounds = Obj.magic mod_bounds; with_bounds }
+      Some { base; mod_bounds = Obj.magic mod_bounds; with_bounds }
     | None -> None
 
-  let map f t = { t with layout = f t.layout }
+  let map_layout f t =
+    match t.base with
+    | Kconstr _ as k -> { t with base = k }
+    | Layout l -> { t with base = Layout (f l) }
 
-  let map_option f t =
-    match f t.layout with None -> None | Some layout -> Some { t with layout }
+  let map_option_layout f t =
+    match t.base with
+    | Kconstr _ as k -> Some { t with base = k }
+    | Layout l -> (
+      match f l with None -> None | Some l -> Some { t with base = Layout l })
 
   let map_type_expr f t =
     { t with with_bounds = Jkind_with_bounds.map_type_expr f t.with_bounds }
 end
 
 module Jkind_const = struct
-  type 'd t = (Jkind_types.Layout.Const.t, 'd) layout_and_axes
+  type 'd t = (Jkind_types.Layout.Const.t, 'd) base_and_axes
 
   include Allowance.Magic_allow_disallow (struct
-    include Jkind_layout_and_axes.Allow_disallow
+    include Jkind_base_and_axes.Allow_disallow
 
     type (_, _, 'd) sided = 'd t
   end)
@@ -1976,20 +2004,25 @@ module Jkind_const = struct
   let shallow_no_with_bounds_and_equal t1 t2 =
     let open Misc.Stdlib.Monad.Option.Syntax in
     let t1_t2 =
-      let* t1 = Jkind_layout_and_axes.try_allow_l t1 in
-      let* t1 = Jkind_layout_and_axes.try_allow_r t1 in
-      let* t2 = Jkind_layout_and_axes.try_allow_l t2 in
-      let* t2 = Jkind_layout_and_axes.try_allow_r t2 in
+      let* t1 = Jkind_base_and_axes.try_allow_l t1 in
+      let* t1 = Jkind_base_and_axes.try_allow_r t1 in
+      let* t2 = Jkind_base_and_axes.try_allow_l t2 in
+      let* t2 = Jkind_base_and_axes.try_allow_r t2 in
       Some (t1, t2)
     in
     match t1_t2 with
-    | Some (t1, t2) ->
-      Jkind_types.Layout.Const.equal t1.layout t2.layout
-      && Jkind_mod_bounds.equal t1.mod_bounds t2.mod_bounds
     | None -> false
+    | Some (t1, t2) -> (
+      match t1.base, t2.base with
+      | Kconstr p1, Kconstr p2 -> Path.same p1 p2
+      | Kconstr _, Layout _ | Layout _, Kconstr _ -> false
+      | Layout l1, Layout l2 ->
+        Jkind_types.Layout.Const.equal l1 l2 &&
+        Jkind_mod_bounds.equal t1.mod_bounds t2.mod_bounds
+    )
 
   let max =
-    { layout = Jkind_types.Layout.Const.max;
+    { base = Layout Jkind_types.Layout.Const.max;
       mod_bounds = Jkind_mod_bounds.max;
       with_bounds = No_with_bounds
     }
@@ -2010,7 +2043,7 @@ module Jkind_const = struct
       let mod_bounds =
         Jkind_mod_bounds.create crossing ~nullability ~separability ~externality
       in
-      { layout; mod_bounds; with_bounds = No_with_bounds }
+      { base = Layout layout; mod_bounds; with_bounds = No_with_bounds }
 
     let any =
       { jkind =
@@ -2059,7 +2092,7 @@ module Jkind_const = struct
     let immutable_data =
       let open Jkind_mod_bounds in
       { jkind =
-          { layout = Base Value;
+          { base = Layout (Base Value);
             mod_bounds =
               (let crossing =
                  Mode.Crossing.create ~regionality:false ~linearity:true
@@ -2078,7 +2111,7 @@ module Jkind_const = struct
     let exn =
       let open Jkind_mod_bounds in
       { jkind =
-          { layout = Base Value;
+          { base = Layout (Base Value);
             mod_bounds =
               (let crossing =
                  Crossing.create ~regionality:false ~linearity:false
@@ -2097,7 +2130,7 @@ module Jkind_const = struct
     let sync_data =
       let open Jkind_mod_bounds in
       { jkind =
-          { layout = Base Value;
+          { base = Layout (Base Value);
             mod_bounds =
               (let crossing =
                  Mode.Crossing.create ~regionality:false ~linearity:true
@@ -2116,7 +2149,7 @@ module Jkind_const = struct
     let mutable_data =
       let open Jkind_mod_bounds in
       { jkind =
-          { layout = Base Value;
+          { base = Layout (Base Value);
             mod_bounds =
               (let crossing =
                  Crossing.create ~regionality:false ~linearity:true
@@ -2448,41 +2481,47 @@ module Jkind_const = struct
         name = "vec512 mod everything"
       }
 
-    let all =
+    let builtins =
       [ any;
-        any_mod_everything;
         value_or_null;
-        value_or_null_mod_everything;
         value;
         immutable_data;
         sync_data;
         mutable_data;
         void;
-        void_mod_everything;
         immediate;
         immediate_or_null;
         immediate64;
         immediate64_or_null;
+        untagged_immediate;
         float64;
-        kind_of_unboxed_float;
         float32;
-        kind_of_unboxed_float32;
         word;
-        kind_of_unboxed_nativeint;
         bits8;
-        kind_of_unboxed_int8;
         bits16;
-        kind_of_unboxed_int16;
         bits32;
-        kind_of_unboxed_int32;
         bits64;
-        kind_of_unboxed_int64;
         vec128;
-        kind_of_unboxed_128bit_vectors;
         vec256;
+        vec512 ]
+
+    let additional_common_jkinds =
+      [ any_mod_everything;
+        value_or_null_mod_everything;
+        void_mod_everything;
+        kind_of_untagged_immediate;
+        kind_of_unboxed_float;
+        kind_of_unboxed_float32;
+        kind_of_unboxed_nativeint;
+        kind_of_unboxed_int8;
+        kind_of_unboxed_int16;
+        kind_of_unboxed_int32;
+        kind_of_unboxed_int64;
+        kind_of_unboxed_128bit_vectors;
         kind_of_unboxed_256bit_vectors;
-        vec512;
         kind_of_unboxed_512bit_vectors ]
+
+    let common_jkinds = builtins @ additional_common_jkinds
 
     let of_attribute : Builtin_attributes.jkind_attribute -> t = function
       | Immediate -> immediate
@@ -2491,15 +2530,15 @@ module Jkind_const = struct
 end
 
 module Jkind_jkind_desc = struct
-  let of_const t = Jkind_layout_and_axes.map Jkind_types.Layout.of_const t
+  let of_const t = Jkind_base_and_axes.map_layout Jkind_types.Layout.of_const t
 
   let get_const t =
-    Jkind_layout_and_axes.map_option Jkind_types.Layout.get_const t
+    Jkind_base_and_axes.map_option_layout Jkind_types.Layout.get_const t
 
   let max = of_const Jkind_const.max
 
   let product tys_modalities layouts =
-    let layout = Jkind_types.Layout.product layouts in
+    let base = Layout (Jkind_types.Layout.product layouts) in
     let relevant_for_shallow =
       (* Shallow axes like nullability or separability are relevant for
          1-field unboxed records and irrelevant for everything else. *)
@@ -2513,9 +2552,9 @@ module Jkind_jkind_desc = struct
             ~modality bounds)
         tys_modalities No_with_bounds
     in
-    { layout; mod_bounds; with_bounds }
+    { base; mod_bounds; with_bounds }
 
-  let map_type_expr f t = Jkind_layout_and_axes.map_type_expr f t
+  let map_type_expr f t = Jkind_base_and_axes.map_type_expr f t
 
   let add_with_bounds ~relevant_for_shallow ~type_expr ~modality t =
     match get_desc type_expr with
@@ -2565,38 +2604,38 @@ module Jkind_jkind = struct
 
     let disallow_right t =
       { t with
-        jkind = Jkind_layout_and_axes.disallow_right t.jkind;
+        jkind = Jkind_base_and_axes.disallow_right t.jkind;
         quality = Jkind_quality.disallow_right t.quality
       }
 
     let disallow_left t =
       { t with
-        jkind = Jkind_layout_and_axes.disallow_left t.jkind;
+        jkind = Jkind_base_and_axes.disallow_left t.jkind;
         quality = Jkind_quality.disallow_left t.quality
       }
 
     let allow_right t =
       { t with
-        jkind = Jkind_layout_and_axes.allow_right t.jkind;
+        jkind = Jkind_base_and_axes.allow_right t.jkind;
         quality = Jkind_quality.allow_right t.quality
       }
 
     let allow_left t =
       { t with
-        jkind = Jkind_layout_and_axes.allow_left t.jkind;
+        jkind = Jkind_base_and_axes.allow_left t.jkind;
         quality = Jkind_quality.allow_left t.quality
       }
   end)
 
   let try_allow_r t =
     let open Misc.Stdlib.Monad.Option.Syntax in
-    let* jkind = Jkind_layout_and_axes.try_allow_r t.jkind in
+    let* jkind = Jkind_base_and_axes.try_allow_r t.jkind in
     let* quality = Jkind_quality.try_allow_r t.quality in
     Some { t with jkind; quality }
 
   let of_const (type l r) ~annotation ~why ~(quality : (l * r) jkind_quality)
     (c : (l * r) Jkind_const.t) =
-    { jkind = Jkind_layout_and_axes.map Jkind_types.Layout.of_const c;
+    { jkind = Jkind_base_and_axes.map_layout Jkind_types.Layout.of_const c;
       annotation;
       history = Creation why;
       has_warned = false;
@@ -2628,9 +2667,10 @@ module Jkind_jkind = struct
 
   (* every context where this is used actually wants an [option] *)
   let mk_annot name =
-    Some
-      Parsetree.
-        { pjkind_loc = Location.none; pjkind_desc = Pjk_abbreviation name }
+    Some Parsetree.{
+      pjka_loc = Location.none;
+      pjka_desc = Pjka_abbreviation (Lident name)
+    }
 
   let mark_best (type l r) (t : (l * r) jkind) =
     { (disallow_right t) with quality = Best }
@@ -2647,8 +2687,8 @@ module Jkind_jkind = struct
 
   let of_builtin ~why Jkind_const.Builtin.{ jkind; name } =
     jkind
-    |> Jkind_layout_and_axes.allow_left
-    |> Jkind_layout_and_axes.disallow_right
+    |> Jkind_base_and_axes.allow_left
+    |> Jkind_base_and_axes.disallow_right
     |> of_const ~annotation:(mk_annot name)
          ~why
            (* The [Best] is OK here because this function is used only in
@@ -2740,7 +2780,7 @@ module Jkind_jkind = struct
              (fun _ -> fst (Jkind_types.Layout.of_new_sort_var ~level)))
       in
       let desc : _ jkind_desc =
-        { layout;
+        { base = Layout layout;
           mod_bounds = Jkind_mod_bounds.max;
           with_bounds = No_with_bounds }
       in
@@ -2786,7 +2826,9 @@ module Jkind_jkind = struct
         ~nullability:Non_null ~separability:Non_float
     in
     fresh_jkind
-      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      { base = Layout (Sort (Base Value));
+        mod_bounds;
+        with_bounds = No_with_bounds }
       ~annotation:None ~why:(Value_creation why)
 
   let for_float ident =
@@ -2801,7 +2843,9 @@ module Jkind_jkind = struct
         ~nullability:Non_null ~separability:Separable
     in
     fresh_jkind
-      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      { base = Layout (Sort (Base Value));
+        mod_bounds;
+        with_bounds = No_with_bounds }
       ~annotation:None ~why:(Primitive ident)
     |> mark_best
 
@@ -2891,9 +2935,37 @@ module Jkind_jkind = struct
         | Cstr_record lbls -> add_labels_as_with_bounds lbls jkind
       in
       List.fold_right add_cstr_args cstrs base
+
+  let for_array_argument =
+    let mod_bounds =
+      Jkind_mod_bounds.create Mode.Crossing.max
+        ~externality:Jkind_mod_bounds.Externality.max
+        ~nullability:Maybe_null ~separability:Separable
+    in
+    fresh_jkind
+      { base = Layout Any; mod_bounds; with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Any_creation Array_type_argument)
+
+  let for_or_null_argument ident =
+    let why : Jkind_intf.History.value_creation_reason =
+      Type_argument { parent_path = Path.Pident ident; position = 1; arity = 1 }
+    in
+    let mod_bounds =
+      Jkind_mod_bounds.create Mode.Crossing.max
+        ~externality:Jkind_mod_bounds.Externality.max
+        ~nullability:Non_null ~separability:Maybe_separable
+    in
+    fresh_jkind
+      { base = Layout (Sort (Base Value));
+        mod_bounds;
+        with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Value_creation why)
+      (* CJC XXX: some of the diff here needs to move to one of the deps
+         features *)
 end
 
 module Jkind_builtins_memo = struct
+  (* XXX consider memoizing the ones that are kconstrs. *)
   open Allowance
   open Jkind_const
 
@@ -2901,15 +2973,16 @@ module Jkind_builtins_memo = struct
 
   let make_builtins (type l r) (quality : (l * r) jkind_quality)
     : (l * r) builtins =
-    Builtin.all |> List.map (fun (builtin : Builtin.t) ->
+    Builtin.common_jkinds |> List.map (fun (builtin : Builtin.t) ->
       let const_jkind : (l * r) t =
         builtin.jkind |> allow_left |> allow_right in
       const_jkind,
       Jkind_jkind.of_const
         const_jkind
         ~quality
-        ~annotation:(Some { pjkind_loc = Location.none;
-                            pjkind_desc = Pjk_abbreviation builtin.name })
+        ~annotation:
+          (Some { pjka_loc = Location.none;
+                  pjka_desc = Pjka_abbreviation (Lident builtin.name) })
         ~why:Jkind_intf.History.Imported)
 
   let best_builtins : (allowed * disallowed) builtins = make_builtins Best

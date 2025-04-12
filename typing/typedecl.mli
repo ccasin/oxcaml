@@ -49,6 +49,10 @@ val transl_with_constraint:
 val transl_package_constraint:
   loc:Location.t -> type_expr -> Types.type_declaration
 
+val transl_jkind_decl:
+  Env.t -> Parsetree.jkind_declaration ->
+  Ident.t * Env.t * Typedtree.jkind_declaration
+
 val abstract_type_decl:
   injective:bool ->
   jkind:jkind_l ->
@@ -56,7 +60,8 @@ val abstract_type_decl:
   type_declaration
 
 val approx_type_decl:
-    Parsetree.type_declaration list -> (Ident.t * type_declaration) list
+    Env.t -> Parsetree.type_declaration list ->
+    (Ident.t * type_declaration) list
 val check_recmod_typedecl:
     Env.t -> Location.t -> Ident.t list -> Path.t -> type_declaration -> unit
 
@@ -176,7 +181,7 @@ type error =
       }
   | Non_abstract_reexport of Path.t
   | Unsafe_mode_crossing_on_invalid_type_kind
-  | Illegal_baggage of jkind_l
+  | Illegal_baggage of Env.t * jkind_l
   | No_unboxed_version of Path.t
   | Atomic_field_must_be_mutable of string
   | Constructor_submode_failed of Mode.Value.error

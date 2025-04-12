@@ -1714,6 +1714,7 @@ let solve_constructor_annotation
       (fun (name, jkind_annot_opt) ->
         let jkind =
           Jkind.of_annotation_option_default
+            !!penv
             ~context:(Existential_unpack name.txt)
             ~default:(Jkind.Builtin.value ~why:Existential_type_variable)
             jkind_annot_opt
@@ -4568,6 +4569,7 @@ and is_nonexpansive_mod mexp =
                 te.tyext_constructors
           | Tstr_class _ -> false (* could be more precise *)
           | Tstr_attribute _ -> true
+          | Tstr_jkind _ -> true
         )
         str.str_items
   | Tmod_apply _ | Tmod_apply_unit _ -> false
@@ -7843,7 +7845,7 @@ and type_ident env ?(recarg=Rejected) lid =
   let val_type, kind =
     match desc.val_kind with
     | Val_prim prim ->
-       let ty, mode, _, sort = instance_prim prim desc.val_type in
+       let ty, mode, _, sort = instance_prim env prim desc.val_type in
        let ty = instance ty in
        begin match prim.prim_native_repr_res, mode with
        (* if the locality of returned value of the primitive is poly
@@ -9642,7 +9644,7 @@ and type_newtype
   fun env name jkind_annot_opt type_body  ->
   let { txt = name; loc = name_loc } : _ Location.loc = name in
   let jkind =
-    Jkind.of_annotation_option_default ~context:(Newtype_declaration name)
+    Jkind.of_annotation_option_default env ~context:(Newtype_declaration name)
       ~default:(Jkind.Builtin.value ~why:Univar) jkind_annot_opt
   in
   let ty =
@@ -11900,8 +11902,8 @@ let report_error ~loc env =
          be the kind of a function.@ \
          (Functions always have kind %a.)%t@]"
         (Style.as_inline_code Printtyp.type_expr) ty_fun
-        (Style.as_inline_code Jkind.format) jkind
-        (Style.as_inline_code Jkind.format) Jkind.for_arrow
+        (Style.as_inline_code (Jkind.format env)) jkind
+        (Style.as_inline_code (Jkind.format env)) Jkind.for_arrow
         hint
   | Overwrite_of_invalid_term ->
       Location.errorf ~loc

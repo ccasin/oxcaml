@@ -339,6 +339,17 @@ let list_argument_sort = Jkind_types.Sort.Const.value
 let list_argument_jkind = Jkind_jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_list; position = 1; arity = 1})
 
+let predef_jkinds =
+  List.map
+    (fun (builtin : Jkind_const.Builtin.t) ->
+       ident_create builtin.name, builtin.jkind)
+    Jkind_const.Builtin.builtins
+
+let add_predef_jkinds add_jkind env =
+  List.fold_left
+    (fun env (id, jkind) -> add_jkind id jkind env) env
+    predef_jkinds
+
 let mk_add_type add_type =
   let add_type_with_jkind
       ?manifest type_ident
@@ -449,7 +460,7 @@ let mk_add_type2 add_type type_ident ~jkind ~param1_jkind ~param2_jkind
     { type_params = [param1; param2];
       type_arity = 2;
       type_kind = Type_abstract Definition;
-      type_jkind = Jkind.mark_best (jkind);
+      type_jkind = Jkind_jkind.mark_best (jkind);
       type_loc = Location.none;
       type_private = Asttypes.Public;
       type_manifest = None;
@@ -501,6 +512,18 @@ let mk_add_extension add_extension id args =
       ext_uid = Uid.of_predef_id id;
     }
 
+let mk_add_jkind add_jkind =
+  let add_jkind id jkind env =
+    let decl =
+      { jkind_manifest = Some jkind;
+        jkind_attributes = [];
+        jkind_uid = Uid.of_predef_id id;
+        jkind_loc = Location.none }
+    in
+    add_jkind id decl env
+  in
+  add_jkind
+
 let variant constrs =
   let mk_elt { cd_args } =
     let sorts = match cd_args with
@@ -524,17 +547,19 @@ let unrestricted tvar ca_sort =
 
 (* CR layouts: Changes will be needed here as we add support for the built-ins
    to work with non-values, and as we relax the mixed block restriction. *)
-let build_initial_env add_type add_extension empty_env =
+let build_initial_env add_type add_extension add_jkind empty_env =
   let add_type_with_jkind, add_type = mk_add_type add_type
   and add_type1 = mk_add_type1 add_type
   and add_type2 = mk_add_type2 add_type
-  and add_extension = mk_add_extension add_extension in
+  and add_extension = mk_add_extension add_extension
+  and add_jkind = mk_add_jkind add_jkind
+  in
   empty_env
   (* Predefined types *)
   |> add_type1 ident_array
        ~variance:Variance.full
        ~separability:Separability.Ind
-       ~param_jkind:Jkind.for_array_argument
+       ~param_jkind:Jkind_jkind.for_array_argument
        ~jkind:(fun param ->
          Jkind_jkind.Builtin.mutable_data ~why:(Primitive ident_array) |>
          Jkind_jkind.add_with_bounds
@@ -543,7 +568,7 @@ let build_initial_env add_type add_extension empty_env =
   |> add_type1 ident_iarray
        ~variance:Variance.covariant
        ~separability:Separability.Ind
-       ~param_jkind:Jkind.for_array_argument
+       ~param_jkind:Jkind_jkind.for_array_argument
        ~jkind:(fun param ->
          Jkind_jkind.Builtin.immutable_data ~why:(Primitive ident_iarray) |>
          Jkind_jkind.add_with_bounds
@@ -602,38 +627,38 @@ let build_initial_env add_type add_extension empty_env =
            ~type_expr:param)
   |> add_type2 ident_idx_imm
        ~param1_jkind:(
-         Jkind.Builtin.value ~why:(Type_argument {
+         Jkind_jkind.Builtin.value ~why:(Type_argument {
            parent_path = Path.Pident ident_idx_imm;
            position = 1;
            arity = 2;
          }))
        ~param2_jkind:(
-         Jkind.Builtin.any ~why:(Type_argument {
+         Jkind_jkind.Builtin.any ~why:(Type_argument {
            parent_path = Path.Pident ident_idx_imm;
            position = 2;
            arity = 2;
          }))
        ~jkind:(
-         Jkind.of_builtin ~why:(Primitive ident_idx_imm)
-           Jkind.Const.Builtin.kind_of_idx)
+         Jkind_jkind.of_builtin ~why:(Primitive ident_idx_imm)
+           Jkind_const.Builtin.kind_of_idx)
        ~type_variance:[Variance.full; Variance.covariant]
        ~type_separability:[Separability.Ind; Separability.Ind]
   |> add_type2 ident_idx_mut
        ~param1_jkind:(
-         Jkind.Builtin.value ~why:(Type_argument {
+         Jkind_jkind.Builtin.value ~why:(Type_argument {
            parent_path = Path.Pident ident_idx_mut;
            position = 1;
            arity = 2;
          }))
        ~param2_jkind:(
-         Jkind.Builtin.any ~why:(Type_argument {
+         Jkind_jkind.Builtin.any ~why:(Type_argument {
            parent_path = Path.Pident ident_idx_mut;
            position = 2;
            arity = 2;
          }))
        ~jkind:(
-         Jkind.of_builtin ~why:(Primitive ident_idx_mut)
-           Jkind.Const.Builtin.kind_of_idx)
+         Jkind_jkind.of_builtin ~why:(Primitive ident_idx_mut)
+           Jkind_const.Builtin.kind_of_idx)
        ~type_variance:[Variance.full; Variance.full]
        ~type_separability:[Separability.Ind; Separability.Ind]
   |> add_type_with_jkind ident_lexing_position
@@ -718,6 +743,8 @@ let build_initial_env add_type add_extension empty_env =
   |> add_extension ident_undefined_recursive_module
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
        Jkind_types.Sort.Const.value]
+  (* Predefined jkinds *)
+  |> add_predef_jkinds add_jkind
 
 let add_simd_stable_extension_types add_type env =
   let _, add_type = mk_add_type add_type in
@@ -814,7 +841,7 @@ let add_or_null add_type env =
      the most argument types, and forbid arrays from accepting [or_null]s.
      In the future, we will track separability in the jkind system. *)
   ~kind:or_null_kind
-  ~param_jkind:(Jkind.for_or_null_argument ident_or_null)
+  ~param_jkind:(Jkind_jkind.for_or_null_argument ident_or_null)
   ~jkind:or_null_jkind
 
 let builtin_values =

@@ -1348,7 +1348,7 @@ and approx_sig_items env ssg=
   | item :: srem ->
       match item.psig_desc with
       | Psig_type (rec_flag, sdecls) ->
-          let decls = Typedecl.approx_type_decl sdecls in
+          let decls = Typedecl.approx_type_decl env sdecls in
           let rem = approx_sig_items env srem in
           map_rec_type ~rec_flag
             (fun rs (id, info) -> Sig_type(id, info, rs, Exported)) decls rem
@@ -1463,8 +1463,11 @@ and approx_sig_items env ssg=
             ]
           ) decls [rem]
           |> List.flatten
-      | Psig_kind_abbrev _ ->
-          Misc.fatal_error "kind_abbrev not supported!"
+      | Psig_jkind sdecl ->
+          let id, env, decl = Typedecl.transl_jkind_decl env sdecl in
+          let rem = approx_sig_items env srem in
+          Sig_jkind (id, decl.jkind_jkind, Exported) :: rem
+         (* XXX some kind of recursive check here? *)
       | _ ->
           approx_sig_items env srem
 
@@ -1590,6 +1593,7 @@ end = struct
     typexts: names_infos;
     classes: names_infos;
     class_types: names_infos;
+    jkinds: names_infos;
   }
 
   let new_names () = {
@@ -1600,6 +1604,7 @@ end = struct
     typexts = Hashtbl.create 16;
     classes = Hashtbl.create 16;
     class_types = Hashtbl.create 16;
+    jkinds = Hashtbl.create 16;
   }
 
   type t = {
@@ -1625,6 +1630,7 @@ end = struct
     | Extension_constructor -> names.typexts
     | Class -> names.classes
     | Class_type -> names.class_types
+    | Jkind -> names.jkinds
 
   let check_unsafe_subst loc env: _ result -> _ = function
     | Ok x -> x
@@ -1689,6 +1695,7 @@ end = struct
     | Sig_value (id, _, _) -> Value, id
     | Sig_class (id, _, _, _) -> Class, id
     | Sig_class_type (id, _, _, _) -> Class_type, id
+    | Sig_jkind (id, _, _) -> Jkind, id
 
   let check_item ?info names loc kind id ids =
     let info =
@@ -1740,6 +1747,7 @@ end = struct
         | Sig_modtype (id, mtd, _) -> Module_type, id, mtd.mtd_loc
         | Sig_class (id, c, _, _) -> Class, id, c.cty_loc
         | Sig_class_type (id, ct, _, _) -> Class_type, id, ct.clty_loc
+        | Sig_jkind (id, jkd, _) -> Jkind, id, jkd.jkind_loc
       in
       if Ident.Map.mem user_id to_remove.hide then
         None
@@ -2296,8 +2304,11 @@ and transl_signature env {psg_items; psg_modalities; psg_loc} =
         mksig (Tsig_attribute attr) env loc, [], env
     | Psig_extension (ext, _attrs) ->
         raise (Error_forward (Builtin_attributes.error_of_extension ext))
-    | Psig_kind_abbrev _ ->
-        Misc.fatal_error "kind_abbrev not supported!"
+    | Psig_jkind sdecl ->
+        (* XXX do Signature_names thing to prevent shadowing *)
+        let id, newenv, decl = Typedecl.transl_jkind_decl env sdecl in
+        let item = Sig_jkind(id, decl.jkind_jkind, Exported) in
+        mksig (Tsig_jkind decl) env loc, [item], newenv
   in
   let rec transl_sig env sig_items sig_type = function
     | [] -> List.rev sig_items, List.rev sig_type, env
@@ -3323,6 +3334,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
         | Sig_class(id, cd, rs, _) -> Sig_class(id, cd, rs, visibility)
         | Sig_class_type(id, ctd, rs, _) ->
             Sig_class_type(id, ctd, rs, visibility)
+        | Sig_jkind(id, jkd, _) -> Sig_jkind(id, jkd, visibility)
       ) sg
     in
     let open_descr = {
@@ -3800,8 +3812,14 @@ and type_structure ?(toplevel = None) funct_body anchor env ?expected_mode
         || not (Warnings.is_active (Misplaced_attribute "")) then
           Builtin_attributes.mark_alert_used x;
         Tstr_attribute x, [], shape_map, env
-    | Pstr_kind_abbrev _ ->
-        Misc.fatal_error "kind_abbrev not supported!"
+    | Pstr_jkind x ->
+        (* XXX do Signature_names thing to prevent shadowing *)
+        let id, env, decl = Typedecl.transl_jkind_decl env x in
+        let shape_map =
+          Shape.Map.add_jkind shape_map id decl.jkind_jkind.jkind_uid
+        in
+        let item = Sig_jkind(id, decl.jkind_jkind, Exported) in
+        Tstr_jkind decl, [item], shape_map, env
   in
   let toplevel_sig = Option.value toplevel ~default:[] in
   let rec type_struct env shape_map sstr str_acc sig_acc
