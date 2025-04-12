@@ -345,6 +345,8 @@ let init_shape id modl =
         :: init_shape_struct env rem
     | Sig_class_type _ :: rem ->
         init_shape_struct env rem
+    | Sig_jkind (id, jkdecl, _) :: rem ->
+        init_shape_struct (Env.add_jkind ~check:false id jkdecl env) rem
   in
   try
     Ok(undefined_location modl.mod_loc,
@@ -874,7 +876,8 @@ and transl_structure ~scopes loc fields cc rootpath final_env = function
           end
       | Tstr_modtype _
       | Tstr_class_type _
-      | Tstr_attribute _ ->
+      | Tstr_attribute _
+      | Tstr_jkind _->
           transl_structure ~scopes loc fields cc rootpath final_env rem
 
 (* construct functor application in "include functor" case *)
@@ -1113,6 +1116,7 @@ let rec defined_idents = function
     | Tstr_include incl ->
       bound_value_identifiers incl.incl_type @ defined_idents rem
     | Tstr_attribute _ -> defined_idents rem
+    | Tstr_jkind jd -> jd.jkind_id :: defined_idents rem
 
 (* second level idents (module M = struct ... let id = ... end),
    and all sub-levels idents *)
@@ -1151,6 +1155,7 @@ let rec more_idents = function
         all_idents str.str_items @ more_idents rem
     | Tstr_module _ -> more_idents rem
     | Tstr_attribute _ -> more_idents rem
+    | Tstr_jkind _ -> more_idents rem
 
 and all_idents = function
     [] -> []
@@ -1206,6 +1211,7 @@ and all_idents = function
         id :: all_idents rem
     | Tstr_module ({mb_id = None} | {mb_presence=Mp_absent}) -> all_idents rem
     | Tstr_attribute _ -> all_idents rem
+    | Tstr_jkind _ -> all_idents rem
 
 
 (* A variant of transl_structure used to compile toplevel structure definitions
@@ -1549,7 +1555,8 @@ let transl_store_structure ~scopes glob map prims aliases str =
           end
         | Tstr_modtype _
         | Tstr_class_type _
-        | Tstr_attribute _ ->
+        | Tstr_attribute _
+        | Tstr_jkind _ ->
             transl_store ~scopes rootpath subst cont rem
 
   and store_ident loc id =
@@ -1945,7 +1952,8 @@ let transl_toplevel_item ~scopes item =
   | Tstr_modtype _
   | Tstr_type _
   | Tstr_class_type _
-  | Tstr_attribute _ ->
+  | Tstr_attribute _
+  | Tstr_jkind _ ->
       lambda_unit
 
 let transl_toplevel_item_and_close ~scopes itm =

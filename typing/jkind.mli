@@ -487,6 +487,9 @@ val of_type_decl_default :
   Parsetree.type_declaration ->
   Types.jkind_l
 
+(** Creates an abstract jkind, with max with-bounds, from the path. *)
+val of_path : why:History.creation_reason -> Path.t -> Types.jkind_lr
+
 (** Choose an appropriate jkind for a boxed record type *)
 val for_boxed_record : Types.label_declaration list -> Types.jkind_l
 
@@ -536,7 +539,7 @@ module Desc : sig
   (** The description of a jkind, used as a return type from [get].  This
       description has no sort variables, but it might have [with]-types and thus
       needs the allowance machinery. *)
-  type 'd t = (Sort.Flat.t Layout.t, 'd) Types.layout_and_axes
+  type 'd t = (Sort.Flat.t Layout.t, 'd) Types.base_and_axes
 
   val get_const : 'd t -> 'd Const.t option
 

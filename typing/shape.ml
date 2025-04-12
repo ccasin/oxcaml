@@ -112,6 +112,7 @@ module Sig_component_kind = struct
     | Extension_constructor
     | Class
     | Class_type
+    | Jkind
 
   let to_string = function
     | Value -> "value"
@@ -124,6 +125,7 @@ module Sig_component_kind = struct
     | Extension_constructor -> "extension constructor"
     | Class -> "class"
     | Class_type -> "class type"
+    | Jkind -> "jkind"
 
   let can_appear_in_types = function
     | Value
@@ -136,7 +138,8 @@ module Sig_component_kind = struct
     | Module
     | Module_type
     | Class
-    | Class_type ->
+    | Class_type
+    | Jkind ->
         true
 
   let rank = function
@@ -150,6 +153,7 @@ module Sig_component_kind = struct
     | Constructor -> 7
     | Label -> 8
     | Unboxed_label -> 9
+    | Jkind -> 10
 
   let compare a b =
     let a = rank a in
@@ -184,6 +188,8 @@ module Item = struct
       Ident.name id, Sig_component_kind.Class
     let class_type id =
       Ident.name id, Sig_component_kind.Class_type
+    let jkind id =
+      Ident.name id, Sig_component_kind.Jkind
 
     let print fmt (name, ns) =
       Format.fprintf fmt "%S[%s]"
@@ -504,4 +510,10 @@ module Map = struct
   let add_class_type_proj t id shape =
     let item = Item.class_type id in
     Item.Map.add item (proj shape item) t
+
+  let add_jkind t id uid = Item.Map.add (Item.jkind id) (leaf uid) t
+  let add_jkind_proj t id shape =
+    let item = Item.jkind id in
+    Item.Map.add item (proj shape item) t
+
 end

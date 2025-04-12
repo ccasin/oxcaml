@@ -59,6 +59,7 @@ module Error: sig
         (Types.class_type_declaration, Ctype.class_match_failure list) diff
     | Class_declarations of
         (Types.class_declaration, Ctype.class_match_failure list) diff
+    | Jkind_declarations of (jkind_declaration, Includecore.jkind_mismatch) diff
 
   type core_module_type_symptom =
     | Not_an_alias
@@ -136,6 +137,7 @@ type field_kind =
   | Field_modtype
   | Field_class
   | Field_classtype
+  | Field_jkind
 
 type field_desc = { name: string; kind: field_kind }
 
