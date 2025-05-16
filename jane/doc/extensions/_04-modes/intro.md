@@ -183,6 +183,8 @@ they are once.
 More documentation on uniqueness and linearity is available
 [here](../../uniqueness/intro/).
 
+# Modes for effects {#yielding}
+
 ## Future modes: Yielding
 
 |----------------|
@@ -203,7 +205,9 @@ Yielding is irrelevant for types that do not contain functions, and values of su
 *mode cross* on the yielding axis; they may be used as unyielding even
 when they are yielding.
 
-# Past modes: Visibility
+# Modes for purity {#visibility-statefulness}
+
+## Past modes: Visibility
 
 |----------------|
 | immutable      |
@@ -216,14 +220,13 @@ when they are yielding.
 Visibility is a past axis that controls access to mutable portions of values.
 It's similar to contention: the typechecker forbids accessing mutable fields of values
 with *immutable* visiblity, and forbids writing to mutable fields of values
-with *read* visibility. Unlike contention, atomic access to mutable parts of *immutable*
-values is still disallowed.
+with *read* visibility. Unlike for contention, even thread-safe access is disallowed.
 
 Visibility is irrelevant for types that are deeply immutable. Values of such
 types *mode cross* on the visibility axis; they may be used as read_write even
 when they are immutable.
 
-# Future modes: Statefulness
+## Future modes: Statefulness
 
 |--------------|
 | **stateful** |
@@ -233,8 +236,8 @@ when they are immutable.
 | stateless    |
 {: .table}
 
-Statefulness is a future axis that tracks whether function reads or writes to some
-mutable state that is not explicitly passed to it in an argument.
+Statefulness is a future axis that tracks whether a function reads or writes to some
+mutable state that it closes over (that is not explicitly passed to it in an argument).
 
 *Stateless* functions may not either read or write such state, and *observing*
 functions can only read it. *Stateful* functions have no restrictions.
