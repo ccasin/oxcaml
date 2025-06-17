@@ -842,7 +842,7 @@ type lookup_error =
   | Value_used_in_closure of lock_item * Longident.t *
       Mode.Value.Comonadic.error * closure_context
   | Local_value_used_in_exclave of lock_item * Longident.t
-  | Non_value_used_in_object of Longident.t * type_expr * Jkind.Violation.t
+  | Non_value_used_in_object of Longident.t * (Format.formatter -> unit -> unit)
   | No_unboxed_version of Longident.t * type_declaration
   | Error_from_persistent_env of Persistent_env.error
 
@@ -3314,7 +3314,7 @@ let unboxed_type ~errors ~env ~loc ~lid ty =
     match !constrain_type_jkind env ty Jkind.Builtin.(value_or_null ~why:Captured_in_object) with
     | Ok () -> ()
     | Result.Error err ->
-      may_lookup_error errors loc env (Non_value_used_in_object (lid, ty, err))
+      may_lookup_error errors loc env (Non_value_used_in_object (lid, err))
 
 (** Takes the [mode] and [ty] of a value at definition site, walks through the
     list of locks and constrains [mode] and [ty]. Return the access mode of the
@@ -4369,9 +4369,6 @@ let print_longident =
 let print_path =
   ref ((fun _ _ -> assert false) : formatter -> Path.t -> unit)
 
-let print_type_expr =
-  ref ((fun _ _ -> assert false) : formatter -> Types.type_expr -> unit)
-
 let spellcheck ppf extract env lid =
   let choices ~path name = Misc.spellcheck (extract path env) name in
   match lid with
@@ -4686,12 +4683,11 @@ let report_lookup_error _loc env ppf = function
       fprintf ppf "@[%a local, so it cannot be used \
                   inside an exclave_@]"
         print_lock_item (item, lid)
-  | Non_value_used_in_object (lid, typ, err) ->
+  | Non_value_used_in_object (lid, err) ->
       fprintf ppf "@[%a must have a type of layout value because it is \
                    captured by an object.@ %a@]"
         (Style.as_inline_code !print_longident) lid
-        (fun v -> Jkind.Violation.report_with_offender
-           ~offender:(fun ppf -> !print_type_expr ppf typ) v) err
+        err ()
   | No_unboxed_version (lid, decl) ->
       fprintf ppf "@[The type %a has no unboxed version.@]"
         (Style.as_inline_code !print_longident) lid;

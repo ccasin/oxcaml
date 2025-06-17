@@ -2572,8 +2572,22 @@ let check_type_jkind env ty jkind =
 let constrain_type_jkind env ty jkind =
   constrain_type_jkind ~fixed:false env ty jkind
 
+let print_type_expr =
+  ref ((fun _ _ -> assert false) : Format.formatter -> Types.type_expr -> unit)
+
 let () =
-  Env.constrain_type_jkind := constrain_type_jkind
+  (* See comment on [constrain_type_jkind] in [env.mli] *)
+  let constrain_type_jkind_for_env env ty jkind_r =
+    match constrain_type_jkind env ty jkind_r with
+    | Ok () as ok -> ok
+    | Error err ->
+      let printer ppf () =
+        Jkind.Violation.report_with_offender
+          ~offender:(fun ppf -> !print_type_expr ppf ty) ppf err
+      in
+      Error printer
+  in
+  Env.constrain_type_jkind := constrain_type_jkind_for_env
 
 let check_type_externality env ty ext =
   let upper_bound =
