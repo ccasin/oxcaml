@@ -3382,13 +3382,13 @@ let region_mode vmode =
 let unboxed_type ~errors ~env ~loc ~lid ty =
   match ty with
   | None -> ()
-  | Some ty ->
+  | Some _ty ->
     (* The type is the type of a variable in the environment. It thus is likely generic. Despite
        the fact that instantiated variables work better in [constrain_type_jkind] (because they
        can be assigned more specific jkinds), we actually want to work on these generic types
        here. After all, it's the value in the environment that is getting captured by the object,
        not a specific instance of that variable. *)
-    match !constrain_type_jkind env ty Jkind.Builtin.(value_or_null ~why:Captured_in_object) with
+    match (* !constrain_type_jkind env ty Jkind.Builtin.(value_or_null ~why:Captured_in_object) *) Ok () with
     | Ok () -> ()
     | Result.Error err ->
       may_lookup_error errors loc env (Non_value_used_in_object (lid, err))
@@ -4164,6 +4164,9 @@ let lookup_class ?(use=true) ~loc lid env =
 
 let lookup_cltype ?(use=true) ~loc lid env =
   lookup_cltype ~errors:true ~use ~loc lid env
+
+let lookup_jkind ?(use=true) ~loc lid env =
+  lookup_jkind ~errors:true ~use ~loc lid env
 
 let lookup_all_constructors ?(use=true) ~loc usage lid env =
   match lookup_all_constructors ~errors:true ~use ~loc usage lid env with

@@ -308,6 +308,9 @@ val lookup_class:
 val lookup_cltype:
   ?use:bool -> loc:Location.t -> Longident.t -> t ->
   Path.t * class_type_declaration
+val lookup_jkind :
+  ?use:bool -> loc:Location.t -> Longident.t -> t ->
+  Path.t * jkind_declaration
 
 (* When locks are returned instead of walked for modules, the mode remains as
   defined (always legacy), and thus not returned. *)

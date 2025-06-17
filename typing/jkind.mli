@@ -448,11 +448,13 @@ val of_builtin :
   ('l * disallowed) Types.jkind
 
 val of_annotation :
+  Env.t ->
   context:('l * allowed) History.annotation_context ->
   Parsetree.jkind_annotation ->
   ('l * allowed) Types.jkind
 
 val of_annotation_option_default :
+  Env.t ->
   default:('l * allowed) Types.jkind ->
   context:('l * allowed) History.annotation_context ->
   Parsetree.jkind_annotation option ->
@@ -469,6 +471,7 @@ val of_annotation_option_default :
     Raises if a disallowed or unknown jkind is present.
 *)
 val of_type_decl :
+  Env.t ->
   context:History.annotation_context_l ->
   transl_type:(Parsetree.core_type -> Types.type_expr) ->
   Parsetree.type_declaration ->
@@ -481,6 +484,7 @@ val of_type_decl :
     Raises if a disallowed or unknown jkind is present.
 *)
 val of_type_decl_default :
+  Env.t ->
   context:History.annotation_context_l ->
   transl_type:(Parsetree.core_type -> Types.type_expr) ->
   default:Types.jkind_l ->

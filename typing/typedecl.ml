@@ -261,6 +261,7 @@ let enter_type ?abstract_abbrevs rec_flag env sdecl (id, uid) =
      kind. *)
   let type_jkind =
     Jkind.of_type_decl_default
+      env
       ~context:(Type_declaration path)
       (* CR layouts v2.8: This next line is truly terrible. But I think it's OK
          for now: it will mean that any [with] constraints get interpreted to
@@ -293,7 +294,7 @@ in
   let type_params =
     List.map (fun (param, _) ->
         let name = get_type_param_name param in
-        let jkind = get_type_param_jkind path param in
+        let jkind = get_type_param_jkind env path param in
         Btype.newgenvar ?name jkind)
       sdecl.ptype_params
   in
@@ -595,7 +596,7 @@ let make_constructor
         Ctype.with_local_level_if closed begin fun () ->
           TyVarEnv.reset ();
           let univar_list =
-            TyVarEnv.make_poly_univars_jkinds
+            TyVarEnv.make_poly_univars_jkinds env
               ~context:(fun v -> Constructor_type_parameter (cstr_path, v))
               svars
           in
@@ -836,7 +837,9 @@ let transl_declaration env sdecl (id, uid) =
                       add with-kinds to Typedtree. *)
   in
   let jkind_from_annotation, jkind_annotation =
-    match Jkind.of_type_decl ~context:(Type_declaration path) ~transl_type sdecl with
+    match
+      Jkind.of_type_decl env ~context:(Type_declaration path) ~transl_type sdecl
+    with
     | Some (jkind, annot) ->
         Some jkind, annot
     | None -> None, None
@@ -4075,7 +4078,7 @@ let abstract_type_decl ~injective ~jkind ~params =
     }
   end
 
-let approx_type_decl sdecl_list =
+let approx_type_decl env sdecl_list =
   let scope = Ctype.create_scope () in
   List.map
     (fun sdecl ->
@@ -4091,13 +4094,14 @@ let approx_type_decl sdecl_list =
        in
        let jkind =
          Jkind.of_type_decl_default
+           env
            ~context:(Type_declaration path)
            ~transl_type
            ~default:(Jkind.Builtin.value ~why:Default_type_jkind)
            sdecl
        in
        let params =
-         List.map (fun (param, _) -> get_type_param_jkind path param)
+         List.map (fun (param, _) -> get_type_param_jkind env path param)
            sdecl.ptype_params
        in
        (id, abstract_type_decl ~injective ~jkind ~params))
@@ -4132,7 +4136,8 @@ let transl_jkind_decl env
   let uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
   let context = Jkind.History.Jkind_declaration (Pident id) in
   let jkind_manifest =
-    Option.map (fun annot -> Jkind.of_annotation ~context annot) pjkind_manifest
+    Option.map (fun annot -> Jkind.of_annotation env ~context annot)
+      pjkind_manifest
   in
   let shape = Shape.leaf uid in
   let jkind_jkind : Types.jkind_declaration =

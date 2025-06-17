@@ -36,7 +36,7 @@ module TyVarEnv : sig
         without jkind annotations *)
 
   val make_poly_univars_jkinds :
-    context:(string -> Jkind.History.annotation_context_lr) ->
+    Env.t -> context:(string -> Jkind.History.annotation_context_lr) ->
     (string Location.loc * Parsetree.jkind_annotation option) list ->
     poly_univars
     (** remember that a list of strings connotes univars; this must
@@ -134,7 +134,7 @@ val transl_type_param:
    the level defaults to the current level. The jkind_lr is the jkind to
    use if no annotation is provided. *)
 
-val get_type_param_jkind: Path.t -> Parsetree.core_type -> jkind_lr
+val get_type_param_jkind: Env.t -> Path.t -> Parsetree.core_type -> jkind_lr
 val get_type_param_name: Parsetree.core_type -> string option
 
 exception Already_bound

@@ -1179,7 +1179,7 @@ and approx_sig_items env ssg=
   | item :: srem ->
       match item.psig_desc with
       | Psig_type (rec_flag, sdecls) ->
-          let decls = Typedecl.approx_type_decl sdecls in
+          let decls = Typedecl.approx_type_decl env sdecls in
           let rem = approx_sig_items env srem in
           map_rec_type ~rec_flag
             (fun rs (id, info) -> Sig_type(id, info, rs, Exported)) decls rem
@@ -2094,8 +2094,11 @@ and transl_signature env {psg_items; psg_modalities; psg_loc} =
         mksig (Tsig_attribute attr) env loc, [], env
     | Psig_extension (ext, _attrs) ->
         raise (Error_forward (Builtin_attributes.error_of_extension ext))
-    | Psig_jkind _ ->
-        Misc.fatal_error "kind_ not supported!"
+    | Psig_jkind sdecl ->
+        (* XXX do Signature_names thing to prevent shadowing *)
+        let id, newenv, decl = Typedecl.transl_jkind_decl env sdecl in
+        let item = Sig_jkind(id, decl.jkind_jkind, Exported) in
+        mksig (Tsig_jkind decl) env loc, [item], newenv
   in
   let rec transl_sig env sig_items sig_type = function
     | [] -> List.rev sig_items, List.rev sig_type, env
@@ -3462,6 +3465,7 @@ and type_structure ?(toplevel = None) funct_body anchor env sstr =
           Builtin_attributes.mark_alert_used x;
         Tstr_attribute x, [], shape_map, env
     | Pstr_jkind x ->
+        (* XXX do Signature_names thing to prevent shadowing *)
         let id, env, decl = Typedecl.transl_jkind_decl env x in
         let shape_map = Shape.Map.add_jkind shape_map id decl.jkind_uid in
         let item = Sig_jkind(id, decl.jkind_jkind, Exported) in

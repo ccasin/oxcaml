@@ -1184,8 +1184,10 @@ module Const = struct
 
   let rec of_user_written_annotation_unchecked_level :
       type l r.
-      (l * r) Context_with_transl.t -> Parsetree.jkind_annotation -> (l * r) t =
-   fun context jkind ->
+      _ -> (l * r) Context_with_transl.t ->
+      Parsetree.jkind_annotation -> (l * r) t =
+    fun env context jkind ->
+    let _loc = jkind.pjka_loc in
     match jkind.pjka_desc with
     | Abbreviation name ->
       (* CR layouts v2.8: move this to predef *)
@@ -1207,10 +1209,16 @@ module Const = struct
       | "immutable_data" -> Builtin.immutable_data.jkind
       | "sync_data" -> Builtin.sync_data.jkind
       | "mutable_data" -> Builtin.mutable_data.jkind
-      | _ -> raise ~loc:jkind.pjka_loc (Unknown_jkind jkind))
+      (* XXX all these cases should be this lookup. *)
+      (* XXX Abbreviation needs to take an lident *)
+      | _ ->
+        (match (* Env.lookup_jkind ~loc (Lident name) env *) None with
+         | _ -> raise ~loc:jkind.pjka_loc (Unknown_jkind jkind)))
       |> allow_left |> allow_right
     | Mod (base, modifiers) ->
-      let base = of_user_written_annotation_unchecked_level context base in
+      let base =
+        of_user_written_annotation_unchecked_level env context base
+      in
       (* for each mode, lower the corresponding modal bound to be that mode *)
       let mod_bounds =
         Mod_bounds.meet base.mod_bounds (Typemode.transl_mod_bounds modifiers)
@@ -1223,11 +1231,14 @@ module Const = struct
       { base = Layout layout; mod_bounds; with_bounds = No_with_bounds }
     | Product ts ->
       let jkinds =
-        List.map (of_user_written_annotation_unchecked_level context) ts
+        List.map (of_user_written_annotation_unchecked_level env context)
+          ts
       in
       jkind_of_product_annotations jkinds
     | With (base, type_, modalities) -> (
-      let base = of_user_written_annotation_unchecked_level context base in
+      let base =
+        of_user_written_annotation_unchecked_level env context base
+      in
       match context with
       | Right_jkind _ -> raise ~loc:type_.ptyp_loc With_on_right
       | Left_jkind (transl_type, _) ->
@@ -1274,8 +1285,11 @@ module Const = struct
        that needs a different extension level. *)
     | Layout l -> scan_layout l
 
-  let of_user_written_annotation ~context (annot : Parsetree.jkind_annotation) =
-    let const = of_user_written_annotation_unchecked_level context annot in
+  let of_user_written_annotation
+        env ~context (annot : Parsetree.jkind_annotation) =
+    let const =
+      of_user_written_annotation_unchecked_level env context annot
+    in
     let required_layouts_level = get_required_layouts_level context const in
     if not (Language_extension.is_at_least Layouts required_layouts_level)
     then
@@ -1408,17 +1422,17 @@ let of_annotated_const ~context ~annotation ~const ~const_loc =
     ~why:(Annotated (context, const_loc))
     const ~quality:Not_best
 
-let of_annotation_lr ~context (annot : Parsetree.jkind_annotation) =
-  let const = Const.of_user_written_annotation ~context annot in
+let of_annotation_lr env ~context (annot : Parsetree.jkind_annotation) =
+  let const = Const.of_user_written_annotation env ~context annot in
   of_annotated_const ~annotation:(Some annot) ~const ~const_loc:annot.pjka_loc
     ~context
 
-let of_annotation ~context annot =
-  of_annotation_lr ~context:(Right_jkind context) annot
+let of_annotation env ~context annot =
+  of_annotation_lr env ~context:(Right_jkind context) annot
 
-let of_annotation_option_default ~default ~context = function
+let of_annotation_option_default env ~default ~context = function
   | None -> default
-  | Some annot -> of_annotation ~context annot
+  | Some annot -> of_annotation env ~context annot
 
 let of_attribute ~context
     (attribute : Builtin_attributes.jkind_attribute Location.loc) =
@@ -1428,11 +1442,11 @@ let of_attribute ~context
   of_annotated_const ~context ~annotation:(mk_annot name) ~const
     ~const_loc:attribute.loc
 
-let of_type_decl ~context ~transl_type (decl : Parsetree.type_declaration) =
+let of_type_decl env ~context ~transl_type (decl : Parsetree.type_declaration) =
   let context = Context_with_transl.Left_jkind (transl_type, context) in
   let jkind_of_annotation =
     decl.ptype_jkind_annotation
-    |> Option.map (fun annot -> of_annotation_lr ~context annot, annot)
+    |> Option.map (fun annot -> of_annotation_lr env ~context annot, annot)
   in
   let jkind_of_attribute =
     Builtin_attributes.jkind decl.ptype_attributes
@@ -1447,9 +1461,9 @@ let of_type_decl ~context ~transl_type (decl : Parsetree.type_declaration) =
     raise ~loc:decl.ptype_loc
       (Multiple_jkinds { from_annotation; from_attribute })
 
-let of_type_decl_default ~context ~transl_type ~default
+let of_type_decl_default env ~context ~transl_type ~default
     (decl : Parsetree.type_declaration) =
-  match of_type_decl ~context ~transl_type decl with
+  match of_type_decl env ~context ~transl_type decl with
   | Some (t, _) -> t
   | None -> default
 
