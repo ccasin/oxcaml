@@ -848,7 +848,8 @@ type lookup_error =
   | Local_value_escaping of Mode.Hint.lock_item * Longident.t * escaping_context
   | Once_value_used_in of Mode.Hint.lock_item * Longident.t * shared_context
   | Local_value_used_in_exclave of Mode.Hint.lock_item * Longident.t
-  | Non_value_used_in_object of Longident.t * type_expr * Jkind.Violation.t
+  | Non_value_used_in_object of Longident.t * (Format.formatter -> unit -> unit)
+  (* XXX CJC: can I do better here? *)
   | No_unboxed_version of Longident.t * type_declaration
   | Error_from_persistent_env of Persistent_env.error
   | Mutable_value_used_in_closure of
@@ -3496,7 +3497,7 @@ let unboxed_type ~errors ~env ~loc ~lid ty =
     match !constrain_type_jkind env ty Jkind.Builtin.(value_or_null ~why:Captured_in_object) with
     | Ok () -> ()
     | Result.Error err ->
-      may_lookup_error errors loc env (Non_value_used_in_object (lid, ty, err))
+      may_lookup_error errors loc env (Non_value_used_in_object (lid, err))
 
 (** Takes the [mode] and [ty] of a value at definition site, walks through the
     list of locks and constrains [mode] and [ty]. Return the access mode of the
@@ -4678,9 +4679,6 @@ let print_longident =
 let print_path =
   ref ((fun _ _ -> assert false) : formatter -> Path.t -> unit)
 
-let print_type_expr =
-  ref ((fun _ _ -> assert false) : formatter -> Types.type_expr -> unit)
-
 let spellcheck ppf extract env lid =
   let choices ~path name = Misc.spellcheck (extract path env) name in
   match lid with
@@ -4806,7 +4804,7 @@ let print_unsupported_quotation ppf =
   | Open_qt -> fprintf ppf "Opening modules"
 
 
-let report_lookup_error ~level _loc env ppf = function
+let report_lookup_error _loc env ppf = function
   | Unbound_value(lid, hint) -> begin
       fprintf ppf "Unbound value %a"
         (Style.as_inline_code !print_longident) lid;
@@ -5017,14 +5015,11 @@ let report_lookup_error ~level _loc env ppf = function
       fprintf ppf "@[%a local, so it cannot be used \
                   inside an exclave_@]"
         print_lock_item (item, lid)
-  | Non_value_used_in_object (lid, typ, err) ->
+  | Non_value_used_in_object (lid, err) ->
       fprintf ppf "@[%a must have a type of layout value because it is \
                    captured by an object.@ %a@]"
         (Style.as_inline_code !print_longident) lid
-        (fun v -> Jkind.Violation.report_with_offender
-           ~offender:(fun ppf -> !print_type_expr ppf typ)
-           ~level v)
-        err
+        err ()
   | No_unboxed_version (lid, decl) ->
       fprintf ppf "@[The type %a has no unboxed version.@]"
         (Style.as_inline_code !print_longident) lid;
@@ -5072,7 +5067,7 @@ let report_lookup_error ~level _loc env ppf = function
         (Style.as_inline_code !print_longident) lid
         print_stage usage_stage
 
-let report_error ~level ppf = function
+let report_error ppf = function
   | Missing_module(_, path1, path2) ->
       fprintf ppf "@[@[<hov>";
       if Path.same path1 path2 then
@@ -5089,7 +5084,7 @@ let report_error ~level ppf = function
   | Illegal_value_name(_loc, name) ->
       fprintf ppf "%a is not a valid value identifier."
        Style.inline_code name
-  | Lookup_error(loc, t, err) -> report_lookup_error ~level loc t ppf err
+  | Lookup_error(loc, t, err) -> report_lookup_error loc t ppf err
   | Incomplete_instantiation { unset_param } ->
       fprintf ppf "@[<hov>Not enough instance arguments: the parameter@ %a@ is \
                    required.@]"
@@ -5125,7 +5120,7 @@ let () =
             then Location.error_of_printer_file
             else Location.error_of_printer ~loc ?sub:None
           in
-          Some (error_of_printer (report_error ~level:Btype.generic_level) err)
+          Some (error_of_printer report_error err)
       | _ ->
           None
     )

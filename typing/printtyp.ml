@@ -1802,7 +1802,7 @@ let tree_of_type_scheme ty =
   tree_of_typexp Type_scheme ty
 
 let () =
-  Env.print_type_expr := type_expr;
+  Ctype.print_type_expr := type_expr;
   Jkind.set_outcometree_of_type (fun ty ->
     prepare_for_printing [ty];
     tree_of_typexp Type ty);

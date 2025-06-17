@@ -729,6 +729,9 @@ val check_type_separability :
 val check_and_update_generalized_ty_jkind :
   ?name:Ident.t -> loc:Location.t -> Env.t -> type_expr -> unit
 
+(* Forward declaration to break mutual recursion with Printtyp. *)
+val print_type_expr: (Format.formatter -> Types.type_expr -> unit) ref
+
 (* False if running in principal mode and the type is not principal.
    True otherwise. *)
 val is_principal : type_expr -> bool

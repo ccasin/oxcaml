@@ -262,7 +262,7 @@ type lookup_error =
   | Local_value_escaping of Mode.Hint.lock_item * Longident.t * escaping_context
   | Once_value_used_in of Mode.Hint.lock_item * Longident.t * shared_context
   | Local_value_used_in_exclave of Mode.Hint.lock_item * Longident.t
-  | Non_value_used_in_object of Longident.t * type_expr * Jkind.Violation.t
+  | Non_value_used_in_object of Longident.t * (Format.formatter -> unit -> unit)
   | No_unboxed_version of Longident.t * type_declaration
   | Error_from_persistent_env of Persistent_env.error
   | Mutable_value_used_in_closure of
@@ -647,10 +647,9 @@ exception Error of error
 
 open Format
 
-val report_error: level:int -> formatter -> error -> unit
+val report_error: formatter -> error -> unit
 
-val report_lookup_error:
-    level:int -> Location.t -> t -> formatter -> lookup_error -> unit
+val report_lookup_error: Location.t -> t -> formatter -> lookup_error -> unit
 
 val in_signature: bool -> t -> t
 
@@ -681,16 +680,17 @@ val scrape_alias:
     (t -> Subst.Lazy.module_type -> Subst.Lazy.module_type) ref
 (* Forward declaration to break mutual recursion with Ctype. *)
 val same_constr: (t -> type_expr -> type_expr -> bool) ref
-(* Forward declaration to break mutual recursion with Ctype. *)
-val constrain_type_jkind:
-  (t -> type_expr -> jkind_r -> (unit, Jkind.Violation.t) result) ref
+(* Forward declaration to break mutual recursion with Ctype. We give this a
+   weird type - the error is returned as a printing function, rather than a
+   [Jkind.Violation.t], to avoid making this interface depend on [jkind.mli],
+   which would create a loop, as abstract kinds mean many jkind functions need
+   to deal with envs. *)
+val constrain_type_jkind :
+  (t -> type_expr -> jkind_r -> (unit, Format.formatter -> unit -> unit) result) ref
 (* Forward declaration to break mutual recursion with Printtyp. *)
 val print_longident: (Format.formatter -> Longident.t -> unit) ref
 (* Forward declaration to break mutual recursion with Printtyp. *)
 val print_path: (Format.formatter -> Path.t -> unit) ref
-(* Forward declaration to break mutual recursion with Printtyp. *)
-val print_type_expr: (Format.formatter -> Types.type_expr -> unit) ref
-
 
 (** Folds *)
 
