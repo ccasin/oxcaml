@@ -2539,6 +2539,16 @@ module Jkind_jkind = struct
     then { t with jkind = Jkind_jkind_desc.map_type_expr f t.jkind }
     else t (* short circuit this common case *)
 
+  let of_builtin ~why Jkind_const.Builtin.{ jkind; name } =
+    jkind
+    |> Jkind_layout_and_axes.allow_left
+    |> Jkind_layout_and_axes.disallow_right
+    |> of_const ~annotation:(mk_annot name)
+         ~why
+           (* The [Best] is OK here because this function is used only in
+              Predef. *)
+         ~quality:Best
+
   module Builtin = struct
     let any_dummy_jkind =
       { jkind = Jkind_jkind_desc.max;
@@ -2677,6 +2687,48 @@ module Jkind_jkind = struct
         |> mark_best
       in
       add_labels_as_with_bounds lbls base
+
+  let for_float ident =
+    let mod_bounds =
+      Jkind_mod_bounds.(create ~locality:Locality.max
+        ~linearity:Linearity.min ~portability:Portability.min
+        ~yielding:Yielding.min ~uniqueness:Uniqueness.max
+        ~contention:Contention.min ~statefulness:Statefulness.min
+        ~visibility:Visibility.min ~externality:Externality.max
+        ~nullability:Nullability.Non_null ~separability:Separability.Separable)
+    in
+    fresh_jkind
+      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Primitive ident)
+    |> mark_best
+
+  let for_non_float ~(why : Jkind_intf.History.value_creation_reason) =
+    let mod_bounds =
+      Jkind_mod_bounds.(create ~locality:Locality.max
+        ~linearity:Linearity.max ~portability:Portability.max
+        ~yielding:Yielding.max ~uniqueness:Uniqueness.max
+        ~contention:Contention.max ~statefulness:Statefulness.max
+        ~visibility:Visibility.max ~externality:Externality.max
+        ~nullability:Nullability.Non_null ~separability:Separability.Non_float)
+    in
+    fresh_jkind
+      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Value_creation why)
+
+  let for_exn ident =
+    let mod_bounds =
+      (* the mode crossing is safe by [Ctype.check_constructor_crossing] *)
+      Jkind_mod_bounds.(create ~locality:Locality.max
+        ~linearity:Linearity.max ~portability:Portability.min
+        ~yielding:Yielding.max ~uniqueness:Uniqueness.max
+        ~contention:Contention.min ~statefulness:Statefulness.max
+        ~visibility:Visibility.max ~externality:Externality.max
+        ~nullability:Nullability.Non_null ~separability:Separability.Non_float)
+    in
+    fresh_jkind
+      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Primitive ident)
+    |> mark_best
 end
 
 module Jkind_builtins_memo = struct

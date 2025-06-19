@@ -1371,6 +1371,10 @@ module Jkind_jkind : sig
 
   val get_const : 'd jkind -> 'd Jkind_const.t option
 
+  val of_builtin :
+    why:Jkind_intf.History.creation_reason ->
+    Jkind_const.Builtin.t -> ('a * disallowed) jkind
+
   val fresh_jkind :
     (allowed * allowed) jkind_desc ->
     annotation:Parsetree.jkind_annotation option ->
@@ -1420,5 +1424,9 @@ module Jkind_jkind : sig
 
   val has_mutable_label : label_declaration list -> bool
   val all_void_labels : label_declaration list -> bool
+
+  val for_exn : Ident.t -> jkind_l
+  val for_float : Ident.t -> jkind_l
+  val for_non_float : why:Jkind_intf.History.value_creation_reason -> 'd jkind
   val for_boxed_record : label_declaration list -> jkind_l
 end

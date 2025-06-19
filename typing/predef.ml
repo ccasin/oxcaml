@@ -205,20 +205,20 @@ and ident_some = ident_create "Some"
 and ident_null = ident_create "Null"
 and ident_this = ident_create "This"
 
-let option_argument_sort = Jkind.Sort.Const.value
-let option_argument_jkind = Jkind.Builtin.value_or_null ~why:(
+let option_argument_sort = Jkind_types.Sort.Const.value
+let option_argument_jkind = Jkind_jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_option; position = 1; arity = 1})
 
 let list_jkind param =
-  Jkind.Builtin.immutable_data ~why:Boxed_variant |>
-  Jkind.add_with_bounds
+  Jkind_jkind.Builtin.immutable_data ~why:Boxed_variant |>
+  Jkind_jkind.add_with_bounds
     ~modality:Mode.Modality.Value.Const.id
     ~type_expr:param |>
-  Jkind.mark_best
+  Jkind_jkind.mark_best
 
-let list_sort = Jkind.Sort.Const.value
-let list_argument_sort = Jkind.Sort.Const.value
-let list_argument_jkind = Jkind.Builtin.value_or_null ~why:(
+let list_sort = Jkind_types.Sort.Const.value
+let list_argument_sort = Jkind_types.Sort.Const.value
+let list_argument_jkind = Jkind_jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_list; position = 1; arity = 1})
 
 let mk_add_type add_type =
@@ -233,7 +233,8 @@ let mk_add_type add_type =
       | None -> None
       | Some unboxed_jkind ->
         let type_jkind =
-          Jkind.of_builtin ~why:(Unboxed_primitive type_ident) unboxed_jkind
+          Jkind_jkind.of_builtin ~why:(Unboxed_primitive type_ident)
+            unboxed_jkind
         in
         let type_kind =
           match kind with
@@ -251,7 +252,7 @@ let mk_add_type add_type =
           type_params = [];
           type_arity = 0;
           type_kind;
-          type_jkind = Jkind.mark_best type_jkind;
+          type_jkind = Jkind_jkind.mark_best type_jkind;
           type_loc = Location.none;
           type_private = Asttypes.Public;
           type_manifest;
@@ -269,7 +270,7 @@ let mk_add_type add_type =
       {type_params = [];
       type_arity = 0;
       type_kind = kind;
-      type_jkind = Jkind.mark_best jkind;
+      type_jkind = Jkind_jkind.mark_best jkind;
       type_loc = Location.none;
       type_private = Asttypes.Public;
       type_manifest = manifest;
@@ -286,7 +287,7 @@ let mk_add_type add_type =
     add_type type_ident decl env
   in
   let add_type ?manifest type_ident ?kind ~jkind ?unboxed_jkind env =
-    let jkind = Jkind.of_builtin ~why:(Primitive type_ident) jkind in
+    let jkind = Jkind_jkind.of_builtin ~why:(Primitive type_ident) jkind in
     add_type_with_jkind ?manifest type_ident ?kind ~jkind ?unboxed_jkind env
   in
   add_type_with_jkind, add_type
@@ -294,7 +295,7 @@ let mk_add_type add_type =
 let mk_add_type1 add_type type_ident
       ?(kind=fun _ -> Type_abstract Definition)
       ~jkind
-      ?(param_jkind=Jkind.Builtin.value ~why:(
+      ?(param_jkind=Jkind_jkind.Builtin.value ~why:(
         Type_argument {
           parent_path = Path.Pident type_ident;
           position = 1;
@@ -306,7 +307,7 @@ let mk_add_type1 add_type type_ident
     {type_params = [param];
       type_arity = 1;
       type_kind = kind param;
-      type_jkind = Jkind.mark_best (jkind param);
+      type_jkind = Jkind_jkind.mark_best (jkind param);
       type_loc = Location.none;
       type_private = Asttypes.Public;
       type_manifest = None;
@@ -327,7 +328,7 @@ let mk_add_extension add_extension id args =
       let raise_error () = Misc.fatal_error
           "sanity check failed: non-value jkind in predef extension \
             constructor; should this have Constructor_mixed shape?" in
-      match (sort : Jkind.Sort.Const.t) with
+      match (sort : Jkind_types.Sort.Const.t) with
       | Base Value -> ()
       | Base (Void | Float32 | Float64 | Word | Bits32 | Bits64 | Vec128)
       | Product _ -> raise_error ())
@@ -389,36 +390,37 @@ let build_initial_env add_type add_extension empty_env =
   |> add_type1 ident_array
        ~variance:Variance.full
        ~separability:Separability.Ind
-       ~param_jkind:(Jkind.Builtin.any_non_null ~why:Array_type_argument)
+       ~param_jkind:(Jkind_jkind.Builtin.any_non_null ~why:Array_type_argument)
        ~jkind:(fun param ->
-         Jkind.Builtin.mutable_data ~why:(Primitive ident_array) |>
-         Jkind.add_with_bounds
+         Jkind_jkind.Builtin.mutable_data ~why:(Primitive ident_array) |>
+         Jkind_jkind.add_with_bounds
            ~modality:Mode.Modality.Value.Const.id
            ~type_expr:param)
   |> add_type1 ident_iarray
        ~variance:Variance.covariant
        ~separability:Separability.Ind
-       ~param_jkind:(Jkind.Builtin.any_non_null ~why:Array_type_argument)
+       ~param_jkind:(Jkind_jkind.Builtin.any_non_null ~why:Array_type_argument)
        ~jkind:(fun param ->
-         Jkind.Builtin.immutable_data ~why:(Primitive ident_iarray) |>
-         Jkind.add_with_bounds
+         Jkind_jkind.Builtin.immutable_data ~why:(Primitive ident_iarray) |>
+         Jkind_jkind.add_with_bounds
            ~modality:Mode.Modality.Value.Const.id
            ~type_expr:param)
   |> add_type ident_bool
        ~kind:(variant [ cstr ident_false []; cstr ident_true []])
-       ~jkind:Jkind.Const.Builtin.immediate
-  |> add_type ident_char ~jkind:Jkind.Const.Builtin.immediate
+       ~jkind:Jkind_const.Builtin.immediate
+  |> add_type ident_char ~jkind:Jkind_const.Builtin.immediate
   |> add_type_with_jkind ident_exn ~kind:Type_open
-       ~jkind:(Jkind.for_exn ident_exn)
-  |> add_type ident_extension_constructor ~jkind:Jkind.Const.Builtin.immutable_data
-  |> add_type_with_jkind ident_float ~jkind:(Jkind.for_float ident_float)
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_float
-  |> add_type ident_floatarray ~jkind:Jkind.Const.Builtin.mutable_data
-  |> add_type ident_int ~jkind:Jkind.Const.Builtin.immediate
-  |> add_type ident_int32 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_int32
-  |> add_type ident_int64 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_int64
+       ~jkind:(Jkind_jkind.for_exn ident_exn)
+  |> add_type ident_extension_constructor
+       ~jkind:Jkind_const.Builtin.immutable_data
+  |> add_type_with_jkind ident_float ~jkind:(Jkind_jkind.for_float ident_float)
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_float
+  |> add_type ident_floatarray ~jkind:Jkind_const.Builtin.mutable_data
+  |> add_type ident_int ~jkind:Jkind_const.Builtin.immediate
+  |> add_type ident_int32 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_int32
+  |> add_type ident_int64 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_int64
   |> add_type1 ident_lazy_t
        ~variance:Variance.covariant
        ~separability:Separability.Ind
@@ -427,7 +429,7 @@ let build_initial_env add_type add_extension empty_env =
           It might also cross portability, linearity, uniqueness subject to its
           parameter. But I'm also fine not doing that for now (and wait until
           users complains).  *)
-       ~jkind:(fun _ -> Jkind.for_non_float ~why:(Primitive ident_lazy_t))
+       ~jkind:(fun _ -> Jkind_jkind.for_non_float ~why:(Primitive ident_lazy_t))
   |> add_type1 ident_list
        ~variance:Variance.covariant
        ~separability:Separability.Ind
@@ -438,8 +440,8 @@ let build_initial_env add_type add_extension empty_env =
        ~param_jkind:list_argument_jkind
        ~jkind:list_jkind
   |> add_type ident_nativeint
-      ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_nativeint
+      ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_nativeint
   |> add_type1 ident_option
        ~variance:Variance.covariant
        ~separability:Separability.Ind
@@ -448,8 +450,8 @@ let build_initial_env add_type add_extension empty_env =
                   cstr ident_some [unrestricted tvar option_argument_sort]])
        ~param_jkind:option_argument_jkind
        ~jkind:(fun param ->
-         Jkind.Builtin.immutable_data ~why:Boxed_variant |>
-         Jkind.add_with_bounds
+         Jkind_jkind.Builtin.immutable_data ~why:Boxed_variant |>
+         Jkind_jkind.add_with_bounds
            ~modality:Mode.Modality.Value.Const.id
            ~type_expr:param)
   |> add_type_with_jkind ident_lexing_position
@@ -461,7 +463,7 @@ let build_initial_env add_type add_extension empty_env =
                ld_mutable=Immutable;
                ld_modalities=Mode.Modality.Value.Const.id;
                ld_type=field_type;
-               ld_sort=Jkind.Sort.Const.value;
+               ld_sort=Jkind_types.Sort.Const.value;
                ld_loc=Location.none;
                ld_attributes=[];
                ld_uid=Uid.of_predef_id id;
@@ -481,71 +483,71 @@ let build_initial_env add_type add_extension empty_env =
        )
        (* CR layouts v2.8: Possibly remove this -- and simplify [mk_add_type] --
           when we have a better jkind subsumption check. *)
-       ~jkind:Jkind.(
-         of_builtin Const.Builtin.immutable_data
+       ~jkind:Jkind_jkind.(
+         of_builtin Jkind_const.Builtin.immutable_data
            ~why:(Primitive ident_lexing_position) |>
          add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
          add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
          add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
          add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_string)
-  |> add_type ident_string ~jkind:Jkind.Const.Builtin.immutable_data
-  |> add_type ident_bytes ~jkind:Jkind.Const.Builtin.mutable_data
+  |> add_type ident_string ~jkind:Jkind_const.Builtin.immutable_data
+  |> add_type ident_bytes ~jkind:Jkind_const.Builtin.mutable_data
   |> add_type ident_unit
        ~kind:(variant [cstr ident_void []])
-       ~jkind:Jkind.Const.Builtin.immediate
+       ~jkind:Jkind_const.Builtin.immediate
   (* Predefined exceptions - alphabetical order *)
   |> add_extension ident_assert_failure
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-        Jkind.Sort.Const.value]
+        Jkind_types.Sort.Const.value]
   |> add_extension ident_division_by_zero []
   |> add_extension ident_end_of_file []
   |> add_extension ident_failure [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_invalid_argument [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_match_failure
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_not_found []
   |> add_extension ident_out_of_memory []
   |> add_extension ident_stack_overflow []
   |> add_extension ident_sys_blocked_io []
   |> add_extension ident_sys_error [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_undefined_recursive_module
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
 
 let add_simd_stable_extension_types add_type env =
   let _, add_type = mk_add_type add_type in
   env
-  |> add_type ident_int8x16 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
-  |> add_type ident_int16x8 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
-  |> add_type ident_int32x4 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
-  |> add_type ident_int64x2 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
-  |> add_type ident_float32x4 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
-  |> add_type ident_float64x2 ~jkind:Jkind.Const.Builtin.immutable_data
-      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_int8x16 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_int16x8 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_int32x4 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_int64x2 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_float32x4 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_float64x2 ~jkind:Jkind_const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_128bit_vectors
 
 let add_small_number_extension_types add_type env =
   let _, add_type = mk_add_type add_type in
   env
-  |> add_type ident_float32 ~jkind:Jkind.Const.Builtin.immutable_data
-       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_float32
+  |> add_type ident_float32 ~jkind:Jkind_const.Builtin.immutable_data
+       ~unboxed_jkind:Jkind_const.Builtin.kind_of_unboxed_float32
 
 let add_small_number_beta_extension_types add_type env =
   let _, add_type = mk_add_type add_type in
   env
-  |> add_type ident_int8 ~jkind:Jkind.Const.Builtin.immediate
-  |> add_type ident_int16 ~jkind:Jkind.Const.Builtin.immediate
+  |> add_type ident_int8 ~jkind:Jkind_const.Builtin.immediate
+  |> add_type ident_int16 ~jkind:Jkind_const.Builtin.immediate
 
 
-let or_null_argument_sort = Jkind.Sort.Const.value
+let or_null_argument_sort = Jkind_types.Sort.Const.value
 
 let or_null_kind tvar =
   let cstrs =
@@ -555,11 +557,11 @@ let or_null_kind tvar =
   Type_variant (cstrs, Variant_with_null, None)
 
 let or_null_jkind param =
-  Jkind.Builtin.immediate_or_null ~why:(Primitive ident_or_null) |>
-  Jkind.add_with_bounds
+  Jkind_jkind.Builtin.immediate_or_null ~why:(Primitive ident_or_null) |>
+  Jkind_jkind.add_with_bounds
     ~modality:Mode.Modality.Value.Const.id
     ~type_expr:param |>
-  Jkind.mark_best
+  Jkind_jkind.mark_best
 
 let add_or_null add_type env =
   let add_type1 = mk_add_type1 add_type in

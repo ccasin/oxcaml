@@ -1347,14 +1347,6 @@ let of_new_legacy_sort_var ~why =
 
 let of_new_legacy_sort ~why = fst (of_new_legacy_sort_var ~why)
 
-let of_builtin ~why Const.Builtin.{ jkind; name } =
-  jkind |> Layout_and_axes.allow_left |> Layout_and_axes.disallow_right
-  |> of_const ~annotation:(mk_annot name)
-       ~why
-         (* The [Best] is OK here because this function is used only in
-            Predef. *)
-       ~quality:Best
-
 let of_annotated_const ~context ~annotation ~const ~const_loc =
   let context = Context_with_transl.get_context context in
   of_const ~annotation
@@ -1417,19 +1409,6 @@ let for_unboxed_record lbls =
       lbls
   in
   Builtin.product ~why:Unboxed_record tys_modalities layouts
-
-let for_non_float ~(why : History.value_creation_reason) =
-  let mod_bounds =
-    Mod_bounds.create ~locality:Locality.Const.max
-      ~linearity:Linearity.Const.max ~portability:Portability.Const.max
-      ~yielding:Yielding.Const.max ~uniqueness:Uniqueness.Const_op.max
-      ~contention:Contention.Const_op.max ~statefulness:Statefulness.Const.max
-      ~visibility:Visibility.Const_op.max ~externality:Externality.max
-      ~nullability:Nullability.Non_null ~separability:Separability.Non_float
-  in
-  fresh_jkind
-    { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
-    ~annotation:None ~why:(Value_creation why)
 
 (* Note [With-bounds for GADTs]
    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1723,35 +1702,6 @@ let for_object =
       with_bounds = No_with_bounds
     }
     ~annotation:None ~why:(Value_creation Object)
-
-let for_float ident =
-  let mod_bounds =
-    Mod_bounds.create ~locality:Locality.Const.max
-      ~linearity:Linearity.Const.min ~portability:Portability.Const.min
-      ~yielding:Yielding.Const.min ~uniqueness:Uniqueness.Const_op.max
-      ~contention:Contention.Const_op.min ~statefulness:Statefulness.Const.min
-      ~visibility:Visibility.Const_op.min ~externality:Externality.max
-      ~nullability:Nullability.Non_null ~separability:Separability.Separable
-  in
-  fresh_jkind
-    { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
-    ~annotation:None ~why:(Primitive ident)
-  |> mark_best
-
-let for_exn ident =
-  let mod_bounds =
-    (* the mode crossing is safe by [Ctype.check_constructor_crossing] *)
-    Mod_bounds.create ~locality:Locality.Const.max
-      ~linearity:Linearity.Const.max ~portability:Portability.Const.min
-      ~yielding:Yielding.Const.max ~uniqueness:Uniqueness.Const_op.max
-      ~contention:Contention.Const_op.min ~statefulness:Statefulness.Const.max
-      ~visibility:Visibility.Const_op.max ~externality:Externality.max
-      ~nullability:Nullability.Non_null ~separability:Separability.Non_float
-  in
-  fresh_jkind
-    { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
-    ~annotation:None ~why:(Primitive ident)
-  |> mark_best
 
 (******************************)
 (* elimination and defaulting *)
