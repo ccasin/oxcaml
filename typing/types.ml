@@ -2645,6 +2645,16 @@ module Jkind_jkind = struct
     then { t with jkind = Jkind_jkind_desc.map_type_expr f t.jkind }
     else t (* short circuit this common case *)
 
+  let of_builtin ~why Jkind_const.Builtin.{ jkind; name } =
+    jkind
+    |> Jkind_layout_and_axes.allow_left
+    |> Jkind_layout_and_axes.disallow_right
+    |> of_const ~annotation:(mk_annot name)
+         ~why
+           (* The [Best] is OK here because this function is used only in
+              Predef. *)
+         ~quality:Best
+
   module Builtin = struct
     let any_dummy_jkind =
       { jkind = Jkind_jkind_desc.max;
@@ -2778,6 +2788,22 @@ module Jkind_jkind = struct
     fresh_jkind
       { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
       ~annotation:None ~why:(Value_creation why)
+
+  let for_float ident =
+    let crossing =
+      Mode.Crossing.create ~regionality:false ~linearity:true ~portability:true
+        ~forkable:true ~yielding:true ~uniqueness:false ~contention:true
+        ~statefulness:true ~visibility:true ~staticity:false
+    in
+    let mod_bounds =
+      Jkind_mod_bounds.create crossing
+        ~externality:Jkind_mod_bounds.Externality.max
+        ~nullability:Non_null ~separability:Separable
+    in
+    fresh_jkind
+      { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
+      ~annotation:None ~why:(Primitive ident)
+    |> mark_best
 
   let for_boxed_record lbls =
     if all_void_labels lbls

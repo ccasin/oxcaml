@@ -1459,14 +1459,6 @@ let of_new_non_float_sort_var ~why ~level =
 
 let of_new_legacy_sort ~why ~level = fst (of_new_legacy_sort_var ~why ~level)
 
-let of_builtin ~why Const.Builtin.{ jkind; name } =
-  jkind |> Layout_and_axes.allow_left |> Layout_and_axes.disallow_right
-  |> of_const ~annotation:(mk_annot name)
-       ~why
-         (* The [Best] is OK here because this function is used only in
-            Predef. *)
-       ~quality:Best
-
 let of_annotated_const ~context ~annotation ~const ~const_loc =
   let context = Context_with_transl.get_context context in
   of_const ~annotation
@@ -1635,21 +1627,6 @@ let for_object =
       with_bounds = No_with_bounds
     }
     ~annotation:None ~why:(Value_creation Object)
-
-let for_float ident =
-  let crossing =
-    Crossing.create ~regionality:false ~linearity:true ~portability:true
-      ~forkable:true ~yielding:true ~uniqueness:false ~contention:true
-      ~statefulness:true ~visibility:true ~staticity:false
-  in
-  let mod_bounds =
-    Mod_bounds.create crossing ~externality:Externality.max
-      ~nullability:Nullability.Non_null ~separability:Separability.Separable
-  in
-  fresh_jkind
-    { layout = Sort (Base Value); mod_bounds; with_bounds = No_with_bounds }
-    ~annotation:None ~why:(Primitive ident)
-  |> mark_best
 
 let for_array_argument =
   let mod_bounds =
