@@ -74,7 +74,7 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
          jkind, and plausibly gain some perf wins by building up smaller jkinds that are
          cheaper to deal with later. But doing so runs into some confusing mutual
          recursion that's non-trivial to debug. Reinvestigate later *)
-      let jkind = Jkind.for_boxed_record lbls in
+      let jkind = Jkind_jkind.for_boxed_record lbls in
       let tdecl =
         {
           type_params;
@@ -98,7 +98,7 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
       [
         {
           ca_type = newgenconstr path type_params;
-          ca_sort = Jkind.Sort.Const.value;
+          ca_sort = Jkind_types.Sort.Const.value;
           ca_modalities = Mode.Modality.Value.Const.id;
           ca_loc = Location.none
         }
@@ -135,9 +135,11 @@ let constructor_descrs ~current_unit ty_path decl cstrs rep =
          users to write their own null constructors. *)
       (* CR layouts v3.3: generalize to [any]. *)
       [| Constructor_uniform_value, [| |]
-       ; Constructor_uniform_value, [| Jkind.Sort.Const.value |] |]
+       ; Constructor_uniform_value, [| Jkind_types.Sort.Const.value |] |]
   in
-  let all_void sorts = Array.for_all Jkind.Sort.Const.(equal void) sorts in
+  let all_void sorts =
+    Array.for_all Jkind_types.Sort.Const.(equal void) sorts
+  in
   let num_consts = ref 0 and num_nonconsts = ref 0 in
   let cstr_constant =
     Array.map
@@ -240,7 +242,7 @@ let dummy_label (type rep) (record_form : rep record_form)
   in
   { lbl_name = ""; lbl_res = none; lbl_arg = none;
     lbl_mut = Immutable; lbl_modalities = Mode.Modality.Value.Const.id;
-    lbl_sort = Jkind.Sort.Const.void;
+    lbl_sort = Jkind_types.Sort.Const.void;
     lbl_num = -1; lbl_pos = -1; lbl_all = [||];
     lbl_repres = repres;
     lbl_private = Public;
@@ -254,7 +256,7 @@ let label_descrs record_form ty_res lbls repres priv =
   let rec describe_labels num pos = function
       [] -> []
     | l :: rest ->
-        let is_void = Jkind.Sort.Const.(equal void l.ld_sort) in
+        let is_void = Jkind_types.Sort.Const.(equal void l.ld_sort) in
         let lbl =
           { lbl_name = Ident.name l.ld_id;
             lbl_res = ty_res;

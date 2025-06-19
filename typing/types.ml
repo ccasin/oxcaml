@@ -306,6 +306,14 @@ module Jkind_mod_bounds = struct
       ~externality:Externality.max ~nullability:Nullability.max
       ~separability:Separability.max
 
+  let for_arrow =
+    create ~linearity:Linearity.max ~locality:Locality.max
+      ~uniqueness:Uniqueness.min ~portability:Portability.max
+      ~contention:Contention.min ~yielding:Yielding.max
+      ~statefulness:Statefulness.max ~visibility:Visibility.min
+      ~externality:Externality.max ~nullability:Nullability.Non_null
+      ~separability:Separability.Non_float
+
   let debug_print ppf
         { locality;
           linearity;
@@ -346,6 +354,21 @@ module Jkind_mod_bounds = struct
     && Externality.equal (externality t1) (externality t2)
     && Nullability.equal (nullability t1) (nullability t2)
     && Separability.equal (separability t1) (separability t2)
+
+  let join t1 t2 =
+    let locality = Locality.join (locality t1) (locality t2) in
+    let linearity = Linearity.join (linearity t1) (linearity t2) in
+    let uniqueness = Uniqueness.join (uniqueness t1) (uniqueness t2) in
+    let portability = Portability.join (portability t1) (portability t2) in
+    let contention = Contention.join (contention t1) (contention t2) in
+    let yielding = Yielding.join (yielding t1) (yielding t2) in
+    let statefulness = Statefulness.join (statefulness t1) (statefulness t2) in
+    let visibility = Visibility.join (visibility t1) (visibility t2) in
+    let externality = Externality.join (externality t1) (externality t2) in
+    let nullability = Nullability.join (nullability t1) (nullability t2) in
+    let separability = Separability.join (separability t1) (separability t2) in
+    create ~locality ~linearity ~uniqueness ~portability ~contention ~yielding
+      ~statefulness ~visibility ~externality ~nullability ~separability
 end
 
 
@@ -2385,6 +2408,27 @@ module Jkind_jkind_desc = struct
 
   let map_type_expr f t = Jkind_layout_and_axes.map_type_expr f t
 
+  let add_with_bounds ~relevant_for_shallow ~type_expr ~modality t =
+    match get_desc type_expr with
+    | Tarrow (_, _, _, _) ->
+      (* Optimization: all arrow types have the same (with-bound-free) jkind, so
+         we can just eagerly do a join on the mod-bounds here rather than having
+         to add them to our with bounds only to be normalized away later. *)
+      { t with
+        mod_bounds =
+          Jkind_mod_bounds.join t.mod_bounds
+            (Jkind_mod_bounds.set_min_in_set Jkind_mod_bounds.for_arrow
+               (Jkind_axis.Axis_set.complement
+                  (Jkind_with_bounds.relevant_axes_of_modality ~modality
+                     ~relevant_for_shallow)))
+      }
+    | _ ->
+      { t with
+        with_bounds =
+          Jkind_with_bounds.add_modality ~relevant_for_shallow ~type_expr
+            ~modality t.with_bounds
+      }
+
   module Builtin = struct
     let any = max
 
@@ -2594,6 +2638,45 @@ module Jkind_jkind = struct
        Note [Default jkind in transl_declaration] for more commentary on why we
        don't want [Best] jkinds there. *)
   end
+
+  let add_with_bounds ~modality ~type_expr t =
+    { t with
+      jkind =
+        Jkind_jkind_desc.add_with_bounds
+        (* We only care about types in fields of unboxed products for the
+           nullability of the overall kind *)
+          ~relevant_for_shallow:`Irrelevant ~type_expr ~modality t.jkind
+    }
+
+  let add_labels_as_with_bounds lbls jkind =
+    List.fold_right
+      (fun (lbl : label_declaration) ->
+        add_with_bounds ~type_expr:lbl.ld_type ~modality:lbl.ld_modalities)
+      lbls jkind
+
+  let has_mutable_label lbls =
+    List.exists
+      (fun (lbl : label_declaration) ->
+        match lbl.ld_mutable with Immutable -> false | Mutable _ -> true)
+      lbls
+
+  let all_void_labels lbls =
+    List.for_all
+      (fun (lbl : label_declaration) ->
+         Jkind_types.Sort.Const.(equal void lbl.ld_sort))
+      lbls
+
+  let for_boxed_record lbls =
+    if all_void_labels lbls
+    then Builtin.immediate ~why:Empty_record
+    else
+      let is_mutable = has_mutable_label lbls in
+      let base =
+        (if is_mutable then Builtin.mutable_data else Builtin.immutable_data)
+          ~why:Boxed_record
+        |> mark_best
+      in
+      add_labels_as_with_bounds lbls base
 end
 
 module Jkind_builtins_memo = struct

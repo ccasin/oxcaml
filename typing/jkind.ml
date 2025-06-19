@@ -303,21 +303,6 @@ let raise ~loc err = raise (Error.User_error (loc, err))
 module Mod_bounds = struct
   include Types.Jkind_mod_bounds
 
-  let join t1 t2 =
-    let locality = Locality.join (locality t1) (locality t2) in
-    let linearity = Linearity.join (linearity t1) (linearity t2) in
-    let uniqueness = Uniqueness.join (uniqueness t1) (uniqueness t2) in
-    let portability = Portability.join (portability t1) (portability t2) in
-    let contention = Contention.join (contention t1) (contention t2) in
-    let yielding = Yielding.join (yielding t1) (yielding t2) in
-    let statefulness = Statefulness.join (statefulness t1) (statefulness t2) in
-    let visibility = Visibility.join (visibility t1) (visibility t2) in
-    let externality = Externality.join (externality t1) (externality t2) in
-    let nullability = Nullability.join (nullability t1) (nullability t2) in
-    let separability = Separability.join (separability t1) (separability t2) in
-    create ~locality ~linearity ~uniqueness ~portability ~contention ~yielding
-      ~statefulness ~visibility ~externality ~nullability ~separability
-
   let meet t1 t2 =
     let locality = Locality.meet (locality t1) (locality t2) in
     let linearity = Linearity.meet (linearity t1) (linearity t2) in
@@ -436,14 +421,6 @@ module Mod_bounds = struct
     |> add_if
          (Separability.le Separability.max (separability t))
          (Nonmodal Separability)
-
-  let for_arrow =
-    create ~linearity:Linearity.max ~locality:Locality.max
-      ~uniqueness:Uniqueness.min ~portability:Portability.max
-      ~contention:Contention.min ~yielding:Yielding.max
-      ~statefulness:Statefulness.max ~visibility:Visibility.min
-      ~externality:Externality.max ~nullability:Nullability.Non_null
-      ~separability:Separability.Non_float
 
   let to_mode_crossing t =
     Mode.Crossing.of_bounds
@@ -1292,27 +1269,6 @@ module Jkind_desc = struct
   let unsafely_set_bounds t ~from =
     { t with mod_bounds = from.mod_bounds; with_bounds = from.with_bounds }
 
-  let add_with_bounds ~relevant_for_shallow ~type_expr ~modality t =
-    match Types.get_desc type_expr with
-    | Tarrow (_, _, _, _) ->
-      (* Optimization: all arrow types have the same (with-bound-free) jkind, so
-         we can just eagerly do a join on the mod-bounds here rather than having
-         to add them to our with bounds only to be normalized away later. *)
-      { t with
-        mod_bounds =
-          Mod_bounds.join t.mod_bounds
-            (Mod_bounds.set_min_in_set Mod_bounds.for_arrow
-               (Axis_set.complement
-                  (With_bounds.relevant_axes_of_modality ~modality
-                     ~relevant_for_shallow)))
-      }
-    | _ ->
-      { t with
-        with_bounds =
-          With_bounds.add_modality ~relevant_for_shallow ~type_expr ~modality
-            t.with_bounds
-      }
-
   let equate_or_equal ~allow_mutation t1 t2 =
     Layout_and_axes.equal (Layout.equate_or_equal ~allow_mutation) t1 t2
 
@@ -1375,15 +1331,6 @@ let is_best t = match t.quality with Best -> true | Not_best -> false
 
 let unsafely_set_bounds (type l r) ~(from : (l * r) jkind) t =
   { t with jkind = Jkind_desc.unsafely_set_bounds t.jkind ~from:from.jkind }
-
-let add_with_bounds ~modality ~type_expr t =
-  { t with
-    jkind =
-      Jkind_desc.add_with_bounds
-      (* We only care about types in fields of unboxed products for the
-         nullability of the overall kind *)
-        ~relevant_for_shallow:`Irrelevant ~type_expr ~modality t.jkind
-  }
 
 (******************************)
 (* construction *)
@@ -1458,35 +1405,6 @@ let of_type_decl_default ~context ~transl_type ~default
   match of_type_decl ~context ~transl_type decl with
   | Some (t, _) -> t
   | None -> default
-
-let has_mutable_label lbls =
-  List.exists
-    (fun (lbl : Types.label_declaration) ->
-      match lbl.ld_mutable with Immutable -> false | Mutable _ -> true)
-    lbls
-
-let all_void_labels lbls =
-  List.for_all
-    (fun (lbl : Types.label_declaration) -> Sort.Const.(equal void lbl.ld_sort))
-    lbls
-
-let add_labels_as_with_bounds lbls jkind =
-  List.fold_right
-    (fun (lbl : Types.label_declaration) ->
-      add_with_bounds ~type_expr:lbl.ld_type ~modality:lbl.ld_modalities)
-    lbls jkind
-
-let for_boxed_record lbls =
-  if all_void_labels lbls
-  then Builtin.immediate ~why:Empty_record
-  else
-    let is_mutable = has_mutable_label lbls in
-    let base =
-      (if is_mutable then Builtin.mutable_data else Builtin.immutable_data)
-        ~why:Boxed_record
-      |> mark_best
-    in
-    add_labels_as_with_bounds lbls base
 
 let for_unboxed_record lbls =
   let open Types in

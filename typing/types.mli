@@ -137,8 +137,10 @@ module Jkind_mod_bounds : sig
 
   val min : t
   val max : t
+  val for_arrow : t
 
   val equal : t -> t -> bool
+  val join : t -> t -> t
 
   val debug_print : Format.formatter -> t -> unit
 end
@@ -1409,4 +1411,14 @@ module Jkind_jkind : sig
     val product_of_sorts :
       why:Jkind_intf.History.product_creation_reason -> int -> jkind_l
   end
+
+  val add_with_bounds :
+    modality:Mode.Modality.Value.Const.t ->
+    type_expr:type_expr ->
+    jkind_l ->
+    jkind_l
+
+  val has_mutable_label : label_declaration list -> bool
+  val all_void_labels : label_declaration list -> bool
+  val for_boxed_record : label_declaration list -> jkind_l
 end
