@@ -33,9 +33,10 @@ type header = {
 
 let parse_header : nativeint -> header =
   fun header ->
-    let wosize =
-      Nativeint.to_int
-        (Nativeint.shift_right_logical header 10)
+  let wosize =
+    0x00003FFF_FFFFFFFF land
+      (Nativeint.to_int
+         (Nativeint.shift_right_logical header 10))
     in
 
     let color =

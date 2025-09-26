@@ -225,6 +225,10 @@ mixed blocks. In the upstream compiler, R is set with the
 
 #define Is_mixed_block_reserved(res) (((reserved_t)(res)) > 0)
 
+/* Check if a header represents a mixed block (must have correct tag AND reserved bits) */
+#define Is_mixed_block_hd(hd) \
+  (Tag_hd(hd) <= Unboxed_nativeint_array_tag && Is_mixed_block_reserved(Reserved_hd(hd)))
+
 /* Native code versions of mixed block macros.
 
    The scannable size of a block is how many fields are values as opposed
@@ -523,6 +527,23 @@ CAMLextern value caml_hash_variant(char const * tag);
 #define String_tag 252
 #define String_val(x) ((const char *) Bp_val(x))
 #define Bytes_val(x) ((unsigned char *) Bp_val(x))
+
+/* String length adjustment in header reserved bits.
+   We use 3 bits (56-58) for the adjustment value (0-7 bytes).
+   This leaves bits 59-63 for future use. */
+#define STRING_ADJUSTMENT_BITS 3
+#define STRING_ADJUSTMENT_SHIFT 56  /* Bits 56-58 on 64-bit */
+#define STRING_ADJUSTMENT_MASK (((1ull << STRING_ADJUSTMENT_BITS) - 1ull) \
+                                << STRING_ADJUSTMENT_SHIFT)
+
+/* Extract string adjustment from header */
+#define String_adjustment_hd(hd) \
+  ((mlsize_t)(((hd) & STRING_ADJUSTMENT_MASK) >> STRING_ADJUSTMENT_SHIFT))
+
+/* Create header with string adjustment */
+#define Hd_string_adjustment(adj) \
+  ((header_t)((adj) << STRING_ADJUSTMENT_SHIFT))
+
 CAMLextern mlsize_t caml_string_length (value);   /* size in bytes */
 CAMLextern int caml_string_is_c_safe (value);
   /* true if string contains no '\0' null characters */

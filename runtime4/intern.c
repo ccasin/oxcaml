@@ -400,13 +400,16 @@ static void intern_rec(value *dest)
       len = (code & 0x1F);
     read_string:
       size = (len + sizeof(value)) / sizeof(value);
+      /* Calculate adjustment for new string format */
+      ofs_ind = Bsize_wsize(size) - 1;
+      mlsize_t adjustment = ofs_ind - len;
       v = Val_hp(intern_dest);
       if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-      *intern_dest = Make_header(size, String_tag, intern_color);
+      /* Store adjustment in header using Make_header_with_profinfo */
+      *intern_dest = Make_header_with_profinfo(size, String_tag, intern_color, adjustment);
       intern_dest += 1 + size;
+      /* Clear the last word for safety/compatibility */
       Field(v, size - 1) = 0;
-      ofs_ind = Bsize_wsize(size) - 1;
-      Byte(v, ofs_ind) = ofs_ind - len;
       readblock((char *)String_val(v), len);
     } else {
       switch(code) {

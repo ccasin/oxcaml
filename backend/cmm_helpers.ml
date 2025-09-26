@@ -272,7 +272,13 @@ let floatarray_header len =
   else block_header Obj.double_array_tag (len * size_float / size_addr)
 
 let string_header len =
-  block_header Obj.string_tag ((len + size_addr) / size_addr)
+  let wosize = (len + size_addr) / size_addr in
+  let bosize = wosize * size_addr in
+  let adjustment = bosize - 1 - len in
+  (* Put adjustment in bits 56-58 *)
+  let adj_bits = Nativeint.shift_left (Nativeint.of_int adjustment) 56 in
+  let base_header = block_header Obj.string_tag wosize in
+  Nativeint.logor base_header adj_bits
 
 let boxedint32_header = block_header Obj.custom_tag 2
 
@@ -1940,25 +1946,23 @@ let set_field_unboxed ~dbg memory_chunk block ~index_in_words newval =
 
 let string_length exp dbg =
   bind "str" exp (fun str ->
-      let tmp_var = V.create_local "tmp" in
-      Clet
-        ( VP.create tmp_var,
-          Cop
-            ( Csubi,
-              [ Cop
-                  ( Clsl,
-                    [get_size str dbg; Cconst_int (log2_size_addr, dbg)],
-                    dbg );
-                Cconst_int (1, dbg) ],
-              dbg ),
-          Cop
-            ( Csubi,
-              [ Cvar tmp_var;
-                Cop
-                  ( mk_load_mut Byte_unsigned,
-                    [Cop (Cadda, [str; Cvar tmp_var], dbg)],
-                    dbg ) ],
-              dbg ) ))
+      (* Get the header *)
+      let hdr = get_header str dbg in
+      (* Extract adjustment from bits 56-58 (3 bits) *)
+      let adjustment = 
+        Cop (Cand,
+          [Cop (Clsr, [hdr; Cconst_int (56, dbg)], dbg);
+           Cconst_int (7, dbg)], (* mask for 3 bits *)
+          dbg) in
+      (* Calculate: (wosize * sizeof(word)) - 1 - adjustment *)
+      let wosize_bytes = 
+        Cop (Clsl,
+          [get_size str dbg; Cconst_int (log2_size_addr, dbg)],
+          dbg) in
+      Cop (Csubi,
+        [Cop (Csubi, [wosize_bytes; Cconst_int (1, dbg)], dbg);
+         adjustment],
+        dbg))
 
 let bigstring_get_alignment ba idx align dbg =
   bind "ba_data"
@@ -4017,7 +4021,9 @@ let emit_block symb white_header cont =
 
 let emit_string_constant_fields s cont =
   let n = size_int - 1 - (String.length s mod size_int) in
-  Cstring s :: Cskip n :: Cint8 n :: cont
+  (* We still pad and clear the last byte for safety/compatibility,
+     but the adjustment is now stored in the header *)
+  Cstring s :: Cskip n :: Cint8 0 :: cont
 
 let emit_boxed_int32_constant_fields n cont =
   let n =

@@ -30,19 +30,17 @@
 /* returns a number of bytes (chars) */
 CAMLexport mlsize_t caml_string_length(value s)
 {
-  mlsize_t temp;
-  temp = Bosize_val(s) - 1;
-  CAMLassert (Byte (s, temp - Byte (s, temp)) == 0);
-  return temp - Byte (s, temp);
+  header_t hd = Hd_val(s);
+  mlsize_t wosize = Wosize_hd(hd);
+  mlsize_t bosize = Bsize_wsize(wosize);
+  mlsize_t adjustment = String_adjustment_hd(hd);
+  return bosize - 1 - adjustment;
 }
 
 /* returns a value that represents a number of bytes (chars) */
 CAMLprim value caml_ml_string_length(value s)
 {
-  mlsize_t temp;
-  temp = Bosize_val(s) - 1;
-  CAMLassert (Byte (s, temp - Byte (s, temp)) == 0);
-  return Val_long(temp - Byte (s, temp));
+  return Val_long(caml_string_length(s));
 }
 
 CAMLprim value caml_ml_bytes_length(value s)

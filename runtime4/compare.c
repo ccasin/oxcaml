@@ -196,10 +196,13 @@ static intnat do_compare_val(struct compare_stack* stk,
         if (t1 != t2)
             return (intnat)t1 - (intnat)t2;
     }
-    if ( Is_mixed_block_reserved(Reserved_val(v1))
-      || Is_mixed_block_reserved(Reserved_val(v2))) {
-      compare_free_stack(stk);
-      caml_invalid_argument("compare: mixed block value");
+    /* Check for mixed blocks - only tags 0-9 can be mixed blocks */
+    if (t1 <= Unboxed_nativeint_array_tag) {
+      if ( Is_mixed_block_reserved(Reserved_val(v1))
+        || Is_mixed_block_reserved(Reserved_val(v2))) {
+        compare_free_stack(stk);
+        caml_invalid_argument("compare: mixed block value");
+      }
     }
     switch(t1) {
     case Forward_tag: {

@@ -419,8 +419,9 @@ static void intern_alloc_storage(struct caml_intern_state* s, mlsize_t whsize,
   return;
 }
 
-static value intern_alloc_obj(struct caml_intern_state* s, caml_domain_state* d,
-                              mlsize_t wosize, tag_t tag)
+static value intern_alloc_obj_with_reserved(struct caml_intern_state* s, 
+                              caml_domain_state* d,
+                              mlsize_t wosize, tag_t tag, reserved_t reserved)
 {
   void* p;
 
@@ -428,25 +429,29 @@ static value intern_alloc_obj(struct caml_intern_state* s, caml_domain_state* d,
     CAMLassert ((value*)s->intern_dest >= d->young_start &&
                 (value*)s->intern_dest < d->young_end);
     p = s->intern_dest;
-    *s->intern_dest = Make_header (wosize, tag, 0);
+    *s->intern_dest = Make_header_with_reserved (wosize, tag, 0, reserved);
     caml_memprof_sample_block(Val_hp(p), wosize, 1 + wosize,
                               CAML_MEMPROF_SRC_MARSHAL);
     s->intern_dest += 1 + wosize;
   } else {
-    p = caml_shared_try_alloc(d->shared_heap, wosize, tag,
-                              0 /* no reserved bits */);
+    p = caml_shared_try_alloc(d->shared_heap, wosize, tag, reserved);
     if (p == NULL) {
       intern_cleanup (s);
       caml_raise_out_of_memory();
     }
     d->allocated_words += Whsize_wosize(wosize);
     d->allocated_words_direct += Whsize_wosize(wosize);
-    Hd_hp(p) = Make_header (wosize, tag, caml_allocation_status());
+    Hd_hp(p) = Make_header_with_reserved (wosize, tag, caml_allocation_status(), reserved);
     caml_memprof_sample_block(Val_hp(p), wosize,
-                              Whsize_wosize(wosize),
-                              CAML_MEMPROF_SRC_MARSHAL);
+                              1 + wosize, CAML_MEMPROF_SRC_MARSHAL);
   }
   return Val_hp(p);
+}
+
+static value intern_alloc_obj(struct caml_intern_state* s, caml_domain_state* d,
+                              mlsize_t wosize, tag_t tag)
+{
+  return intern_alloc_obj_with_reserved(s, d, wosize, tag, 0);
 }
 
 static void intern_rec(struct caml_intern_state* s,
@@ -534,12 +539,15 @@ static void intern_rec(struct caml_intern_state* s,
       len = (code & 0x1F);
     read_string:
       size = (len + sizeof(value)) / sizeof(value);
-      v = intern_alloc_obj (s, d, size, String_tag);
+      /* Calculate adjustment for new string format */
+      ofs_ind = Bsize_wsize(size) - 1;
+      mlsize_t adjustment = ofs_ind - len;
+      /* Allocate string with adjustment in header */
+      v = intern_alloc_obj_with_reserved (s, d, size, String_tag, adjustment);
       if (s->intern_obj_table != NULL)
         s->intern_obj_table[s->obj_counter++] = v;
+      /* Clear the last word for safety/compatibility */
       Field(v, size - 1) = 0;
-      ofs_ind = Bsize_wsize(size) - 1;
-      Byte(v, ofs_ind) = ofs_ind - len;
       readblock(s, (char *)String_val(v), len);
     } else {
       switch(code) {

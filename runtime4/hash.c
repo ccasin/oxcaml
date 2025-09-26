@@ -290,9 +290,12 @@ CAMLprim value caml_hash_exn(value count, value limit, value seed, value obj)
       }
 #endif
       default:
-	if (Is_mixed_block_reserved(Reserved_val(v))) {
-	  caml_invalid_argument("hash: mixed block value");
-	}
+        /* Check for mixed blocks - only tags 0-9 can be mixed blocks */
+        if (Tag_val(v) <= Unboxed_nativeint_array_tag) {
+          if (Is_mixed_block_reserved(Reserved_val(v))) {
+            caml_invalid_argument("hash: mixed block value");
+          }
+        }
         /* Mix in the tag and size, but do not count this towards [num] */
         h = caml_hash_mix_uint32(h, Whitehd_hd(Hd_val(v)));
         /* Copy fields into queue, not exceeding the total size [sz] */
@@ -301,9 +304,9 @@ CAMLprim value caml_hash_exn(value count, value limit, value seed, value obj)
           queue[wr++] = Field(v, i);
         }
         break;
-      }
-    }
-  }
+    } /* end of switch */
+    } /* end of else */
+  } /* end of while */
   /* Final mixing of bits */
   FINAL_MIX(h);
   /* Fold result to the range [0, 2^30-1] so that it is a nonnegative

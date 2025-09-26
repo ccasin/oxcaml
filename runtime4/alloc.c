@@ -135,32 +135,37 @@ CAMLexport value caml_alloc_tuple(mlsize_t n)
 CAMLexport value caml_alloc_string (mlsize_t len)
 {
   value result;
-  mlsize_t offset_index;
   mlsize_t wosize = (len + sizeof (value)) / sizeof (value);
+  mlsize_t bosize = Bsize_wsize(wosize);
+  mlsize_t adjustment = bosize - 1 - len;
 
   if (wosize <= Max_young_wosize) {
-    Alloc_small (result, wosize, String_tag);
+    Alloc_small_with_reserved (result, wosize, String_tag, adjustment);
   }else{
-    result = caml_alloc_shr (wosize, String_tag);
+    result = caml_alloc_shr_reserved (wosize, String_tag, adjustment);
     result = caml_check_urgent_gc (result);
   }
+  
+  /* Clear the last word for safety/compatibility */
   Field (result, wosize - 1) = 0;
-  offset_index = Bsize_wsize (wosize) - 1;
-  Byte (result, offset_index) = offset_index - len;
+  
   return result;
 }
 
 /* [len] is a number of bytes (chars) */
 CAMLexport value caml_alloc_local_string (mlsize_t len)
 {
-  mlsize_t offset_index;
   mlsize_t wosize = (len + sizeof (value)) / sizeof (value);
+  mlsize_t bosize = Bsize_wsize(wosize);
+  mlsize_t adjustment = bosize - 1 - len;
   value result;
 
-  result = caml_alloc_local(wosize, String_tag);
+  /* Use caml_alloc_local_reserved to set profinfo bits with adjustment */
+  result = caml_alloc_local_reserved(wosize, String_tag, adjustment);
+  
+  /* Clear the last word for safety/compatibility */
   Field (result, wosize - 1) = 0;
-  offset_index = Bsize_wsize (wosize) - 1;
-  Byte (result, offset_index) = offset_index - len;
+  
   return result;
 }
 

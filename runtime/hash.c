@@ -287,7 +287,9 @@ CAMLprim value caml_hash_exn(value count, value limit, value seed, value obj)
         break;
 
       default:
-	if (Is_mixed_block_reserved(Reserved_val(v))) {
+	/* Check for mixed blocks - only tags 0-9 can be mixed blocks */
+	if (Tag_val(v) <= Unboxed_nativeint_array_tag &&
+	    Is_mixed_block_reserved(Reserved_val(v))) {
 	  caml_invalid_argument("hash: mixed block value");
 	}
         /* Mix in the tag and size, but do not count this towards [num] */

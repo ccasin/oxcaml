@@ -490,6 +490,20 @@ CAMLextern value caml_hash_variant(char const * tag);
 
 /* Strings. */
 #define String_tag 252
+
+/* String length adjustment bits in header reserved area */
+#define STRING_ADJUSTMENT_BITS 3
+#define STRING_ADJUSTMENT_SHIFT 56  /* Bits 56-58 on 64-bit */
+#define STRING_ADJUSTMENT_MASK (((1ull << STRING_ADJUSTMENT_BITS) - 1ull) \
+                                << STRING_ADJUSTMENT_SHIFT)
+
+/* Extract string adjustment from header */
+#define String_adjustment_hd(hd) \
+  ((mlsize_t)(((hd) & STRING_ADJUSTMENT_MASK) >> STRING_ADJUSTMENT_SHIFT))
+
+/* Create header bits for string adjustment */
+#define Hd_string_adjustment(adj) \
+  ((header_t)((adj) << STRING_ADJUSTMENT_SHIFT))
 #ifdef CAML_SAFE_STRING
 #define String_val(x) ((const char *) Bp_val(x))
 #else

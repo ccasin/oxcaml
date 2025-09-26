@@ -745,7 +745,8 @@ static void extern_rec(value v)
     tag_t tag = Tag_hd(hd);
     mlsize_t sz = Wosize_hd(hd);
     reserved_t reserved = Reserved_hd(hd);
-    if (Is_mixed_block_reserved(reserved)) {
+    /* Check for mixed blocks - only tags 0-9 can be mixed blocks */
+    if (tag <= Unboxed_nativeint_array_tag && Is_mixed_block_reserved(reserved)) {
       extern_invalid_argument("output_value: mixed block");
       break;
     }

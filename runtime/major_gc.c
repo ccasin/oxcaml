@@ -1218,7 +1218,9 @@ again:
       me.start = Op_val(block);
 
       reserved_t reserved = Reserved_hd(hd);
-      if (Is_mixed_block_reserved(reserved)) {
+      /* Check for mixed blocks - only tags 0-9 can be mixed blocks */
+      if (Tag_hd(hd) <= Unboxed_nativeint_array_tag && 
+          Is_mixed_block_reserved(reserved)) {
         uintnat scannable_wosize =
           Scannable_wosize_reserved(reserved, Wosize_hd(hd));
         me.end = me.start + scannable_wosize;

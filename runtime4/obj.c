@@ -193,6 +193,15 @@ CAMLprim value caml_obj_with_tag(value new_tag_v, value arg)
     CAMLreturn (Atom(tag_for_alloc));
   }
 
+  // Special handling for strings: we need to properly allocate a string
+  // with the correct adjustment in the header, not just copy the reserved bits
+  if (tag_for_alloc == String_tag) {
+    mlsize_t string_length = caml_string_length(arg);
+    res = caml_alloc_string(string_length);
+    memcpy(Bytes_val(res), Bytes_val(arg), string_length);
+    CAMLreturn (res);
+  }
+
   if (tag_for_alloc >= No_scan_tag) {
     res = caml_alloc(sz, tag_for_alloc);
     memcpy(Bp_val(res), Bp_val(arg), sz * sizeof(value));
