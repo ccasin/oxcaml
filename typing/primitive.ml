@@ -225,10 +225,10 @@ let rec add_native_repr_attributes ty attrs =
   match ty, attrs with
     (* Otyp_poly case might have been added in e.g. tree_of_value_description *)
   | Otyp_poly (vars, ty), _ -> Otyp_poly (vars, add_native_repr_attributes ty attrs)
-  | Otyp_arrow (label, am, a, rm, r), attr_l :: rest ->
+  | Otyp_arrow (label, am, a, Otyp_ret (rm, r)), attr_l :: rest ->
     let r = add_native_repr_attributes r rest in
     let a = add_attribute_list a attr_l in
-    Otyp_arrow (label, am, a, rm, r)
+    Otyp_arrow (label, am, a, Otyp_ret (rm, r))
   | _, [attr_l] -> add_attribute_list ty attr_l
   | _ ->
     assert (List.for_all (fun x -> x = []) attrs);
@@ -474,14 +474,9 @@ module Repr_check = struct
     | Product _ -> true
     | Base _ -> false
 
-  let rec sort_contains_void : Jkind_types.Sort.Const.t -> bool = function
-    | Base Void -> true
-    | Base _ -> false
-    | Product sorts -> List.exists sort_contains_void sorts
-
   let valid_c_stub_arg = function
     | Same_as_ocaml_repr s ->
-      not (sort_is_product s) && not (sort_contains_void s)
+      not (sort_is_product s)
     | Unboxed_float _ | Unboxed_or_untagged_integer _ | Unboxed_vector _
     | Repr_poly -> true
 
@@ -489,8 +484,7 @@ module Repr_check = struct
     | Same_as_ocaml_repr (Base _)
     | Unboxed_float _ | Unboxed_or_untagged_integer _ | Unboxed_vector _
     | Repr_poly -> true
-    | Same_as_ocaml_repr (Product [s1; s2] as s) ->
-      not (sort_contains_void s) &&
+    | Same_as_ocaml_repr (Product [s1; s2]) ->
       not (sort_is_product s1) &&
       not (sort_is_product s2)
     | Same_as_ocaml_repr (Product _) -> false
@@ -761,6 +755,50 @@ let prim_has_valid_reprs ~loc prim =
       check [
         is (Same_as_ocaml_repr C.value);
         is (Same_as_ocaml_repr C.bits32);
+        any;
+        is (Same_as_ocaml_repr C.value)]
+    | "%array_safe_get_indexed_by_int16#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits16);
+        any]
+    | "%array_safe_set_indexed_by_int16#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits16);
+        any;
+        is (Same_as_ocaml_repr C.value)]
+    | "%array_unsafe_get_indexed_by_int16#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits16);
+        any]
+    | "%array_unsafe_set_indexed_by_int16#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits16);
+        any;
+        is (Same_as_ocaml_repr C.value)]
+    | "%array_safe_get_indexed_by_int8#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits8);
+        any]
+    | "%array_safe_set_indexed_by_int8#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits8);
+        any;
+        is (Same_as_ocaml_repr C.value)]
+    | "%array_unsafe_get_indexed_by_int8#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits8);
+        any]
+    | "%array_unsafe_set_indexed_by_int8#" ->
+      check [
+        is (Same_as_ocaml_repr C.value);
+        is (Same_as_ocaml_repr C.bits8);
         any;
         is (Same_as_ocaml_repr C.value)]
     | "%array_safe_get_indexed_by_nativeint#" ->

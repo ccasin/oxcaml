@@ -555,9 +555,10 @@ let create_let_symbols uacc lifted_constant ~body =
             | Project_value_slot { project_from; value_slot } ->
               Unary (Project_value_slot { project_from; value_slot }, symbol)
           in
+          let machine_width = UE.machine_width (UA.uenv uacc) in
           ( Named.create_prim prim Debuginfo.none,
             coercion_from_proj_to_var,
-            Code_size.prim prim )
+            Code_size.prim ~machine_width prim )
       in
       (* It's possible that this might create duplicates of the same projection
          operation, but it's unlikely there will be a significant number, and
@@ -605,7 +606,7 @@ let place_lifted_constants uacc ~lifted_constants_from_defining_expr
   place_constants uacc ~around:body lifted_constants_from_defining_expr
 
 let create_switch uacc ~condition_dbg ~scrutinee ~arms =
-  if Targetint_31_63.Map.cardinal arms < 1
+  if Target_ocaml_int.Map.cardinal arms < 1
   then
     ( RE.create_invalid Zero_switch_arms,
       UA.notify_added ~code_size:Code_size.invalid uacc )
@@ -617,13 +618,13 @@ let create_switch uacc ~condition_dbg ~scrutinee ~arms =
       in
       RE.create_apply_cont action, uacc
     in
-    match Targetint_31_63.Map.get_singleton arms with
+    match Target_ocaml_int.Map.get_singleton arms with
     | Some (_discriminant, action) -> change_to_apply_cont action
     | None -> (
       (* At that point, we've already applied the apply cont rewrite to the
          action of the arms. *)
       let actions =
-        Apply_cont_expr.Set.of_list (Targetint_31_63.Map.data arms)
+        Apply_cont_expr.Set.of_list (Target_ocaml_int.Map.data arms)
       in
       match Apply_cont_expr.Set.get_singleton actions with
       | Some action ->
@@ -721,7 +722,8 @@ let no_rewrite_apply_cont uenv apply_cont =
 let rewrite_apply_cont0 uacc rewrite ~ctx id apply_cont :
     rewrite_apply_cont_result =
   let args = Apply_cont.args apply_cont in
-  match Apply_cont_rewrite.make_rewrite rewrite ~ctx id args with
+  let machine_width = UE.machine_width (UA.uenv uacc) in
+  match Apply_cont_rewrite.make_rewrite rewrite ~machine_width ~ctx id args with
   | Invalid -> Invalid { message = "" }
   | Ok (extra_lets, args) -> (
     let apply_cont = Apply_cont.update_args apply_cont ~args in

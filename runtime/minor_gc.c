@@ -154,6 +154,26 @@ void caml_set_minor_heap_size (asize_t wsize)
   reset_minor_tables(r);
 }
 
+/* We are about to write `count` ref table entries. We may wish to
+ * avoid them all by doing a minor GC first. Heuristic is that if we
+ * are going to use a significant chunk of the available remembered
+ * set space, without growing the remembered set, then do the GC. */
+
+#define WRITE_PERCENT_TO_TRIGGER_MINOR_GC 10
+
+bool caml_maybe_minor_gc_before_writes(mlsize_t count)
+{
+  struct caml_ref_table *table = &Caml_state->minor_tables->major_ref;
+  size_t space = table->base ? (table->limit - table->ptr) : table->size;
+  if (count > (space * WRITE_PERCENT_TO_TRIGGER_MINOR_GC) / 100) {
+    CAML_EV_COUNTER(EV_C_FORCE_MINOR_MAKE_VECT, 1);
+    caml_minor_collection();
+    return true;
+  }
+  return false;
+}
+
+
 /*****************************************************************************/
 
 struct oldify_state {
@@ -370,7 +390,7 @@ static void oldify_one (void* st_v, value v, volatile value *p)
       #endif
     }
 
-  } else if (tag >= No_scan_tag) {
+  } else if (!Scannable_tag(tag)) {
     sz = Wosize_hd (hd);
     st->live_bytes += Bhsize_hd(hd);
     result = alloc_shared(st->domain, sz, tag, Reserved_hd(hd));

@@ -301,6 +301,9 @@ module Const : sig
     (** Values of types of this jkind are either immediate or null pointers *)
     val immediate_or_null : t
 
+    (** Values of types of this jkind are either immediate64 or null pointers *)
+    val immediate64_or_null : t
+
     (** The jkind of unboxed 64-bit floats with no mode crossing. *)
     val float64 : t
 
@@ -345,6 +348,9 @@ module Const : sig
 
     (** The jkind of unboxed 64-bit integers with mode crossing. *)
     val kind_of_unboxed_int64 : t
+
+    (** The jkind of block indices with mode crossing. *)
+    val kind_of_idx : t
 
     (** The jkind of unboxed 128-bit vectors with no mode crossing. *)
     val vec128 : t
@@ -413,7 +419,7 @@ module Builtin : sig
       are represented in the with-bounds. *)
   val product :
     why:History.product_creation_reason ->
-    (Types.type_expr * Mode.Modality.Value.Const.t) list ->
+    (Types.type_expr * Mode.Modality.Const.t) list ->
     Sort.t Layout.t list ->
     Types.jkind_l
 
@@ -430,7 +436,7 @@ val unsafely_set_bounds :
 
 (** Take an existing [jkind_l] and add some with-bounds. *)
 val add_with_bounds :
-  modality:Mode.Modality.Value.Const.t ->
+  modality:Mode.Modality.Const.t ->
   type_expr:Types.type_expr ->
   Types.jkind_l ->
   Types.jkind_l
@@ -578,7 +584,7 @@ val for_or_null_argument : Ident.t -> 'd Types.jkind
 *)
 val for_abbreviation :
   type_jkind_purely:(Types.type_expr -> Types.jkind_l) ->
-  modality:Mode.Modality.Value.Const.t ->
+  modality:Mode.Modality.Const.t ->
   Types.type_expr ->
   Types.jkind_l
 
@@ -671,19 +677,25 @@ val set_layout : 'd Types.jkind -> Sort.t Layout.t -> 'd Types.jkind
     modified by the modality, by setting the mod-bounds appropriately
     and propagating the modality into any with-bounds. *)
 val apply_modality_l :
-  Mode.Modality.Value.Const.t -> (allowed * 'r) Types.jkind -> Types.jkind_l
+  Mode.Modality.Const.t -> (allowed * 'r) Types.jkind -> Types.jkind_l
 
 (** Change a jkind to be appropriate for an expectation of a type under
     a modality. This means that the jkind's axes affected by the modality
     will all be top. The with-bounds are left unchanged. *)
 val apply_modality_r :
-  Mode.Modality.Value.Const.t -> ('l * allowed) Types.jkind -> Types.jkind_r
+  Mode.Modality.Const.t -> ('l * allowed) Types.jkind -> Types.jkind_r
+
+(** Change a jkind to be appropriate for ['a or_null] based on passed ['a].
+    Adjusts nullability to be [Maybe_null], and separability to be
+    [Maybe_separable] if it is already [Separable]. If the jkind is already
+    [Maybe_null], fails. *)
+val apply_or_null_l : Types.jkind_l -> (Types.jkind_l, unit) result
 
 (** Change a jkind to be appropriate for an expectation of a type passed to
     the [or_null] constructor. Adjusts nullability to be [Non_null], and
     separability to be [Non_float] if it is demanded to be [Separable].
     If the jkind is already [Non_null], fails. *)
-val apply_or_null : Types.jkind_r -> (Types.jkind_r, unit) result
+val apply_or_null_r : Types.jkind_r -> (Types.jkind_r, unit) result
 
 (** Extract out component jkinds from the product. Because there are no product
     jkinds, this is a bit of a lie: instead, this decomposes the layout but just
@@ -718,9 +730,7 @@ val normalize :
 val set_outcometree_of_type : (Types.type_expr -> Outcometree.out_type) -> unit
 
 val set_outcometree_of_modalities_new :
-  (Types.mutability ->
-  Mode.Modality.Value.Const.t ->
-  Outcometree.out_mode_new list) ->
+  (Types.mutability -> Mode.Modality.Const.t -> Outcometree.out_mode_new list) ->
   unit
 
 (** Provides the [Printtyp.path] formatter back up the dependency chain to

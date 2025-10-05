@@ -32,6 +32,7 @@ type cms_infos = {
   cms_initial_env : Env.t option;
   cms_uid_to_loc : string Location.loc Shape.Uid.Tbl.t;
   cms_uid_to_attributes : Parsetree.attributes Shape.Uid.Tbl.t;
+  cms_shape_format : Clflags.shape_format;
   cms_impl_shape : Shape.t option; (* None for mli *)
   cms_ident_occurrences :
     (Longident.t Location.loc * Shape_reduce.result) array;
@@ -111,8 +112,12 @@ let save_cms target modname binary_annots initial_env shape
     Misc.output_to_file_via_temporary
        ~mode:[Open_binary] (Unit_info.Artifact.filename target)
        (fun _temp_file_name oc ->
-
-        let sourcefile = Unit_info.Artifact.source_file target in
+        (* We use the raw_source_file because the original_source_file may not
+           exist (or may have changed), so computing the digest may fail or
+           produce inconsistent results. Merlin expects the cms_sourcefile to be
+           the file we computed the digest of, which is why we use the
+           raw_source_file for that as well. *)
+        let sourcefile = Unit_info.Artifact.raw_source_file target in
         let source_digest = Option.map Digest.file sourcefile in
         let cms_ident_occurrences, cms_initial_env =
           if !Clflags.store_occurrences then
@@ -137,6 +142,7 @@ let save_cms target modname binary_annots initial_env shape
             cms_initial_env;
             cms_uid_to_loc;
             cms_uid_to_attributes;
+            cms_shape_format = !Clflags.shape_format;
             cms_impl_shape = shape;
             cms_ident_occurrences;
             cms_declaration_dependencies;
@@ -147,3 +153,8 @@ let save_cms target modname binary_annots initial_env shape
   end
 
 let clear () = ()
+
+let shape_format_to_string =
+  function
+  | Clflags.Old_merlin -> "old-merlin"
+  | Clflags.Debugging_shapes -> "debugging-shapes"

@@ -56,6 +56,10 @@ val cc_compress_debug_sections_flag : string
 val objcopy_compress_debug_sections_flag : string
 (** The flag to use for objcopy debug section compression ("" if none) *)
 
+val objcopy : string
+(** The objcopy command (and flags) to use for split debug enabled by
+    [Clflags.dwarf_fission]. *)
+
 val ocamlc_cflags : string
 (** The flags ocamlc should pass to the C compiler *)
 
@@ -140,6 +144,12 @@ val cmt_magic_number: string
 
 val cms_magic_number: string
 (** Magic number for compiled shapes files *)
+
+val cmj_magic_number: string
+(** Magic number for Js_of_ocaml IR files *)
+
+val cmja_magic_number: string
+(** Magic number for Js_of_ocaml IR archive files *)
 
 val linear_magic_number: string
 (** Magic number for Linear internal representation files *)
@@ -318,6 +328,9 @@ val tsan : bool
 
 val parameterised_modules : bool
 (** Whether parameterised modules are supported *)
+
+val syntax_quotations : bool
+(** Whether runtime quotations syntax is enabled. *)
 
 (** Access to configuration values *)
 val print_config : out_channel -> unit

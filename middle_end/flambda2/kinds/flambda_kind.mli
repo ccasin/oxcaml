@@ -223,7 +223,7 @@ module With_subkind : sig
       | Boxed_vec512
       | Tagged_immediate
       | Variant of
-          { consts : Targetint_31_63.Set.t;
+          { consts : Target_ocaml_int.Set.t;
             non_consts : (Block_shape.t * full_kind list) Tag.Scannable.Map.t
           }
       | Float_block of { num_fields : int }
@@ -327,10 +327,12 @@ module With_subkind : sig
   val boxed_of_boxable_number : Boxable_number.t -> t
 
   (* Nullability is taken from the Lambda value kind *)
-  val from_lambda_value_kind : Lambda.value_kind -> t
+  val from_lambda_value_kind :
+    Lambda.value_kind -> machine_width:Target_system.Machine_width.t -> t
 
   (* Nullability is taken from the Lambda value kind *)
-  val from_lambda_values_and_unboxed_numbers_only : Lambda.layout -> t
+  val from_lambda_values_and_unboxed_numbers_only :
+    Lambda.layout -> machine_width:Target_system.Machine_width.t -> t
 
   val compatible : t -> when_used_at:t -> bool
 

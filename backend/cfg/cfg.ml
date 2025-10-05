@@ -49,6 +49,10 @@ type basic_block =
 type codegen_option =
   | Reduce_code_size
   | No_CSE
+  | Use_linscan_regalloc
+  | Use_regalloc of Clflags.Register_allocator.t
+  | Use_regalloc_param of string list
+  | Cold
   | Assume_zero_alloc of
       { strict : bool;
         never_returns_normally : bool;
@@ -75,7 +79,11 @@ let rec of_cmm_codegen_option : Cmm.codegen_option list -> codegen_option list =
     | Check_zero_alloc { strict; loc; custom_error_msg } ->
       Check_zero_alloc { strict; loc; custom_error_msg }
       :: of_cmm_codegen_option tl
-    | Use_linscan_regalloc -> of_cmm_codegen_option tl)
+    | Use_linscan_regalloc -> Use_linscan_regalloc :: of_cmm_codegen_option tl
+    | Use_regalloc regalloc -> Use_regalloc regalloc :: of_cmm_codegen_option tl
+    | Use_regalloc_param params ->
+      Use_regalloc_param params :: of_cmm_codegen_option tl
+    | Cold -> Cold :: of_cmm_codegen_option tl)
 
 type t =
   { blocks : basic_block Label.Tbl.t;
@@ -277,6 +285,7 @@ let dump_basic ppf (basic : basic) =
   | Poptrap { lbl_handler } ->
     fprintf ppf "Poptrap handler=%a" Label.format lbl_handler
   | Prologue -> fprintf ppf "Prologue"
+  | Epilogue -> fprintf ppf "Epilogue"
   | Stack_check { max_frame_size_bytes } ->
     fprintf ppf "Stack_check size=%d" max_frame_size_bytes
 
@@ -322,7 +331,7 @@ let dump_terminator' ?(print_reg = Printreg.reg) ?(res = [||]) ?(args = [||])
   | Int_test { lt; eq; gt; is_signed; imm } ->
     let cmp =
       Printf.sprintf " %s%s"
-        (if is_signed then "s" else "u")
+        (match is_signed with Signed -> "s" | Unsigned -> "u")
         (match imm with None -> second_arg | Some i -> " " ^ Int.to_string i)
     in
     fprintf ppf "if%s <%s goto %a%s" first_arg cmp Label.format lt sep;
@@ -479,11 +488,12 @@ let is_pure_basic : basic -> bool = function
     (* Those instructions modify the trap stack which actually modifies the
        stack pointer. *)
     false
-  | Prologue ->
+  | Prologue | Epilogue ->
     (* [Prologue] grows the stack when entering a function and therefore
        modifies the stack pointer. [Prologue] can be considered pure if it's
        ensured that it wouldn't modify the stack pointer (e.g. there are no used
-       local stack slots nor calls). *)
+       local stack slots nor calls). [Epilogue] shrinks the stack when leaving a
+       function, and can also be considered pure under the same conditions. *)
     false
   | Stack_check _ ->
     (* May reallocate the stack. *)
@@ -511,7 +521,8 @@ let is_noop_move instr =
       | Opaque | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
       | Specific _ | Name_for_debugger _ | Begin_region | End_region | Dls_get
       | Poll | Alloc _ | Pause )
-  | Reloadretaddr | Pushtrap _ | Poptrap _ | Prologue | Stack_check _ ->
+  | Reloadretaddr | Pushtrap _ | Poptrap _ | Prologue | Epilogue | Stack_check _
+    ->
     false
 
 let set_stack_offset (instr : _ instruction) stack_offset =
@@ -541,7 +552,7 @@ let string_of_irc_work_list = function
 
 let make_instruction ~desc ?(arg = [||]) ?(res = [||]) ?(dbg = Debuginfo.none)
     ?(fdo = Fdo_info.none) ?(live = Reg.Set.empty) ~stack_offset ~id
-    ?(irc_work_list = Unknown_list) ?(ls_order = 0) ?(available_before = None)
+    ?(irc_work_list = Unknown_list) ?(available_before = None)
     ?(available_across = None) () =
   { desc;
     arg;
@@ -552,13 +563,12 @@ let make_instruction ~desc ?(arg = [||]) ?(res = [||]) ?(dbg = Debuginfo.none)
     stack_offset;
     id;
     irc_work_list;
-    ls_order;
     available_before;
     available_across
   }
 
 let make_instruction_from_copy (copy : _ instruction) ~desc ~id ?(arg = [||])
-    ?(res = [||]) ?(irc_work_list = Unknown_list) ?(ls_order = -1) () =
+    ?(res = [||]) ?(irc_work_list = Unknown_list) () =
   { desc;
     arg;
     res;
@@ -568,7 +578,6 @@ let make_instruction_from_copy (copy : _ instruction) ~desc ~id ?(arg = [||])
     stack_offset = copy.stack_offset;
     id;
     irc_work_list;
-    ls_order;
     available_before = copy.available_before;
     available_across = copy.available_across
   }
@@ -593,7 +602,7 @@ let make_empty_block ?label terminator : basic_block =
 let is_poll (instr : basic instruction) =
   match instr.desc with
   | Op Poll -> true
-  | Reloadretaddr | Prologue | Pushtrap _ | Poptrap _ | Stack_check _
+  | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
   | Op
       ( Alloc _ | Move | Spill | Reload | Opaque | Pause | Begin_region
       | End_region | Dls_get | Const_int _ | Const_float32 _ | Const_float _
@@ -611,7 +620,7 @@ let is_poll (instr : basic instruction) =
 let is_alloc (instr : basic instruction) =
   match instr.desc with
   | Op (Alloc _) -> true
-  | Reloadretaddr | Prologue | Pushtrap _ | Poptrap _ | Stack_check _
+  | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
   | Op
       ( Poll | Move | Spill | Reload | Opaque | Begin_region | End_region
       | Dls_get | Pause | Const_int _ | Const_float32 _ | Const_float _
@@ -629,7 +638,7 @@ let is_alloc (instr : basic instruction) =
 let is_end_region (b : basic) =
   match b with
   | Op End_region -> true
-  | Reloadretaddr | Prologue | Pushtrap _ | Poptrap _ | Stack_check _
+  | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
   | Op
       ( Alloc _ | Poll | Move | Spill | Reload | Opaque | Begin_region | Dls_get
       | Pause | Const_int _ | Const_float32 _ | Const_float _ | Const_symbol _
@@ -704,13 +713,13 @@ let remove_trap_instructions t removed_trap_handlers =
       else (
         update_block lbl_handler ~stack_offset;
         update_basic_next (DLL.Cursor.next cursor)
-          ~stack_offset:(stack_offset + Proc.trap_size_in_bytes))
+          ~stack_offset:(stack_offset + Proc.trap_size_in_bytes ()))
     | Poptrap { lbl_handler } ->
       if Label.Set.mem lbl_handler removed_trap_handlers
       then update_basic_next (DLL.Cursor.delete_and_next cursor) ~stack_offset
       else
         update_basic_next (DLL.Cursor.next cursor)
-          ~stack_offset:(stack_offset - Proc.trap_size_in_bytes)
+          ~stack_offset:(stack_offset - Proc.trap_size_in_bytes ())
     | Op (Stackoffset n) ->
       update_basic_next (DLL.Cursor.next cursor) ~stack_offset:(stack_offset + n)
     | Op
@@ -720,7 +729,7 @@ let remove_trap_instructions t removed_trap_handlers =
         | Csel _ | Static_cast _ | Reinterpret_cast _ | Probe_is_enabled _
         | Opaque | Begin_region | End_region | Specific _ | Name_for_debugger _
         | Dls_get | Poll | Alloc _ | Pause )
-    | Reloadretaddr | Prologue | Stack_check _ ->
+    | Reloadretaddr | Prologue | Epilogue | Stack_check _ ->
       update_basic_next (DLL.Cursor.next cursor) ~stack_offset
   and update_body r ~stack_offset =
     match r with

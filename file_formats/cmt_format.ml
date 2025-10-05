@@ -232,6 +232,8 @@ let iter_on_occurrences
       | Texp_idx (ba, uas) ->
           iter_block_access exp_env ba;
           List.iter (iter_unboxed_access exp_env) uas
+      | Texp_atomic_loc (_, _, lid, label_desc, _) ->
+          add_label ~namespace:Label exp_env lid label_desc
       | Texp_new (path, lid, _, _) ->
           f ~namespace:Class exp_env path lid
       | Texp_record { fields; _ } ->
@@ -492,7 +494,12 @@ let save_cmt target cu binary_annots initial_env cmi shape =
            | None -> None
            | Some cmi -> Some (output_cmi temp_file_name oc cmi)
          in
-         let sourcefile = Unit_info.Artifact.source_file target in
+         (* We use the raw_source_file because the original_source_file may not
+            exist (or may have changed), so computing the digest may fail or
+            produce inconsistent results. Merlin expects the cms_sourcefile to
+            be the file we computed the digest of, which is why we use the
+            raw_source_file for that as well. *)
+         let sourcefile = Unit_info.Artifact.raw_source_file target in
          let cmt_ident_occurrences =
           if !Clflags.store_occurrences then
             index_occurrences binary_annots

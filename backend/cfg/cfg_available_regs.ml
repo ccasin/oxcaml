@@ -13,7 +13,10 @@ module V = Backend_var
    to be seen in the debugger, for example when the last use of some variable is
    just before a call, and the debugger is standing in the callee. It may
    however affect the semantics of e.g. finalizers. *)
-let extend_live () = !Dwarf_flags.gdwarf_may_alter_codegen
+let extend_live () = false
+(* CR sspies: This used to be set by [-gdwarf-may-alter-codegen]. But the
+   computation is currently broken, so we've disabled the flag. Fix the
+   compuation and re-enable the flag. *)
 
 (* CR xclerc for xclerc: consider passing this value through the context. *)
 let all_regs_that_might_be_named = ref Reg.Set.empty
@@ -279,14 +282,23 @@ module Transfer = struct
           let results =
             Array.map2
               (fun arg_reg result_reg ->
-                match RD.Set.find_reg_exn avail_before arg_reg with
-                | exception Not_found ->
-                  (* Note that [arg_reg] might not be in
-                     [all_regs_that_might_be_named], meaning it wouldn't be
-                     found in [avail_before]. In that case we shouldn't
-                     propagate anything. *)
-                  None
+                (* We have to use [find_reg_with_same_location_exn] and not just
+                   [find_reg_exn] because the register allocator can elide
+                   moves, meaning that [arg_reg] might have one register stamp
+                   at [instr] but a different register stamp on the previous
+                   occurrence (from which we would have computed
+                   [avail_before]). All that we need here, though, is the debug
+                   info from any register with the same location. *)
+                match
+                  RD.Set.find_reg_with_same_location_exn avail_before arg_reg
+                with
+                | exception Not_found -> None
                 | arg_reg ->
+                  (* CR mshinwell/xclerc: it seems maybe possible for two
+                     distinct variables to end up coalesced into the same hard
+                     register / stack slot. In this case, maybe the choice of
+                     register in [find_reg_with_same_location_exn] could make a
+                     difference to what the user sees in the debugger? *)
                   if Option.is_some (RD.debug_info arg_reg)
                   then
                     Some
@@ -312,7 +324,8 @@ module Transfer = struct
             | Floatop _ | Csel _ | Reinterpret_cast _ | Static_cast _
             | Probe_is_enabled _ | Opaque | Begin_region | End_region
             | Specific _ | Dls_get | Poll | Alloc _ | Pause )
-        | Reloadretaddr | Pushtrap _ | Poptrap _ | Prologue | Stack_check _ ->
+        | Reloadretaddr | Pushtrap _ | Poptrap _ | Prologue | Epilogue
+        | Stack_check _ ->
           let is_op_end_region = Cfg.is_end_region in
           common ~avail_before ~destroyed_at:Proc.destroyed_at_basic
             ~is_interesting_constructor:is_op_end_region
@@ -379,7 +392,7 @@ module Analysis = Cfg_dataflow.Forward (Domain) (Transfer)
 let get_name_for_debugger_regs (b : Cfg.basic) =
   match b with
   | Op (Name_for_debugger { regs; _ }) -> Some regs
-  | Reloadretaddr | Prologue | Pushtrap _ | Poptrap _ | Stack_check _
+  | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
   | Op
       ( Move | Spill | Reload | Opaque | Begin_region | End_region | Dls_get
       | Poll | Pause | Const_int _ | Const_float32 _ | Const_float _

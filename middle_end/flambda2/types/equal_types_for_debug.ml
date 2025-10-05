@@ -195,7 +195,7 @@ let equal_function_type ~equal_type env (t1 : TG.function_type)
 let equal_closures_entry ~equal_type env (t1 : TG.closures_entry)
     (t2 : TG.closures_entry) =
   Function_slot.Map.equal
-    (Or_unknown_or_bottom.equal (equal_function_type ~equal_type env))
+    (Or_unknown.equal (equal_function_type ~equal_type env))
     t1.function_types t2.function_types
   && equal_function_slot_indexed_product ~equal_type env t1.closure_types
        t2.closure_types
@@ -313,7 +313,7 @@ let equal_head_of_kind_naked_immediate ~equal_type env
     (t2 : TG.head_of_kind_naked_immediate) =
   match t1, t2 with
   | Naked_immediates is1, Naked_immediates is2 ->
-    Targetint_31_63.Set.equal is1 is2
+    Target_ocaml_int.Set.equal is1 is2
   | Is_int t1, Is_int t2 -> equal_type env t1 t2
   | Get_tag t1, Get_tag t2 -> equal_type env t1 t2
   | Is_null t1, Is_null t2 -> equal_type env t1 t2

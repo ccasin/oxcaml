@@ -138,7 +138,10 @@ type exttype =
   | XVec512
 
 let machtype_of_exttype = function
-  | XInt -> typ_int
+  | XInt ->
+    (* [XInt] only gets created from values, and LLVM needs to keep track of
+       them properly. *)
+    if !Clflags.llvm_backend then typ_val else typ_int
   | XInt8 -> typ_int
   | XInt16 -> typ_int
   | XInt32 -> typ_int
@@ -169,6 +172,10 @@ type integer_comparison = Scalar.Integer_comparison.t =
   | Cgt
   | Cle
   | Cge
+  | Cult
+  | Cugt
+  | Cule
+  | Cuge
 
 let negate_integer_comparison = Scalar.Integer_comparison.negate
 
@@ -257,7 +264,7 @@ type phantom_defining_expr =
         fields : Backend_var.t list
       }
 
-type trywith_shared_label = int
+type trywith_shared_label = Lambda.static_label
 
 type trap_action =
   | Push of trywith_shared_label
@@ -442,7 +449,6 @@ type operation =
   | Ccmpi of integer_comparison
   | Caddv
   | Cadda
-  | Ccmpa of integer_comparison
   | Cnegf of float_width
   | Cabsf of float_width
   | Caddf of float_width
@@ -512,7 +518,15 @@ type ccatch_flag =
   | Recursive
   | Exn_handler
 
-type expression =
+type static_handler =
+  { label : static_label;
+    params : (Backend_var.With_provenance.t * machtype) list;
+    body : expression;
+    dbg : Debuginfo.t;
+    is_cold : bool
+  }
+
+and expression =
   | Cconst_int of int * Debuginfo.t
   | Cconst_natint of nativeint * Debuginfo.t
   | Cconst_float32 of float * Debuginfo.t
@@ -537,21 +551,16 @@ type expression =
       * Debuginfo.t
   | Cswitch of
       expression * int array * (expression * Debuginfo.t) array * Debuginfo.t
-  | Ccatch of
-      ccatch_flag
-      * (static_label
-        * (Backend_var.With_provenance.t * machtype) list
-        * expression
-        * Debuginfo.t
-        * bool (* is_cold *))
-        list
-      * expression
+  | Ccatch of ccatch_flag * static_handler list * expression
   | Cexit of exit_label * expression list * trap_action list
 
 type codegen_option =
   | Reduce_code_size
   | No_CSE
   | Use_linscan_regalloc
+  | Use_regalloc of Clflags.Register_allocator.t
+  | Use_regalloc_param of string list
+  | Cold
   | Assume_zero_alloc of
       { strict : bool;
         never_returns_normally : bool;
@@ -596,11 +605,18 @@ type phrase =
   | Cdata of data_item list
 
 let ccatch (i, ids, e1, e2, dbg, is_cold) =
-  Ccatch (Normal, [i, ids, e2, dbg, is_cold], e1)
+  Ccatch (Normal, [{ label = i; params = ids; body = e2; dbg; is_cold }], e1)
 
 let ctrywith (body, lbl, id, extra_args, handler, dbg) =
   Ccatch
-    (Exn_handler, [lbl, (id, typ_val) :: extra_args, handler, dbg, false], body)
+    ( Exn_handler,
+      [ { label = lbl;
+          params = (id, typ_val) :: extra_args;
+          body = handler;
+          dbg;
+          is_cold = false
+        } ],
+      body )
 
 let reset () = Label.reset ()
 
@@ -619,7 +635,7 @@ let iter_shallow_tail f = function
     Array.iter (fun (e, _dbg) -> f e) el;
     true
   | Ccatch (_flag, handlers, body) ->
-    List.iter (fun (_, _, h, _dbg, _) -> f h) handlers;
+    List.iter (fun { body = h; _ } -> f h) handlers;
     f body;
     true
   | Cexit _ | Cop (Craise _, _, _) -> true
@@ -634,8 +650,8 @@ let iter_shallow_tail f = function
         | Cextcall _ | Cload _
         | Cstore (_, _)
         | Cmulhi _ | Cbswap _ | Ccsel _ | Cclz _ | Cctz _ | Cprefetch _
-        | Catomic _ | Ccmpi _ | Ccmpa _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _
-        | Cmulf _ | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _
+        | Catomic _ | Ccmpi _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _ | Cmulf _
+        | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _
         | Ccmpf (_, _)
         | Cprobe _ | Cprobe_is_enabled _
         | Ctuple_field (_, _) ),
@@ -652,8 +668,8 @@ let map_shallow_tail f = function
   | Cswitch (e, tbl, el, dbg') ->
     Cswitch (e, tbl, Array.map (fun (e, dbg) -> f e, dbg) el, dbg')
   | Ccatch (flag, handlers, body) ->
-    let map_h (n, ids, handler, dbg, is_cold) =
-      n, ids, f handler, dbg, is_cold
+    let map_h { label; params; body = handler; dbg; is_cold } =
+      { label; params; body = f handler; dbg; is_cold }
     in
     Ccatch (flag, List.map map_h handlers, f body)
   | (Cexit _ | Cop (Craise _, _, _)) as cmm -> cmm
@@ -668,8 +684,8 @@ let map_shallow_tail f = function
           | Cextcall _ | Cload _
           | Cstore (_, _)
           | Cmulhi _ | Cbswap _ | Ccsel _ | Cclz _ | Cctz _ | Cprefetch _
-          | Catomic _ | Ccmpi _ | Ccmpa _ | Cnegf _ | Cabsf _ | Caddf _
-          | Csubf _ | Cmulf _ | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _
+          | Catomic _ | Ccmpi _ | Cnegf _ | Cabsf _ | Caddf _ | Csubf _
+          | Cmulf _ | Cdivf _ | Creinterpret_cast _ | Cstatic_cast _
           | Ccmpf (_, _)
           | Cprobe _ | Cprobe_is_enabled _
           | Ctuple_field (_, _) ),
@@ -710,7 +726,7 @@ let iter_shallow f = function
     f ifnot
   | Cswitch (_e, _ia, ea, _dbg) -> Array.iter (fun (e, _) -> f e) ea
   | Ccatch (_f, hl, body) ->
-    let iter_h (_n, _ids, handler, _dbg, _is_cold) = f handler in
+    let iter_h { body = handler; _ } = f handler in
     List.iter iter_h hl;
     f body
   | Cexit (_n, el, _traps) -> List.iter f el
@@ -730,8 +746,8 @@ let map_shallow f = function
   | Cswitch (e, ia, ea, dbg) ->
     Cswitch (e, ia, Array.map (fun (e, dbg) -> f e, dbg) ea, dbg)
   | Ccatch (flag, hl, body) ->
-    let map_h (n, ids, handler, dbg, is_cold) =
-      n, ids, f handler, dbg, is_cold
+    let map_h { label; params; body = handler; dbg; is_cold } =
+      { label; params; body = f handler; dbg; is_cold }
     in
     Ccatch (flag, List.map map_h hl, f body)
   | Cexit (n, el, traps) -> Cexit (n, List.map f el, traps)
@@ -987,21 +1003,7 @@ let equal_memory_chunk left right =
       | Fivetwelve_aligned ) ) ->
     false
 
-let equal_integer_comparison left right =
-  match left, right with
-  | Ceq, Ceq -> true
-  | Cne, Cne -> true
-  | Clt, Clt -> true
-  | Cgt, Cgt -> true
-  | Cle, Cle -> true
-  | Cge, Cge -> true
-  | Ceq, (Cne | Clt | Cgt | Cle | Cge)
-  | Cne, (Ceq | Clt | Cgt | Cle | Cge)
-  | Clt, (Ceq | Cne | Cgt | Cle | Cge)
-  | Cgt, (Ceq | Cne | Clt | Cle | Cge)
-  | Cle, (Ceq | Cne | Clt | Cgt | Cge)
-  | Cge, (Ceq | Cne | Clt | Cgt | Cle) ->
-    false
+let equal_integer_comparison = Scalar.Integer_comparison.equal
 
 let caml_flambda2_invalid = "caml_flambda2_invalid"
 
@@ -1009,6 +1011,16 @@ let is_val (m : machtype_component) =
   match m with
   | Val -> true
   | Addr | Int | Float | Vec128 | Vec256 | Vec512 | Float32 | Valx2 -> false
+
+let is_int (m : machtype_component) =
+  match m with
+  | Int -> true
+  | Addr | Val | Float | Vec128 | Vec256 | Vec512 | Float32 | Valx2 -> false
+
+let is_addr (m : machtype_component) =
+  match m with
+  | Addr -> true
+  | Val | Int | Float | Vec128 | Vec256 | Vec512 | Float32 | Valx2 -> false
 
 let is_exn_handler (flag : ccatch_flag) =
   match flag with Exn_handler -> true | Normal | Recursive -> false

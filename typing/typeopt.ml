@@ -88,21 +88,10 @@ let is_base_type env ty base_ty_path =
   | Tconstr(p, _, _) -> Path.same p base_ty_path
   | _ -> false
 
-let is_always_gc_ignorable env ty =
-  let ext : Jkind_axis.Externality.t =
-    (* We check that we're compiling to (64-bit) native code before counting
-       External64 types as gc_ignorable, because bytecode is intended to be
-       platform independent. *)
-    if !Clflags.native_code && Sys.word_size = 64
-    then External64
-    else External
-  in
-  Ctype.check_type_externality env ty ext
-
 let maybe_pointer_type env ty =
   let ty = scrape_ty env ty in
   let immediate_or_pointer =
-    match is_always_gc_ignorable env ty with
+    match Ctype.is_always_gc_ignorable env ty with
     | true -> Immediate
     | false -> Pointer
   in
@@ -119,7 +108,7 @@ let maybe_pointer exp = maybe_pointer_type exp.exp_env exp.exp_type
    and this function should be removed at some point. To do that, there
    needs to be a way to store sort vars on [Tconstr]s. That means
    either introducing a [Tpoly_constr], allow type parameters with
-   sort info, or do something else. *)
+   sort info, or do something else. Internal ticket 5093. *)
 (* CR layouts v3.0: have a better error message
    for nullable jkinds.*)
 let type_sort ~why env loc ty =
@@ -152,7 +141,7 @@ let classify ~classify_product env ty sort : _ classification =
   | Base Value -> begin
   (* CR or_null: [immediate_or_null] arrays can be intarrays once that is
      supported by the middle-end *)
-  if is_always_gc_ignorable env ty
+  if Ctype.is_always_gc_ignorable env ty
     && Ctype.check_type_nullability env ty Non_null
   then Int
   else match get_desc ty with
@@ -269,7 +258,7 @@ let array_kind_of_elt ~elt_sort env loc ty =
   in
   let elt_ty_for_error = ty in (* report the un-scraped ty in errors *)
   let classify_product ty sorts =
-    if is_always_gc_ignorable env ty then
+    if Ctype.is_always_gc_ignorable env ty then
       Pgcignorableproductarray (ignorable_product_array_kind loc sorts)
     else
       Pgcscannableproductarray
@@ -638,7 +627,7 @@ let rec value_kind env ~loc ~visited ~depth ~num_nodes_visited ty
          by the parameters of the declaration. The code below loses this
          connection and will continue processing with e.g. ['a : value]
          instead of [string] when looking at a [string list]. This should
-         probably just call a [type_jkind] function. *)
+         probably just call a [type_jkind] function. Internal ticket 5101. *)
       let decl =
         try Env.find_type p env with Not_found -> raise Missing_cmi_fallback
       in
@@ -740,11 +729,38 @@ and value_kind_mixed_block_field env ~loc ~visited ~depth ~num_nodes_visited
   | Word -> num_nodes_visited, Word
   | Untagged_immediate -> num_nodes_visited, Untagged_immediate
   | Product fs ->
-    let num_nodes_visited, kinds =
-      Array.fold_left_map (fun num_nodes_visited field ->
-        value_kind_mixed_block_field env ~loc ~visited ~depth ~num_nodes_visited
-          field None
-      ) num_nodes_visited fs
+    let unknown () = Array.init (Array.length fs) (fun _ -> None) in
+    let types =
+      match ty with
+      | None -> unknown ()
+      | Some ty ->
+        let ty = scrape_ty env ty in
+        match get_desc ty with
+        | Tunboxed_tuple fields ->
+          Misc.Stdlib.Array.of_list_map (fun (_, field) -> Some field) fields
+        | Tconstr(p, _, _) ->
+          begin match (Env.find_type p env).type_kind with
+          | exception Not_found -> unknown ()
+          | Type_record_unboxed_product (lbls, _, _) ->
+            Misc.Stdlib.Array.of_list_map (fun {Types.ld_type} -> Some ld_type)
+              lbls
+          | Type_variant _ | Type_record _ | Type_abstract _ | Type_open ->
+            (* We don't need to handle [@@unboxed] records/variants here,
+               because [scrape_ty] looks though them. *)
+            unknown ()
+          end
+        | Tvar _ | Tarrow _ | Ttuple _ | Tobject _ | Tfield _ | Tnil
+        | Tlink _ | Tsubst _ | Tvariant _ | Tunivar _ | Tpoly _ | Tpackage _
+        | Tof_kind _ -> unknown ()
+    in
+    let (_, num_nodes_visited), kinds =
+      Array.fold_left_map (fun (i, num_nodes_visited) field ->
+        let num_nodes_visited, kind =
+          value_kind_mixed_block_field env ~loc ~visited ~depth
+            ~num_nodes_visited field types.(i)
+        in
+        (i + 1, num_nodes_visited), kind
+      ) (0, num_nodes_visited) fs
     in
     num_nodes_visited, Product kinds
   | Void -> num_nodes_visited, Product [||]
@@ -986,6 +1002,16 @@ let value_kind env loc ty =
   with
   | Missing_cmi_fallback -> raise (Error (loc, Non_value_layout (ty, None)))
 
+let transl_mixed_block_element env loc ty mbe =
+  try
+    let (_num_nodes_visited, value_kind) =
+      value_kind_mixed_block_field env ~loc ~visited:Numbers.Int.Set.empty
+        ~depth:0 ~num_nodes_visited:0 mbe (Some ty)
+    in
+    value_kind
+  with
+  | Missing_cmi_fallback -> raise (Error (loc, Non_value_layout (ty, None)))
+
 let[@inline always] rec layout_of_const_sort_generic ~value_kind ~error
   : Jkind.Sort.Const.t -> _ = function
   | Base Value -> Lambda.Pvalue (Lazy.force value_kind)
@@ -995,15 +1021,15 @@ let[@inline always] rec layout_of_const_sort_generic ~value_kind ~error
     Lambda.Punboxed_or_untagged_integer Unboxed_nativeint
   | Base Untagged_immediate as const ->
     if
-      Language_extension.(is_at_least Layouts Beta)
-      && Language_extension.(is_at_least Small_numbers Beta) then
+      Language_extension.(is_at_least Layouts Stable)
+      && Language_extension.(is_at_least Small_numbers Stable) then
       Lambda.Punboxed_or_untagged_integer Untagged_int
     else error const
-  | Base Bits8 when Language_extension.(is_at_least Layouts Beta) &&
-                    Language_extension.(is_at_least Small_numbers Beta) ->
+  | Base Bits8 when Language_extension.(is_at_least Layouts Stable) &&
+                    Language_extension.(is_at_least Small_numbers Stable) ->
     Lambda.Punboxed_or_untagged_integer Untagged_int8
-  | Base Bits16 when Language_extension.(is_at_least Layouts Beta) &&
-                     Language_extension.(is_at_least Small_numbers Beta) ->
+  | Base Bits16 when Language_extension.(is_at_least Layouts Stable) &&
+                     Language_extension.(is_at_least Small_numbers Stable) ->
     Lambda.Punboxed_or_untagged_integer Untagged_int16
   | Base Bits32 when Language_extension.(is_at_least Layouts Stable) ->
     Lambda.Punboxed_or_untagged_integer Unboxed_int32

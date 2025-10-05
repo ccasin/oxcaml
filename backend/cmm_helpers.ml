@@ -879,6 +879,8 @@ and asr_const c n dbg = asr_int c (Cconst_int (n, dbg)) dbg
 
 and lsr_const c n dbg = lsr_int c (Cconst_int (n, dbg)) dbg
 
+let lsl_const0 c n dbg = Cop (Clsl, [c; Cconst_int (n, dbg)], dbg)
+
 let is_power2 n = n = 1 lsl Misc.log2 n
 
 and mult_power2 c n dbg = lsl_int c (Cconst_int (Misc.log2 n, dbg)) dbg
@@ -898,8 +900,50 @@ let rec mul_int c1 c2 dbg =
     add_const (mul_int c (Cconst_int (k, dbg)) dbg) (n * k) dbg
   | c1, c2 -> Cop (Cmuli, [c1; c2], dbg)
 
+(** [get_const_bitmask x] returns [Some (y, mask)] if [x] is [y & mask] *)
+let get_const_bitmask = function
+  | Cop (Cand, ([x; Cconst_natint (mask, _)] | [Cconst_natint (mask, _); x]), _)
+    ->
+    Some (x, mask)
+  | Cop (Cand, ([x; Cconst_int (mask, _)] | [Cconst_int (mask, _); x]), _) ->
+    Some (x, Nativeint.of_int mask)
+  | _ -> None
+
+(** [low_bits ~bits x] is a (potentially simplified) value which agrees with x on at least
+    the low [bits] bits. E.g., [low_bits ~bits x & mask = x & mask], where [mask] is a
+    bitmask of the low [bits] bits . *)
+let rec low_bits ~bits ~dbg x =
+  assert (bits > 0);
+  if bits >= arch_bits
+  then x
+  else
+    let unused_bits = arch_bits - bits in
+    let does_mask_keep_low_bits mask =
+      (* If the mask has all the low bits set, then the low bits are unchanged.
+         This could happen from zero-extension. *)
+      let low_bits = Nativeint.pred (Nativeint.shift_left 1n bits) in
+      Nativeint.equal low_bits (Nativeint.logand mask low_bits)
+    in
+    (* Ignore sign and zero extensions which do not affect the low bits *)
+    map_tail
+      (function
+        | Cop
+            ( (Casr | Clsr),
+              [Cop (Clsl, [x; Cconst_int (left, _)], _); Cconst_int (right, _)],
+              _ )
+          when 0 <= right && right <= left && left <= unused_bits ->
+          (* these sign-extensions can be replaced with a left shift since we
+             don't care about the high bits that it changed *)
+          low_bits ~bits (lsl_const0 x (left - right) dbg) ~dbg
+        | x -> (
+          match get_const_bitmask x with
+          | Some (x, bitmask) when does_mask_keep_low_bits bitmask ->
+            low_bits ~bits x ~dbg
+          | _ -> x))
+      x
+
 let tag_int i dbg =
-  match i with
+  match low_bits i ~bits:(arch_bits - 1) ~dbg with
   | Cconst_int (n, _) -> int_const dbg n
   | c -> incr_int (lsl_const c 1 dbg) dbg
 
@@ -925,10 +969,6 @@ let mk_not dbg cmm =
       tag_int
         (Cop (Ccmpi (negate_integer_comparison cmp), [c1; c2], dbg''))
         dbg'
-    | Cop (Ccmpa cmp, [c1; c2], dbg'') ->
-      tag_int
-        (Cop (Ccmpa (negate_integer_comparison cmp), [c1; c2], dbg''))
-        dbg'
     | Cop (Ccmpf (w, cmp), [c1; c2], dbg'') ->
       tag_int
         (Cop (Ccmpf (w, negate_float_comparison cmp), [c1; c2], dbg''))
@@ -950,6 +990,13 @@ let mk_compare_ints_untagged dbg a1 a2 =
       bind "int_cmp" a1 (fun a1 ->
           let op1 = Cop (Ccmpi Cgt, [a1; a2], dbg) in
           let op2 = Cop (Ccmpi Clt, [a1; a2], dbg) in
+          sub_int op1 op2 dbg))
+
+let mk_unsigned_compare_ints_untagged dbg a1 a2 =
+  bind "uint_cmp" a2 (fun a2 ->
+      bind "uint_cmp" a1 (fun a1 ->
+          let op1 = Cop (Ccmpi Cugt, [a1; a2], dbg) in
+          let op2 = Cop (Ccmpi Cult, [a1; a2], dbg) in
           sub_int op1 op2 dbg))
 
 let mk_compare_ints dbg a1 a2 =
@@ -1704,48 +1751,6 @@ let addr_array_initialize arr ofs newval dbg =
       [array_indexing log2_size_addr arr ofs dbg; newval],
       dbg )
 
-(** [get_const_bitmask x] returns [Some (y, mask)] if [x] is [y & mask] *)
-let get_const_bitmask = function
-  | Cop (Cand, ([x; Cconst_natint (mask, _)] | [Cconst_natint (mask, _); x]), _)
-    ->
-    Some (x, mask)
-  | Cop (Cand, ([x; Cconst_int (mask, _)] | [Cconst_int (mask, _); x]), _) ->
-    Some (x, Nativeint.of_int mask)
-  | _ -> None
-
-(** [low_bits ~bits x] is a (potentially simplified) value which agrees with x on at least
-    the low [bits] bits. E.g., [low_bits ~bits x & mask = x & mask], where [mask] is a
-    bitmask of the low [bits] bits . *)
-let rec low_bits ~bits ~dbg x =
-  assert (bits > 0);
-  if bits >= arch_bits
-  then x
-  else
-    let unused_bits = arch_bits - bits in
-    let does_mask_keep_low_bits mask =
-      (* If the mask has all the low bits set, then the low bits are unchanged.
-         This could happen from zero-extension. *)
-      let low_bits = Nativeint.pred (Nativeint.shift_left 1n bits) in
-      Nativeint.equal low_bits (Nativeint.logand mask low_bits)
-    in
-    (* Ignore sign and zero extensions which do not affect the low bits *)
-    map_tail
-      (function
-        | Cop
-            ( (Casr | Clsr),
-              [Cop (Clsl, [x; Cconst_int (left, _)], _); Cconst_int (right, _)],
-              _ )
-          when 0 <= right && right <= left && left <= unused_bits ->
-          (* these sign-extensions can be replaced with a left shift since we
-             don't care about the high bits that it changed *)
-          low_bits ~bits (lsl_const x (left - right) dbg) ~dbg
-        | x -> (
-          match get_const_bitmask x with
-          | Some (x, bitmask) when does_mask_keep_low_bits bitmask ->
-            low_bits ~bits x ~dbg
-          | _ -> x))
-      x
-
 (** [zero_extend ~bits dbg e] returns [e] with the most significant [arch_bits - bits]
     bits set to 0 *)
 let zero_extend ~bits ~dbg e =
@@ -1777,7 +1782,7 @@ let rec sign_extend ~bits ~dbg e =
   assert (0 < bits && bits <= arch_bits);
   let unused_bits = arch_bits - bits in
   let sign_extend_via_shift e =
-    asr_const (lsl_const e unused_bits dbg) unused_bits dbg
+    asr_const (lsl_const0 e unused_bits dbg) unused_bits dbg
   in
   if bits = arch_bits
   then e
@@ -1805,7 +1810,7 @@ let rec sign_extend ~bits ~dbg e =
             (* sign-extension is a no-op since the top n bits already match *)
             e
           else
-            let e = lsl_const inner (unused_bits - n) dbg in
+            let e = lsl_const0 inner (unused_bits - n) dbg in
             asr_const e unused_bits dbg
         | Cop (Cload { memory_chunk; mutability; is_atomic }, args, dbg) as e
           -> (
@@ -2121,7 +2126,6 @@ let send_function_name arity result (mode : Cmx_format.alloc_mode) =
 
 let call_cached_method obj tag cache pos args args_type result (apos, mode) dbg
     =
-  let cache = array_indexing log2_size_addr cache pos dbg in
   Compilenv.need_send_fun
     (List.map Extended_machtype.change_tagged_int_to_val args_type)
     (Extended_machtype.change_tagged_int_to_val result)
@@ -2135,7 +2139,7 @@ let call_cached_method obj tag cache pos args args_type result (apos, mode) dbg
             (Extended_machtype.change_tagged_int_to_val result)
             mode,
           dbg )
-      :: obj :: tag :: cache :: args,
+      :: obj :: tag :: cache :: pos :: args,
       dbg )
 
 (* Allocation *)
@@ -2986,9 +2990,9 @@ module SArgBlocks = struct
 
   let make_offset arg n = add_const arg n Debuginfo.none
 
-  let make_isout h arg = Cop (Ccmpa Clt, [h; arg], Debuginfo.none)
+  let make_isout h arg = Cop (Ccmpi Cult, [h; arg], Debuginfo.none)
 
-  let make_isin h arg = Cop (Ccmpa Cge, [h; arg], Debuginfo.none)
+  let make_isin h arg = Cop (Ccmpi Cuge, [h; arg], Debuginfo.none)
 
   let make_is_nonzero arg = arg
 
@@ -3016,7 +3020,7 @@ module SArgBlocks = struct
       ( i,
         fun body ->
           match body with
-          | Cexit (j, _, _) -> if Lbl i = j then handler else body
+          | Cexit (j, _, _) -> if j = Lbl i then handler else body
           | _ -> ccatch (i, [], body, handler, dbg, false) ))
 
   let make_exit i = Cexit (Lbl i, [], [])
@@ -3031,7 +3035,7 @@ end
 module StoreExpForSwitch = Switch.CtxStore (struct
   type t = expression
 
-  type key = int option * int
+  type key = Static_label.t option * int
 
   type context = int
 
@@ -3043,7 +3047,7 @@ module StoreExpForSwitch = Switch.CtxStore (struct
 
   let compare_key (cont, index) (cont', index') =
     match cont, cont' with
-    | Some i, Some i' when i = i' -> 0
+    | Some i, Some i' when Static_label.equal i i' -> 0
     | _, _ -> Stdlib.compare index index'
 end)
 
@@ -3318,7 +3322,12 @@ let cache_public_method meths tag cache dbg =
       [VP.create result_label_index, typ_int],
       Ccatch
         ( Recursive,
-          [loop_cont, [li_vp, typ_int; hi_vp, typ_int], loop_body, dbg, false],
+          [ { label = loop_cont;
+              params = [li_vp, typ_int; hi_vp, typ_int];
+              body = loop_body;
+              dbg;
+              is_cold = false
+            } ],
           (* Start the first iteration of the loop *)
           Cexit
             ( Lbl loop_cont,
@@ -3424,13 +3433,22 @@ let send_function (arity, result, mode) =
   let cconst_int i = Cconst_int (i, dbg ()) in
   let args, clos', body = apply_function_body (typ_val :: arity) result mode in
   let cache = V.create_local "cache"
+  and pos = V.create_local "pos"
   and obj = List.hd args
   and tag = V.create_local "tag" in
   let clos =
-    let cache = Cvar cache and obj = Cvar obj and tag = Cvar tag in
+    let cache = Cvar cache
+    and obj = Cvar obj
+    and tag = Cvar tag
+    and pos = Cvar pos in
     let meths = V.create_local "meths" and cached = V.create_local "cached" in
     let real = V.create_local "real" in
     let mask = get_field_gen Asttypes.Mutable (Cvar meths) 1 (dbg ()) in
+    let cache_ptr = V.create_local "cache_ptr" in
+    let cache_ptr_cvar = Cvar cache_ptr in
+    let cache_ptr_expr =
+      array_indexing ~typ:Addr log2_size_addr cache pos (dbg ())
+    in
     let cached_pos = Cvar cached in
     let tag_pos =
       Cop
@@ -3444,32 +3462,37 @@ let send_function (arity, result, mode) =
       ( VP.create meths,
         Cop (mk_load_mut Word_val, [obj], dbg ()),
         Clet
-          ( VP.create cached,
-            Cop
-              (Cand, [Cop (mk_load_mut Word_int, [cache], dbg ()); mask], dbg ()),
+          ( VP.create cache_ptr,
+            cache_ptr_expr,
             Clet
-              ( VP.create real,
-                Cifthenelse
-                  ( Cop (Ccmpa Cne, [tag'; tag], dbg ()),
-                    dbg (),
-                    cache_public_method (Cvar meths) tag cache (dbg ()),
-                    dbg (),
-                    cached_pos,
-                    dbg () ),
+              ( VP.create cached,
                 Cop
-                  ( mk_load_mut Word_val,
-                    [ Cop
-                        ( Cadda,
-                          [ Cop (Cadda, [Cvar real; Cvar meths], dbg ());
-                            cconst_int ((2 * size_addr) - 1) ],
-                          dbg () ) ],
-                    dbg () ) ) ) )
+                  ( Cand,
+                    [Cop (mk_load_mut Word_int, [cache_ptr_cvar], dbg ()); mask],
+                    dbg () ),
+                Clet
+                  ( VP.create real,
+                    Cifthenelse
+                      ( Cop (Ccmpi Cne, [tag'; tag], dbg ()),
+                        dbg (),
+                        cache_public_method (Cvar meths) tag cache_ptr_cvar
+                          (dbg ()),
+                        dbg (),
+                        cached_pos,
+                        dbg () ),
+                    Cop
+                      ( mk_load_mut Word_val,
+                        [ Cop
+                            ( Cadda,
+                              [ Cop (Cadda, [Cvar real; Cvar meths], dbg ());
+                                cconst_int ((2 * size_addr) - 1) ],
+                              dbg () ) ],
+                        dbg () ) ) ) ) )
   in
   let body = Clet (VP.create clos', clos, body) in
-  let cache = cache in
   let fun_name = send_function_name arity result mode in
   let fun_args =
-    [obj, typ_val; tag, typ_int; cache, typ_addr]
+    [obj, typ_val; tag, typ_int; cache, typ_val; pos, typ_int]
     @ List.combine (List.tl args) arity
   in
   let fun_dbg = placeholder_fun_dbg ~human_name:fun_name in
@@ -4173,14 +4196,16 @@ let entry_point namelist =
         [],
         Ccatch
           ( Recursive,
-            [ ( cont,
-                [VP.create id, typ_int],
-                Csequence
-                  ( exit_if_last_iteration id,
-                    Csequence (call (Cvar id), Cexit (Lbl cont, [incr_i id], []))
-                  ),
-                dbg,
-                false ) ],
+            [ { label = cont;
+                params = [VP.create id, typ_int];
+                body =
+                  Csequence
+                    ( exit_if_last_iteration id,
+                      Csequence
+                        (call (Cvar id), Cexit (Lbl cont, [incr_i id], [])) );
+                dbg;
+                is_cold = false
+              } ],
             Cexit (Lbl cont, [cconst_int 0], []) ),
         Ctuple [],
         dbg,
@@ -4334,21 +4359,16 @@ let ite ~dbg ~then_dbg ~then_ ~else_dbg ~else_ cond =
 let trywith ~dbg ~body ~exn_var ~extra_args ~handler_cont ~handler () =
   Ccatch
     ( Exn_handler,
-      [ ( handler_cont,
-          (exn_var, typ_val) :: extra_args,
-          handler,
-          dbg,
-          false (* is_cold *) ) ],
+      [ { label = handler_cont;
+          params = (exn_var, typ_val) :: extra_args;
+          body = handler;
+          dbg;
+          is_cold = false
+        } ],
       body )
 
-type static_handler =
-  int
-  * (Backend_var.With_provenance.t * Cmm.machtype) list
-  * Cmm.expression
-  * Debuginfo.t
-  * bool
-
-let handler ~dbg id vars body is_cold = id, vars, body, dbg, is_cold
+let handler ~dbg label params body is_cold =
+  Cmm.{ label; params; body; dbg; is_cold }
 
 let cexit id args trap_actions = Cmm.Cexit (Cmm.Lbl id, args, trap_actions)
 
@@ -4455,13 +4475,13 @@ let gt = binary (Ccmpi Cgt)
 
 let ge = binary (Ccmpi Cge)
 
-let ult = binary (Ccmpa Clt)
+let ult = binary (Ccmpi Cult)
 
-let ule = binary (Ccmpa Cle)
+let ule = binary (Ccmpi Cule)
 
-let ugt = binary (Ccmpa Cgt)
+let ugt = binary (Ccmpi Cugt)
 
-let uge = binary (Ccmpa Cge)
+let uge = binary (Ccmpi Cuge)
 
 let float_abs = unary (Cabsf Float64)
 

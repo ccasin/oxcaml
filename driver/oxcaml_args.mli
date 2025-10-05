@@ -26,9 +26,11 @@ module type Oxcaml_options = sig
   val davail : unit -> unit
   val dranges : unit -> unit
   val ddebug_invariants : unit -> unit
+  val ddwarf_types : unit -> unit
+  val ddwarf_metrics : unit -> unit
   val dcfg : unit -> unit
   val dcfg_invariants : unit -> unit
-  val regalloc : string -> unit
+  val regalloc : Clflags.Register_allocator.t -> unit
   val regalloc_linscan_threshold : int -> unit
   val regalloc_param : string -> unit
   val regalloc_validate : unit -> unit
@@ -44,6 +46,11 @@ module type Oxcaml_options = sig
   val cfg_stack_checks_threshold : int -> unit
   val cfg_eliminate_dead_trap_handlers : unit -> unit
   val no_cfg_eliminate_dead_trap_handlers : unit -> unit
+  val cfg_prologue_validate : unit -> unit
+  val no_cfg_prologue_validate : unit -> unit
+  val cfg_prologue_shrink_wrap : unit -> unit
+  val no_cfg_prologue_shrink_wrap : unit -> unit
+  val cfg_prologue_shrink_wrap_threshold : int -> unit
   val reorder_blocks_random : int -> unit
   val basic_block_sections : unit -> unit
   val module_entry_functions_section : unit -> unit
@@ -75,6 +82,7 @@ module type Oxcaml_options = sig
   val dllvmir : unit -> unit
   val keep_llvmir : unit -> unit
   val llvm_path : string -> unit
+  val llvm_flags : string -> unit
   val flambda2_debug : unit -> unit
   val no_flambda2_debug : unit -> unit
   val flambda2_join_points : unit -> unit
@@ -93,6 +101,7 @@ module type Oxcaml_options = sig
   val flambda2_join_depth : int -> unit
   val flambda2_reaper : unit -> unit
   val no_flambda2_reaper : unit -> unit
+  val reaper_preserve_direct_calls : string -> unit
   val flambda2_expert_fallback_inlining_heuristic : unit -> unit
   val no_flambda2_expert_fallback_inlining_heuristic : unit -> unit
   val flambda2_expert_inline_effects_in_cmm : unit -> unit
@@ -155,6 +164,7 @@ module type Debugging_options = sig
   val gdwarf_max_function_complexity : int -> unit
   val gdwarf_compression : string -> unit
   val gdwarf_fission : string -> unit
+  val gdwarf_pedantic : unit -> unit
 end
 
 (** Command line arguments required for ocamlopt. *)

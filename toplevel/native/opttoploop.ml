@@ -255,8 +255,11 @@ let default_load ppf (program : Lambda.program) =
     else Filename.temp_file ("caml" ^ !phrase_name) ext_dll
   in
   let filename = Filename.chop_extension dll in
+  (* TODO: Determine machine_width properly from target configuration *)
+  let machine_width = Target_system.Machine_width.Sixty_four in
   let pipeline : Asmgen.pipeline =
-    Direct_to_cmm (Flambda2.lambda_to_cmm ~keep_symbol_tables:true)
+    Direct_to_cmm
+      (Flambda2.lambda_to_cmm ~machine_width ~keep_symbol_tables:true)
   in
   Asmgen.compile_implementation
     (module Unix : Compiler_owee.Unix_intf.S)
@@ -347,12 +350,15 @@ let name_expression ~loc ~attrs sort exp =
       val_loc = loc;
       val_attributes = attrs;
       val_zero_alloc = Zero_alloc.default;
-      val_modalities = Mode.Modality.Value.id;
+      val_modalities = Mode.Modality.id;
       val_uid = Uid.internal_not_actually_unique; }
   in
   let sg = [Sig_value(id, vd, Exported)] in
   let pat =
-    { pat_desc = Tpat_var(id, mknoloc name, vd.val_uid, Mode.Value.disallow_right Mode.Value.legacy);
+    { pat_desc =
+        Tpat_var(id, mknoloc name, vd.val_uid,
+          Jkind.Sort.(of_const Const.for_module_field),
+          Mode.Value.disallow_right Mode.Value.legacy);
       pat_loc = loc;
       pat_extra = [];
       pat_type = exp.exp_type;
@@ -430,7 +436,6 @@ let execute_phrase print_outcome ppf phr =
               required_globals; code = res } =
           Translmod.transl_implementation compilation_unit
             (str, coercion, None)
-            ~style:Plain_block
         in
         remember compilation_unit sg';
         let size =

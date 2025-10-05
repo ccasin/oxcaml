@@ -372,9 +372,12 @@ let make_startup_file unix ~ppf_dump ~sourcefile_for_dwarf genfns units cached_g
     Unit_info.make_dummy ~input_name:"caml_startup" startup_comp_unit
   in
   Compilenv.reset startup_unit_info;
-  Emitaux.Dwarf_helpers.init ~disable_dwarf:(not !Dwarf_flags.dwarf_for_startup_file)
+  Emitaux.Dwarf_helpers.init ~ppf_dump
+    ~disable_dwarf:(not !Dwarf_flags.dwarf_for_startup_file)
     ~sourcefile:sourcefile_for_dwarf;
-  Emit.begin_assembly unix;
+  if !Clflags.llvm_backend
+  then Llvmize.begin_assembly ~is_startup:true ~sourcefile:sourcefile_for_dwarf
+  else Emit.begin_assembly unix;
   let compile_phrase p = Asmgen.compile_phrase ~ppf_dump p in
   let name_list =
     List.flatten (List.map (fun u -> u.defines) units) in
@@ -420,7 +423,9 @@ let make_startup_file unix ~ppf_dump ~sourcefile_for_dwarf genfns units cached_g
   compile_phrase (Cmm_helpers.frame_table all_comp_units);
   if !Clflags.output_complete_object then
     force_linking_of_startup ~ppf_dump;
-  Emit.end_assembly ()
+  if !Clflags.llvm_backend
+  then Llvmize.end_assembly ()
+  else Emit.end_assembly ()
 
 let make_shared_startup_file unix ~ppf_dump ~sourcefile_for_dwarf genfns units =
   let compile_phrase p = Asmgen.compile_phrase ~ppf_dump p in
@@ -432,9 +437,12 @@ let make_shared_startup_file unix ~ppf_dump ~sourcefile_for_dwarf genfns units =
     Unit_info.make_dummy ~input_name:"caml_startup" shared_startup_comp_unit
   in
   Compilenv.reset shared_startup_unit_info;
-  Emitaux.Dwarf_helpers.init ~disable_dwarf:(not !Dwarf_flags.dwarf_for_startup_file)
+  Emitaux.Dwarf_helpers.init ~ppf_dump
+    ~disable_dwarf:(not !Dwarf_flags.dwarf_for_startup_file)
     ~sourcefile:sourcefile_for_dwarf;
-  Emit.begin_assembly unix;
+  if !Clflags.llvm_backend
+  then Llvmize.begin_assembly ~is_startup:true ~sourcefile:sourcefile_for_dwarf
+  else Emit.begin_assembly unix;
   emit_ocamlrunparam ~ppf_dump;
   List.iter compile_phrase
     (Cmm_helpers.emit_gc_roots_table ~symbols:[]
@@ -447,7 +455,9 @@ let make_shared_startup_file unix ~ppf_dump ~sourcefile_for_dwarf genfns units =
     force_linking_of_startup ~ppf_dump;
   (* this is to force a reference to all units, otherwise the linker
      might drop some of them (in case of libraries) *)
-  Emit.end_assembly ()
+  if !Clflags.llvm_backend
+  then Llvmize.end_assembly ()
+  else Emit.end_assembly ()
 
 let call_linker_shared ?(native_toplevel = false) file_list output_name =
   let exitcode =
@@ -455,6 +465,12 @@ let call_linker_shared ?(native_toplevel = false) file_list output_name =
   in
   if not (exitcode = 0)
   then raise(Error(Linking_error exitcode))
+
+
+(* The compiler allows [-o /dev/null], which can be used for testing linking.
+   In this case, we should not use the DWARF fission workflow during linking. *)
+let not_output_to_dev_null output_name =
+  not (String.equal output_name "/dev/null")
 
 let link_shared unix ~ppf_dump objfiles output_name =
   Profile.(record_call (annotate_file_name output_name)) (fun () ->
@@ -527,7 +543,9 @@ let call_linker file_list_rev startup_file output_name =
     else Ccomp.Exe
   in
   (* Determine if we need to use a temporary file for objcopy workflow *)
+  (* We disable the objcopy workflow if the output is piped to /dev/null. *)
   let needs_objcopy_workflow =
+    not_output_to_dev_null output_name &&
     !Clflags.dwarf_fission = Clflags.Fission_objcopy &&
     not (Target_system.is_macos ()) &&
     mode = Ccomp.Exe &&
@@ -555,37 +573,47 @@ let call_linker file_list_rev startup_file output_name =
       else if needs_objcopy_workflow then
         (* Run objcopy to extract debug info into .debug file *)
         let debug_file = output_name ^ ".debug" in
-        let compression_flag = 
+        let compression_flag =
           match Dwarf_flags.get_dwarf_objcopy_compression_format () with
-          | Some compression -> 
-            Printf.sprintf " %s=%s" 
+          | Some compression ->
+            Printf.sprintf " %s=%s"
               Config.objcopy_compress_debug_sections_flag compression
           | None -> ""
         in
-        let objcopy_cmd = 
-          Printf.sprintf 
-            "objcopy --enable-deterministic-archives \
-             --only-keep-debug%s %s %s && \
-             objcopy --enable-deterministic-archives \
-             --strip-debug --add-gnu-debuglink=%s %s %s"
+        let objcopy_cmd_create_debug =
+          Printf.sprintf
+            "%s --enable-deterministic-archives \
+             --only-keep-debug%s %s %s"
+            Config.objcopy
             compression_flag
             (Filename.quote link_output_name)
             (Filename.quote debug_file)
+        in
+        let objcopy_exit = Ccomp.command objcopy_cmd_create_debug in
+        if objcopy_exit <> 0 then
+          ( Misc.remove_file link_output_name;
+              raise (Error(Objcopy_error objcopy_exit)));
+        let objcopy_cmd_create_stripped_exe =
+          Printf.sprintf
+            "%s --enable-deterministic-archives \
+             --strip-debug --add-gnu-debuglink=%s %s %s"
+            Config.objcopy
             (Filename.quote debug_file)
             (Filename.quote link_output_name)
             (Filename.quote output_name)
         in
-        let objcopy_exit = Ccomp.command objcopy_cmd in
+        let objcopy_exit = Ccomp.command objcopy_cmd_create_stripped_exe in
         Misc.remove_file link_output_name;
         if objcopy_exit <> 0 then
           raise (Error(Objcopy_error objcopy_exit))
     | Fission_dsymutil ->
       if not (Target_system.is_macos ()) then
         raise (Error(Dwarf_fission_dsymutil_not_macos))
-      else if mode = Ccomp.Exe && 
+      else if not_output_to_dev_null output_name &&
+              mode = Ccomp.Exe &&
               not !Dwarf_flags.restrict_to_upstream_dwarf then
         (* Run dsymutil on the executable *)
-        let dsymutil_cmd = 
+        let dsymutil_cmd =
           Printf.sprintf "dsymutil %s" (Filename.quote output_name) in
         let dsymutil_exit = Ccomp.command dsymutil_cmd in
         if dsymutil_exit <> 0 then

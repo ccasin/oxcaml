@@ -85,7 +85,14 @@ let precolored_regs =
 
 let phys_reg ty n =
   match (ty : Cmm.machtype_component) with
-  | Int | Addr | Val -> hard_int_reg.(n)
+  | Int | Addr | Val ->
+    (* CR yusumez: We need physical registers to have the appropriate machtype
+       for the LLVM backend. However, this breaks an invariant the IRC register
+       allocator relies on. It is safe to guard it with this flag since the LLVM
+       backend doesn't get that far. *)
+    if !Clflags.llvm_backend
+    then { hard_int_reg.(n) with typ = ty }
+    else hard_int_reg.(n)
   | Float -> hard_float_reg.(n - 100)
   | Float32 -> hard_float32_reg.(n - 100)
   | Vec128 | Valx2 -> hard_vec128_reg.(n - 100)
@@ -337,13 +344,15 @@ let destroyed_at_basic (basic : Cfg_intf.S.basic) =
         | Intop_imm _ | Intop_atomic _
         | Name_for_debugger _ | Probe_is_enabled _ | Opaque | Pause
         | Begin_region | End_region | Dls_get)
-  | Poptrap _ | Prologue
+  | Poptrap _ | Prologue | Epilogue
   | Op (Reinterpret_cast (Int_of_value | Value_of_int | Float_of_float32 |
                           Float32_of_float | Float_of_int64 | Int64_of_float |
                           Float32_of_int32 | Int32_of_float32 |
                           V128_of_vec Vec128))
     -> [||]
-  | Stack_check _ -> assert false (* not supported *)
+  | Stack_check _ ->
+    (* This case is used by [Cfg_available_regs] *)
+    [||]
   | Op (Const_vec256 _ | Const_vec512 _)
   | Op (Load
           {memory_chunk=(Twofiftysix_aligned|Twofiftysix_unaligned|
@@ -473,7 +482,7 @@ let operation_supported : Cmm.operation -> bool = function
   | Capply _ | Cextcall _ | Cload _ | Calloc _ | Cstore _
   | Caddi | Csubi | Cmuli | Cmulhi _ | Cdivi | Cmodi
   | Cand | Cor | Cxor | Clsl | Clsr | Casr
-  | Ccmpi _ | Caddv | Cadda | Ccmpa _
+  | Ccmpi _ | Caddv | Cadda
   | Cnegf Float64 | Cabsf Float64 | Caddf Float64
   | Csubf Float64 | Cmulf Float64 | Cdivf Float64
   | Ccmpf _
@@ -501,4 +510,10 @@ let expression_supported : Cmm.expression -> bool = function
   | Cexit _ -> true
   | Cconst_vec256 _ | Cconst_vec512 _ -> false
 
-let trap_size_in_bytes = 16
+
+let trap_size_in_bytes () =
+  if !Clflags.llvm_backend
+  then
+    Misc.fatal_error
+      "Proc.trap_size_in_bytes: LLVM backend not supported for ARM"
+  else 16

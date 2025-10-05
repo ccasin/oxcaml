@@ -194,6 +194,7 @@ let classify_expression : Typedtree.expression -> sd =
 
     | Texp_variant _
     | Texp_tuple _
+    | Texp_atomic_loc _
     | Texp_extension_constructor _
     | Texp_constant _
     | Texp_src_pos ->
@@ -290,7 +291,7 @@ let classify_expression : Typedtree.expression -> sd =
     let old_env = env in
     let add_value_binding env vb =
       match vb.vb_pat.pat_desc with
-      | Tpat_var (id, _loc, _uid, _mode) ->
+      | Tpat_var (id, _loc, _uid, _sort, _mode) ->
           let size = classify_expression old_env vb.vb_expr in
           Ident.add id size env
       | _ ->
@@ -735,6 +736,8 @@ let rec expression : Typedtree.expression -> term_judg =
       list expression (List.map snd exprs) << Guard
     | Texp_unboxed_tuple exprs ->
       list expression (List.map (fun (_, e, _) -> e) exprs) << Return
+    | Texp_atomic_loc (expr, _, _, _, _) ->
+      expression expr << Guard
     | Texp_array (_, elt_sort, exprs, _) ->
       let elt_sort = Jkind.Sort.default_for_transl_and_get elt_sort in
       list expression exprs << array_mode exp elt_sort
@@ -1505,8 +1508,8 @@ and pattern : type k . k general_pattern -> Env.t -> mode = fun pat env ->
 and is_destructuring_pattern : type k . k general_pattern -> bool =
   fun pat -> match pat.pat_desc with
     | Tpat_any -> false
-    | Tpat_var (_, _, _, _) -> false
-    | Tpat_alias (pat, _, _, _, _, _) -> is_destructuring_pattern pat
+    | Tpat_var (_, _, _, _, _) -> false
+    | Tpat_alias (pat, _, _, _, _, _, _) -> is_destructuring_pattern pat
     | Tpat_constant _ -> true
     | Tpat_tuple _ -> true
     | Tpat_unboxed_tuple _ -> true

@@ -85,7 +85,7 @@ and head_of_kind_value_non_null = private
       }
 
 and head_of_kind_naked_immediate = private
-  | Naked_immediates of Targetint_31_63.Set.t
+  | Naked_immediates of Target_ocaml_int.Set.t
   | Is_int of t  (** For variants only *)
   | Get_tag of t  (** For variants only *)
   | Is_null of t
@@ -153,7 +153,7 @@ and row_like_for_closures = private
   }
 
 and closures_entry = private
-  { function_types : function_type Or_unknown_or_bottom.t Function_slot.Map.t;
+  { function_types : function_type Or_unknown.t Function_slot.Map.t;
     closure_types : function_slot_indexed_product;
     value_slot_types : value_slot_indexed_product
   }
@@ -277,11 +277,11 @@ val null : t
 
 val any_non_null_value : t
 
-val this_tagged_immediate : Targetint_31_63.t -> t
+val this_tagged_immediate : Target_ocaml_int.t -> t
 
 val this_rec_info : Rec_info_expr.t -> t
 
-val this_naked_immediate : Targetint_31_63.t -> t
+val this_naked_immediate : Target_ocaml_int.t -> t
 
 val this_naked_float32 : Numeric_types.Float32_by_bit_pattern.t -> t
 
@@ -303,7 +303,7 @@ val this_naked_vec256 : Vector_types.Vec256.Bit_pattern.t -> t
 
 val this_naked_vec512 : Vector_types.Vec512.Bit_pattern.t -> t
 
-val these_naked_immediates : Targetint_31_63.Set.t -> t
+val these_naked_immediates : Target_ocaml_int.Set.t -> t
 
 val these_naked_float32s : Numeric_types.Float32_by_bit_pattern.Set.t -> t
 
@@ -330,9 +330,11 @@ val boxed_float32_alias_to :
 
 val boxed_float_alias_to : naked_float:Variable.t -> Alloc_mode.For_types.t -> t
 
-val tagged_int8_alias_to : naked_int8:Variable.t -> t
+val tagged_int8_alias_to :
+  naked_int8:Variable.t -> machine_width:Target_system.Machine_width.t -> t
 
-val tagged_int16_alias_to : naked_int16:Variable.t -> t
+val tagged_int16_alias_to :
+  naked_int16:Variable.t -> machine_width:Target_system.Machine_width.t -> t
 
 val boxed_int32_alias_to : naked_int32:Variable.t -> Alloc_mode.For_types.t -> t
 
@@ -357,10 +359,10 @@ val box_float32 : t -> Alloc_mode.For_types.t -> t
 val box_float : t -> Alloc_mode.For_types.t -> t
 
 (** This function checks the kind of its argument. *)
-val tag_int8 : t -> t
+val tag_int8 : t -> machine_width:Target_system.Machine_width.t -> t
 
 (** This function checks the kind of its argument. *)
-val tag_int16 : t -> t
+val tag_int16 : t -> machine_width:Target_system.Machine_width.t -> t
 
 (** This function checks the kind of its argument. *)
 val box_int32 : t -> Alloc_mode.For_types.t -> t
@@ -403,9 +405,11 @@ val mutable_block : Alloc_mode.For_types.t -> t
 val create_closures : Alloc_mode.For_types.t -> row_like_for_closures -> t
 
 (** Note this assumes the allocation mode is [Heap] *)
-val this_immutable_string : string -> t
+val this_immutable_string :
+  string -> machine_width:Target_system.Machine_width.t -> t
 
-val mutable_string : size:int -> t
+val mutable_string :
+  size:int -> machine_width:Target_system.Machine_width.t -> t
 
 val array_of_length :
   element_kind:Flambda_kind.With_subkind.t Or_unknown_or_bottom.t ->
@@ -423,6 +427,7 @@ val immutable_array :
   element_kind:Flambda_kind.With_subkind.t Or_unknown_or_bottom.t ->
   fields:t list ->
   Alloc_mode.For_types.t ->
+  machine_width:Target_system.Machine_width.t ->
   t
 
 module Product : sig
@@ -433,7 +438,7 @@ module Product : sig
 
     val create : flambda_type Function_slot.Map.t -> t
 
-    val width : t -> Targetint_31_63.t
+    val width : t -> int
   end
 
   module Value_slot_indexed : sig
@@ -443,7 +448,7 @@ module Product : sig
 
     val create : flambda_type Value_slot.Map.t -> t
 
-    val width : t -> Targetint_31_63.t
+    val width : t -> int
   end
 
   module Int_indexed : sig
@@ -455,7 +460,7 @@ module Product : sig
 
     val create_from_array : flambda_type array -> t
 
-    val width : t -> Targetint_31_63.t
+    val width : t -> int
 
     val components : t -> flambda_type list
   end
@@ -475,7 +480,7 @@ module Closures_entry : sig
   type t = closures_entry
 
   val create :
-    function_types:Function_type.t Or_unknown_or_bottom.t Function_slot.Map.t ->
+    function_types:Function_type.t Or_unknown.t Function_slot.Map.t ->
     closure_types:Product.Function_slot_indexed.t ->
     value_slot_types:Product.Value_slot_indexed.t ->
     t
@@ -524,6 +529,7 @@ module Row_like_for_blocks : sig
     | Closed of Tag.t
 
   val create :
+    machine_width:Target_system.Machine_width.t ->
     shape:Flambda_kind.Block_shape.t ->
     field_tys:flambda_type list ->
     open_or_closed ->
@@ -531,11 +537,13 @@ module Row_like_for_blocks : sig
     t
 
   val create_blocks_with_these_tags :
+    machine_width:Target_system.Machine_width.t ->
     Flambda_kind.Block_shape.t Or_unknown.t Tag.Map.t ->
     Alloc_mode.For_types.t ->
     t
 
   val create_exactly_multiple :
+    machine_width:Target_system.Machine_width.t ->
     shape_and_field_tys_by_tag:
       (Flambda_kind.Block_shape.t * flambda_type list) Tag.Map.t ->
     Alloc_mode.For_types.t ->
@@ -550,7 +558,9 @@ module Row_like_for_blocks : sig
   val all_tags : t -> Tag.Set.t Or_unknown.t
 
   val all_tags_and_sizes :
-    t -> (Targetint_31_63.t * Flambda_kind.Block_shape.t) Tag.Map.t Or_unknown.t
+    machine_width:Target_system.Machine_width.t ->
+    t ->
+    (Target_ocaml_int.t * Flambda_kind.Block_shape.t) Tag.Map.t Or_unknown.t
 
   (** If the type corresponds to a single block of known size (as created by
       [create_exactly_multiple]) then return it. *)
@@ -558,7 +568,7 @@ module Row_like_for_blocks : sig
     t ->
     (Tag.t
     * Flambda_kind.Block_shape.t
-    * Targetint_31_63.t
+    * Target_ocaml_int.t
     * Product.Int_indexed.t
     * Alloc_mode.For_types.t)
     option
@@ -592,7 +602,7 @@ module Row_like_for_blocks : sig
       - There could be a distinction between the first three cases (where we
       expect that doing the actual meet could give us a better result) and the
       last case where we already know what the result of the meet will be. *)
-  val get_field : t -> Targetint_31_63.t -> flambda_type Or_unknown_or_bottom.t
+  val get_field : t -> Target_ocaml_int.t -> flambda_type Or_unknown_or_bottom.t
 
   val is_bottom : t -> bool
 
@@ -794,7 +804,7 @@ module Head_of_kind_value : sig
 
   val create_boxed_vec512 : flambda_type -> Alloc_mode.For_types.t -> t
 
-  val create_tagged_immediate : Targetint_31_63.t -> t
+  val create_tagged_immediate : Target_ocaml_int.t -> t
 
   val create_closures : Row_like_for_closures.t -> Alloc_mode.For_types.t -> t
 
@@ -840,7 +850,7 @@ module Head_of_kind_value_non_null : sig
 
   val create_boxed_vec512 : flambda_type -> Alloc_mode.For_types.t -> t
 
-  val create_tagged_immediate : Targetint_31_63.t -> t
+  val create_tagged_immediate : Target_ocaml_int.t -> t
 
   val create_closures : Row_like_for_closures.t -> Alloc_mode.For_types.t -> t
 
@@ -857,11 +867,11 @@ end
 module Head_of_kind_naked_immediate : sig
   type t = head_of_kind_naked_immediate
 
-  val create_naked_immediate : Targetint_31_63.t -> t
+  val create_naked_immediate : Target_ocaml_int.t -> t
 
-  val create_naked_immediates : Targetint_31_63.Set.t -> t Or_bottom.t
+  val create_naked_immediates : Target_ocaml_int.Set.t -> t Or_bottom.t
 
-  val create_naked_immediates_non_empty : Targetint_31_63.Set.t -> t
+  val create_naked_immediates_non_empty : Target_ocaml_int.Set.t -> t
 
   val create_is_int : flambda_type -> t
 
@@ -948,4 +958,5 @@ module Head_of_kind_naked_vec512 :
     with type n = Vector_types.Vec512.Bit_pattern.t
     with type n_set = Vector_types.Vec512.Bit_pattern.Set.t
 
-val must_be_singleton : t -> Reg_width_const.t option
+val must_be_singleton :
+  t -> machine_width:Target_system.Machine_width.t -> Reg_width_const.t option

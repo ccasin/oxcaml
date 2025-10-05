@@ -69,7 +69,7 @@ module S = struct
     { lt : Label.t;  (** if x < y (resp. x < n) goto [lt] label *)
       eq : Label.t;  (** if x = y (resp. x = n) goto [eq] label *)
       gt : Label.t;  (** if x > y (resp. x > n) goto [gt] label *)
-      is_signed : bool;
+      is_signed : Scalar.Signedness.t;
       imm : int option
     }
 
@@ -103,7 +103,6 @@ module S = struct
       mutable live : Reg.Set.t;
       mutable stack_offset : int;
       mutable irc_work_list : irc_work_list;
-      mutable ls_order : int;
       mutable available_before : Reg_availability_set.t option;
       mutable available_across : Reg_availability_set.t option
     }
@@ -119,6 +118,7 @@ module S = struct
     | Pushtrap of { lbl_handler : Label.t }
     | Poptrap of { lbl_handler : Label.t }
     | Prologue
+    | Epilogue
     | Stack_check of { max_frame_size_bytes : int }
 
   type 'a with_label_after =

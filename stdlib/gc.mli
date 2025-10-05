@@ -717,6 +717,12 @@ module (Memprof @@ nonportable) :
        called on a profile which has not been stopped.
        *)
 
+    val participate : t -> unit
+    (** Cause the current domain to participate in the specified profile.
+        Raises an exception if the current domain is currently sampling for
+        any profile, or if the specified profile has been stopped or
+        discarded. *)
+
     (** Submodule containing non-backwards-compatible functions which enforce thread
         safety via modes. *)
     module Safe : sig
@@ -730,19 +736,6 @@ module (Memprof @@ nonportable) :
           The provided [tracker] must be [portable] as the contained callbacks are
           registered with the current domain, but may close over data contained in the
           current capsule which may later move to a different domain. *)
-
-      val start' :
-        Domain.Safe.DLS.Access.t ->
-        sampling_rate:float ->
-        ?callstack_size:int ->
-        ('minor, 'major) tracker ->
-        t
-      (** Like {!start}, but can be called from any domain.
-
-          An additional [Domain.Safe.DLS.Access.t] argument is taken, which acts as a
-          witness that the closures contained in the [tracker] do not close over any
-          data from the current capsule in an unsafe way. See {!Domain.Safe.DLS.Access}
-          for more details. *)
     end
 end
 

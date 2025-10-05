@@ -5,6 +5,7 @@ export ARCH
 
 boot_ocamlc = main_native.exe
 boot_ocamlopt = boot_ocamlopt.exe
+boot_ocamlj = boot_ocamlj.exe
 boot_ocamlmklib = tools/ocamlmklib.exe
 boot_ocamldep = tools/ocamldep.exe
 boot_ocamlobjinfo = tools/objinfo.exe
@@ -93,7 +94,11 @@ promote:
 
 .PHONY: fmt
 fmt:
-	find . \( -name "*.ml" -or -name "*.mli" \) | xargs -P $$(nproc 2>/dev/null || echo 1) -n 20 ocamlformat -i
+	$(if $(filter 1,$(V)),,@)find . \( -name "*.ml" -or -name "*.mli" \) | \
+	  xargs -P $$(nproc 2>/dev/null || echo 1) -n 20 ocamlformat -i
+ifndef SKIP_80CH
+	$(if $(filter 1,$(V)),,@)bash scripts/80ch.sh
+endif
 
 .PHONY: check-fmt
 check-fmt:

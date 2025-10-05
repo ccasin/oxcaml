@@ -138,7 +138,6 @@ type primitive =
   | Pignore
     (* Globals *)
   | Pgetglobal of Compilation_unit.t
-  | Psetglobal of Compilation_unit.t
   | Pgetpredef of Ident.t
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape * locality_mode
@@ -760,6 +759,15 @@ type loop_attribute =
   | Never_loop (* [@loop never] *)
   | Default_loop (* no [@loop] attribute *)
 
+type regalloc_attribute =
+  | Default_regalloc
+  | Regalloc of Clflags.Register_allocator.t
+
+type regalloc_param_attribute =
+  | Default_regalloc_params
+  | Regalloc_params of string list
+(* [@regalloc_param] attributes - can have multiple with string payloads *)
+
 type curried_function_kind = { nlocal : int } [@@unboxed]
 
 type function_kind = Curried of curried_function_kind | Tupled
@@ -803,7 +811,7 @@ let equal_meth_kind x y =
 
 type shared_code = (int * int) list
 
-type static_label = int
+type static_label = Static_label.t
 
 type function_attribute = {
   inline : inline_attribute;
@@ -812,6 +820,9 @@ type function_attribute = {
   zero_alloc : zero_alloc_attribute;
   poll: poll_attribute;
   loop: loop_attribute;
+  regalloc: regalloc_attribute;
+  regalloc_param: regalloc_param_attribute;
+  cold: bool;
   is_a_functor: bool;
   is_opaque: bool;
   stub: bool;
@@ -1083,6 +1094,9 @@ let default_function_attribute = {
   zero_alloc = Default_zero_alloc ;
   poll = Default_poll;
   loop = Default_loop;
+  regalloc = Default_regalloc;
+  regalloc_param = Default_regalloc_params;
+  cold = false;
   is_a_functor = false;
   is_opaque = false;
   stub = false;
@@ -1376,23 +1390,22 @@ and free_variables_list set exprs =
     set exprs
 
 (* Check if an action has a "when" guard *)
-let raise_count = ref 0
+let static_label_sequence = Static_label.make_sequence ()
 
 let next_raise_count () =
-  incr raise_count ;
-  !raise_count
+  Static_label.get_and_incr static_label_sequence
 
 (* Anticipated staticraise, for guards *)
-let staticfail = Lstaticraise (0,[])
+let staticfail = Lstaticraise (Static_label.fail,[])
 
 let rec is_guarded = function
-  | Lifthenelse(_cond, _body, Lstaticraise (0,[]),_) -> true
+  | Lifthenelse(_cond, _body, Lstaticraise (lbl,[]),_) when Static_label.equal lbl Static_label.fail -> true
   | Llet(_str, _k, _id, _duid, _lam, body) -> is_guarded body
   | Levent(lam, _ev) -> is_guarded lam
   | _ -> false
 
 let rec patch_guarded patch = function
-  | Lifthenelse (cond, body, Lstaticraise (0,[]), kind) ->
+  | Lifthenelse (cond, body, Lstaticraise (lbl,[]), kind) when Static_label.equal lbl Static_label.fail ->
       Lifthenelse (cond, body, patch, kind)
   | Llet(str, k, id, duid, lam, body) ->
       Llet (str, k, id, duid, lam, patch_guarded patch body)
@@ -1441,10 +1454,10 @@ let transl_prim mod_name name =
   | exception Not_found ->
       fatal_error ("Primitive " ^ name ^ " not found.")
 
-let rec transl_mixed_product_shape ~get_value_kind shape =
-  Array.mapi (fun i (elt : Types.mixed_block_element) ->
+let rec transl_mixed_product_shape shape =
+  Array.map (fun (elt : Types.mixed_block_element) ->
     match elt with
-    | Value -> Value (get_value_kind i)
+    | Value -> Value generic_value
     | Float_boxed -> Float_boxed ()
     | Float64 -> Float64
     | Float32 -> Float32
@@ -1458,10 +1471,7 @@ let rec transl_mixed_product_shape ~get_value_kind shape =
     | Word -> Word
     | Untagged_immediate -> Untagged_immediate
     | Product shapes ->
-      (* CR mshinwell: This [get_value_kind] override is a bit odd, maybe this
-         could be improved in the future (same below). *)
-      let get_value_kind _ = generic_value in
-      Product (transl_mixed_product_shape ~get_value_kind shapes)
+      Product (transl_mixed_product_shape shapes)
     | Void -> Product [||]
   ) shape
 
@@ -1619,7 +1629,7 @@ let build_substs update_env ?(freshen_bound_variables = false) s =
                to be [max] for conservative soundness. [new_env] is only used
                for printing in debugger. *)
             let vd = Env.find_value (Path.Pident id) old_env in
-            let vd = {vd with val_modalities = Mode.Modality.Value.id} in
+            let vd = {vd with val_modalities = Mode.Modality.id} in
             let mode = Mode.Value.max |> Mode.Value.disallow_right in
             (vd, mode)
           in
@@ -1818,7 +1828,7 @@ let find_exact_application kind ~arity args =
       end
 
 let reset () =
-  raise_count := 0
+  Static_label.reset static_label_sequence
 
 let mod_field ?(read_semantics=Reads_agree) pos =
   Pfield (pos, Pointer, read_semantics)
@@ -1921,7 +1931,7 @@ let primitive_may_allocate : primitive -> locality_mode option = function
   | Pbytes_to_string | Pbytes_of_string
   | Parray_to_iarray | Parray_of_iarray
   | Pignore -> None
-  | Pgetglobal _ | Psetglobal _ | Pgetpredef _ -> None
+  | Pgetglobal _ | Pgetpredef _ -> None
   | Pmakeblock (_, _, _, m) -> Some m
   | Pmakefloatblock (_, m) -> Some m
   | Pmakeufloatblock (_, m) -> Some m
@@ -2119,7 +2129,7 @@ let primitive_can_raise prim =
   | Pbigarrayset (_, _, _, Pbigarray_unknown_layout) ->
     true
   | Pbytes_to_string | Pbytes_of_string | Parray_of_iarray | Parray_to_iarray
-  | Pignore | Pgetglobal _ | Psetglobal _ | Pgetpredef _ | Pmakeblock _
+  | Pignore | Pgetglobal _ | Pgetpredef _ | Pmakeblock _
   | Pmakefloatblock _ | Pfield _ | Pfield_computed _ | Psetfield _
   | Psetfield_computed _ | Pfloatfield _ | Psetfloatfield _ | Pduprecord _
   | Pmakeufloatblock _ | Pufloatfield _ | Psetufloatfield _ | Psequand | Psequor
@@ -2211,11 +2221,16 @@ let primitive_can_raise prim =
     false
 
 let constant_layout: constant -> layout = function
-  | Const_int _ | Const_char _ -> non_null_value Pintval
+  | Const_int _ | Const_int8 _ | Const_int16 _ | Const_char _ ->
+    non_null_value Pintval
   | Const_string _ -> non_null_value Pgenval
   | Const_int32 _ -> non_null_value (Pboxedintval Boxed_int32)
   | Const_int64 _ -> non_null_value (Pboxedintval Boxed_int64)
   | Const_nativeint _ -> non_null_value (Pboxedintval Boxed_nativeint)
+  | Const_untagged_int _ -> Punboxed_or_untagged_integer Untagged_int
+  | Const_untagged_int8 _ | Const_untagged_char _ ->
+    Punboxed_or_untagged_integer Untagged_int8
+  | Const_untagged_int16 _ -> Punboxed_or_untagged_integer Untagged_int16
   | Const_unboxed_int32 _ -> Punboxed_or_untagged_integer Unboxed_int32
   | Const_unboxed_int64 _ -> Punboxed_or_untagged_integer Unboxed_int64
   | Const_unboxed_nativeint _ -> Punboxed_or_untagged_integer Unboxed_nativeint
@@ -2263,6 +2278,14 @@ let layout_of_extern_repr : extern_repr -> _ = function
   | Unboxed_or_untagged_integer Unboxed_nativeint ->
     layout_boxed_int Boxed_nativeint
   | Same_as_ocaml_repr s -> layout_of_const_sort s
+
+let extern_repr_involves_unboxed_products extern_repr =
+  match extern_repr with
+  | Same_as_ocaml_repr (Product _) -> true
+  | Same_as_ocaml_repr (Base _)
+  | Unboxed_vector _ | Unboxed_float _
+  | Unboxed_or_untagged_integer _ ->
+    false
 
 let rec layout_of_scannable_kinds kinds =
   Punboxed_product (List.map layout_of_scannable_kind kinds)
@@ -2334,6 +2357,25 @@ let rec mixed_block_element_of_layout (layout : layout) :
   | Punboxed_vector Unboxed_vec512 -> Vec512
   | Punboxed_or_untagged_integer Untagged_int -> Untagged_immediate
 
+let rec layout_of_mixed_block_element_for_idx_set (mbe : _ mixed_block_element)
+  : layout =
+  match mbe with
+  | Product mbes ->
+    Punboxed_product
+      (Array.to_list (Array.map layout_of_mixed_block_element_for_idx_set mbes))
+  | Value value_kind -> Pvalue value_kind
+  | Float64 | Float_boxed _ -> Punboxed_float Unboxed_float64
+  | Float32 -> Punboxed_float Unboxed_float32
+  | Bits64 -> Punboxed_or_untagged_integer Unboxed_int64
+  | Bits32 -> Punboxed_or_untagged_integer Unboxed_int32
+  | Bits16 -> Punboxed_or_untagged_integer Untagged_int16
+  | Bits8 -> Punboxed_or_untagged_integer Untagged_int8
+  | Word -> Punboxed_or_untagged_integer Unboxed_nativeint
+  | Vec128 -> Punboxed_vector Unboxed_vec128
+  | Vec256 -> Punboxed_vector Unboxed_vec256
+  | Vec512 -> Punboxed_vector Unboxed_vec512
+  | Untagged_immediate -> Punboxed_or_untagged_integer Untagged_int
+
 let rec mixed_block_element_leaves (el : _ mixed_block_element)
   : _ mixed_block_element list =
   match el with
@@ -2360,7 +2402,7 @@ let will_be_reordered (mbe : _ mixed_block_element) =
   acc.last_value_after_flat
 
 let primitive_result_layout (p : primitive) =
-  assert !Clflags.native_code;
+  assert (!Clflags.native_code || Clflags.is_flambda2 ());
   match p with
   | Pphys_equal (Eq | Noteq) -> layout_int
   | Pscalar op ->
@@ -2404,7 +2446,7 @@ let primitive_result_layout (p : primitive) =
   | Punboxed_nativeint_array_set_vec _
   | Parrayblit _
     -> layout_unit
-  | Pgetglobal _ | Psetglobal _ | Pgetpredef _ -> layout_module_field
+  | Pgetglobal _ | Pgetpredef _ -> layout_module_field
   | Pmakeblock _ | Pmakefloatblock _ | Pmakearray _ | Pmakearray_dynamic _
   | Pduprecord _ | Pmakeufloatblock _ | Pmakemixedblock _ | Pmakelazyblock _
   | Pduparray _ | Pbigarraydim _ | Pobj_dup -> layout_block

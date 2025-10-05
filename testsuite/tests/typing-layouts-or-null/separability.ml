@@ -383,7 +383,8 @@ Line 1, characters 13-18:
 1 | type fails = float accepts_nonfloat
                  ^^^^^
 Error: This type "float" should be an instance of type "('a : any mod non_float)"
-       The kind of float is value mod many unyielding stateless immutable
+       The kind of float is
+           value mod many forkable unyielding stateless immutable
          because it is the primitive type float.
        But the kind of float must be a subkind of any mod non_float
          because of the definition of accepts_nonfloat at line 3, characters 0-46.
@@ -560,7 +561,7 @@ Line 1, characters 13-26:
 Error: This type "float or_null" should be an instance of type
          "('a : any mod separable)"
        The kind of float or_null is
-           value_or_null mod many unyielding stateless immutable
+           value_or_null mod many forkable unyielding stateless immutable
          because it is the primitive type or_null.
        But the kind of float or_null must be a subkind of any mod separable
          because of the definition of accepts_sep at line 2, characters 0-41.
@@ -625,7 +626,7 @@ Line 1, characters 13-26:
 Error: This type "float or_null" should be an instance of type
          "('a : any mod separable)"
        The kind of float or_null is
-           value_or_null mod many unyielding stateless immutable
+           value_or_null mod many forkable unyielding stateless immutable
          because it is the primitive type or_null.
        But the kind of float or_null must be a subkind of any mod separable
          because it's the type argument to the array type.
@@ -814,7 +815,7 @@ Line 1, characters 13-37:
 Error: This type "float Or_null_reexport.t" = "float or_null"
        should be an instance of type "('a : any mod non_float)"
        The kind of float Or_null_reexport.t is
-           value_or_null mod many unyielding stateless immutable
+           value_or_null mod many forkable unyielding stateless immutable
          because it is the primitive type or_null.
        But the kind of float Or_null_reexport.t must be a subkind of
            any mod non_float
@@ -842,7 +843,7 @@ Line 1, characters 13-37:
 Error: This type "float Or_null_reexport.t" = "float or_null"
        should be an instance of type "('a : any mod separable)"
        The kind of float Or_null_reexport.t is
-           value_or_null mod many unyielding stateless immutable
+           value_or_null mod many forkable unyielding stateless immutable
          because it is the primitive type or_null.
        But the kind of float Or_null_reexport.t must be a subkind of
            any mod separable
@@ -886,7 +887,7 @@ Line 1, characters 13-31:
 Error: This type "float unbx or_null" should be an instance of type
          "('a : any mod separable)"
        The kind of float unbx or_null is
-           value_or_null mod many unyielding stateless immutable
+           value_or_null mod many forkable unyielding stateless immutable
          because it is the primitive type or_null.
        But the kind of float unbx or_null must be a subkind of
            any mod separable
@@ -928,10 +929,185 @@ Line 1, characters 30-32:
                                   ^^
 Error: This expression has type "float" but an expression was expected of type
          "('a : value mod non_float)"
-       The kind of float is value mod many unyielding stateless immutable
+       The kind of float is
+           value mod many forkable unyielding stateless immutable
          because it is the primitive type float.
        But the kind of float must be a subkind of value mod non_float
          because it's the layout polymorphic type in an external declaration
          ([@layout_poly] forces all variables of layout 'any' to be
          representable at call sites).
+|}]
+
+(* Module inclusion tests with or_null and separability *)
+
+module type S = sig
+  type ('a : value mod non_float) t : value_or_null mod non_float
+end
+
+module M1 : S = struct
+  type ('a : value mod non_float) t = 'a or_null
+end
+
+[%%expect{|
+module type S =
+  sig type ('a : value mod non_float) t : value_or_null mod non_float end
+module M1 : S
+|}]
+
+module M2 : S = struct
+  type ('a : value mod non_float) t = 'a Or_null_reexport.t
+end
+
+[%%expect{|
+module M2 : S
+|}]
+
+module M3_fail : S = struct
+  type 'a t = float or_null
+end
+
+[%%expect{|
+Lines 1-3, characters 21-3:
+1 | .....................struct
+2 |   type 'a t = float or_null
+3 | end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type 'a t = float or_null end
+       is not included in
+         S
+       Type declarations do not match:
+         type 'a t = float or_null
+       is not included in
+         type ('a : value mod non_float) t : value_or_null mod non_float
+       The kind of the first is
+           value_or_null mod many forkable unyielding stateless immutable
+         because it is the primitive type or_null.
+       But the kind of the first must be a subkind of
+           value_or_null mod non_float
+         because of the definition of t at line 2, characters 2-65.
+|}]
+
+module M4 : S = struct
+  type 'a t = int or_null
+end
+
+[%%expect{|
+module M4 : S
+|}]
+
+module type S0 = sig
+  type t : value_or_null mod separable
+end
+
+[%%expect{|
+module type S0 = sig type t : value_or_null mod separable end
+|}]
+
+module M5 : S0 = struct
+  type t = int
+end
+
+[%%expect{|
+module M5 : S0
+|}]
+
+module M6 : S0 = struct
+  type t = string or_null
+end
+
+[%%expect{|
+module M6 : S0
+|}]
+
+module M7_fail : S0 = struct
+  type t = float or_null
+end
+
+[%%expect{|
+Lines 1-3, characters 22-3:
+1 | ......................struct
+2 |   type t = float or_null
+3 | end
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = float or_null end
+       is not included in
+         S0
+       Type declarations do not match:
+         type t = float or_null
+       is not included in
+         type t : value_or_null mod separable
+       The kind of the first is
+           value_or_null mod many forkable unyielding stateless immutable
+         because it is the primitive type or_null.
+       But the kind of the first must be a subkind of
+           value_or_null mod separable
+         because of the definition of t at line 2, characters 2-38.
+|}]
+
+(* Separability and [@@unboxed] existential types. *)
+
+(* Some [@@unboxed] existentials are non-separable and thus forbidden. *)
+(* CR separability: mark them as non-separable instead. *)
+
+type 'a abstract
+
+type packed = P : 'a abstract -> packed [@@unboxed]
+[%%expect{|
+type 'a abstract
+Line 3, characters 0-51:
+3 | type packed = P : 'a abstract -> packed [@@unboxed]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This type cannot be unboxed because
+       it might contain both float and non-float values,
+       depending on the instantiation of the existential variable "'a".
+       You should annotate it with "[@@ocaml.boxed]".
+|}]
+
+(* [non_float] annotations allow us to bypass this check. *)
+
+type 'a non_float : value mod non_float
+
+type packed = P : 'a non_float -> packed [@@unboxed]
+
+[%%expect{|
+type 'a non_float : value mod non_float
+type packed = P : 'a non_float -> packed [@@unboxed]
+|}]
+
+(* [non_float] also works on existential variables. *)
+
+type exists = E : ('a : value mod non_float) . 'a -> exists [@@unboxed]
+
+[%%expect{|
+type exists = E : ('a : value mod non_float). 'a -> exists [@@unboxed]
+|}]
+
+(* Non-value layouts do not trigger the check. *)
+
+type 'a void : void
+
+type packed_void = P : 'a void -> packed_void [@@unboxed]
+
+[%%expect{|
+type 'a void : void
+type packed_void = P : 'a void -> packed_void [@@unboxed]
+|}]
+
+type exists_word = W : ('a : word) . 'a -> exists_word [@@unboxed]
+
+[%%expect{|
+type exists_word = W : ('a : word). 'a -> exists_word [@@unboxed]
+|}]
+
+(* With-bounds don't affect separability here: *)
+
+type 'a abs1 : value mod non_float with 'a
+
+type packed = P : 'a abs1 -> packed [@@unboxed]
+
+[%%expect{|
+type 'a abs1 : value mod non_float
+type packed = P : 'a abs1 -> packed [@@unboxed]
 |}]

@@ -124,8 +124,11 @@ let rec extract_letop_patterns n pat =
 
 let constant = function
   | Const_char c -> Pconst_char c
+  | Const_untagged_char c -> Pconst_untagged_char c
   | Const_string (s,loc,d) -> Pconst_string (s,loc,d)
   | Const_int i -> Pconst_integer (Int.to_string i, None)
+  | Const_int8 i -> Pconst_integer (Int.to_string i, Some 's')
+  | Const_int16 i -> Pconst_integer (Int.to_string i, Some 'S')
   | Const_int32 i -> Pconst_integer (Int32.to_string i, Some 'l')
   | Const_int64 i -> Pconst_integer (Int64.to_string i, Some 'L')
   | Const_nativeint i -> Pconst_integer (Nativeint.to_string i, Some 'n')
@@ -133,6 +136,9 @@ let constant = function
   | Const_float32 f -> Pconst_float (f, Some 's')
   | Const_unboxed_float f -> Pconst_unboxed_float (f, None)
   | Const_unboxed_float32 f -> Pconst_unboxed_float (f, Some 's')
+  | Const_untagged_int i -> Pconst_unboxed_integer (Int.to_string i, 'm')
+  | Const_untagged_int8 i -> Pconst_unboxed_integer (Int.to_string i, 's')
+  | Const_untagged_int16 i -> Pconst_unboxed_integer (Int.to_string i, 'S')
   | Const_unboxed_int32 i -> Pconst_unboxed_integer (Int32.to_string i, 'l')
   | Const_unboxed_int64 i -> Pconst_unboxed_integer (Int64.to_string i, 'L')
   | Const_unboxed_nativeint i -> Pconst_unboxed_integer (Nativeint.to_string i, 'n')
@@ -324,7 +330,7 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
       { pat_extra=[Tpat_unpack, loc, _attrs]; pat_desc = Tpat_any; _ } ->
         Ppat_unpack { txt = None; loc  }
     | { pat_extra=[Tpat_unpack, _, _attrs];
-        pat_desc = Tpat_var (_,name, _, _); _ } ->
+        pat_desc = Tpat_var (_,name, _, _, _); _ } ->
         Ppat_unpack { name with txt = Some name.txt }
     | { pat_extra=[Tpat_type (_path, lid), _, _attrs]; _ } ->
         Ppat_type (map_loc sub lid)
@@ -335,7 +341,7 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
     | _ ->
     match pat.pat_desc with
       Tpat_any -> Ppat_any
-    | Tpat_var (id, name,_,_) ->
+    | Tpat_var (id, name,_,_,_) ->
         begin
           match (Ident.name id).[0] with
             'A'..'Z' ->
@@ -348,11 +354,12 @@ let pattern : type k . _ -> k T.general_pattern -> _ = fun sub pat ->
        The compiler transforms (x:t) into (_ as x : t).
        This avoids transforming a warning 27 into a 26.
      *)
-    | Tpat_alias ({pat_desc = Tpat_any; pat_loc}, _id, name, _uid, _mode, _ty)
+    | Tpat_alias
+      ({pat_desc = Tpat_any; pat_loc}, _id, name, _uid, _sort, _mode, _ty)
          when pat_loc = pat.pat_loc ->
        Ppat_var name
 
-    | Tpat_alias (pat, _id, name, _uid, _mode, _ty) ->
+    | Tpat_alias (pat, _id, name, _uid, _sort, _mode, _ty) ->
         Ppat_alias (sub.pat sub pat, name)
     | Tpat_constant cst -> Ppat_constant (constant cst)
     | Tpat_tuple list ->
@@ -613,6 +620,13 @@ let expression sub exp =
         Pexp_record_unboxed_product
           (list,
            Option.map (fun (exp, _) -> sub.expr sub exp) extended_expression)
+    | Texp_atomic_loc (exp, _, lid, _label, _) ->
+        Pexp_extension ({ txt = "ocaml.atomic.loc"; loc },
+                        PStr [ Str.eval ~loc
+                                 (Exp.field ~loc
+                                    (sub.expr sub exp)
+                                    (map_loc sub lid))
+                             ])
     | Texp_field (exp, _sort, lid, _label, _, _) ->
         Pexp_field (sub.expr sub exp, map_loc sub lid)
     | Texp_unboxed_field (exp, _, lid, _label, _) ->
@@ -1038,7 +1052,7 @@ let core_type sub ct =
 
 let class_structure sub cs =
   let rec remove_self = function
-    | { pat_desc = Tpat_alias (p, id, _s, _uid, _mode, _ty) }
+    | { pat_desc = Tpat_alias (p, id, _s, _uid, _sort, _mode, _ty) }
       when string_is_prefix "selfpat-" (Ident.name id) ->
         remove_self p
     | p -> p
@@ -1068,7 +1082,7 @@ let object_field sub {of_loc; of_desc; of_attributes;} =
   Of.mk ~loc ~attrs desc
 
 and is_self_pat = function
-  | { pat_desc = Tpat_alias(_pat, id, _, _uid, _mode, _ty) } ->
+  | { pat_desc = Tpat_alias(_pat, id, _, _uid, _sort, _mode, _ty) } ->
       string_is_prefix "self-" (Ident.name id)
   | _ -> false
 

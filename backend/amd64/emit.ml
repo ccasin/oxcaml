@@ -760,18 +760,16 @@ let instr_for_floatarithmem (width : Cmm.float_width) op =
   | Float32, Ifloatdiv -> sse_or_avx3 divss vdivss
 
 let cond : Operation.integer_comparison -> X86_ast.condition = function
-  | Isigned Ceq -> E
-  | Isigned Cne -> NE
-  | Isigned Cle -> LE
-  | Isigned Cgt -> G
-  | Isigned Clt -> L
-  | Isigned Cge -> GE
-  | Iunsigned Ceq -> E
-  | Iunsigned Cne -> NE
-  | Iunsigned Cle -> BE
-  | Iunsigned Cgt -> A
-  | Iunsigned Clt -> B
-  | Iunsigned Cge -> AE
+  | Ceq -> E
+  | Cne -> NE
+  | Cle -> LE
+  | Cgt -> G
+  | Clt -> L
+  | Cge -> GE
+  | Cult -> B (* unsigned less than *)
+  | Cule -> BE (* unsigned less or equal *)
+  | Cugt -> A (* unsigned greater than *)
+  | Cuge -> AE (* unsigned greater or equal *)
 
 (* Output an = 0 or <> 0 test. *)
 
@@ -861,14 +859,11 @@ let emit_test i ~(taken : X86_ast.condition -> unit) = function
   | Iinttest cmp ->
     I.cmp (arg i 1) (arg i 0);
     taken (cond cmp)
-  | Iinttest_imm
-      (((Isigned Ceq | Isigned Cne | Iunsigned Ceq | Iunsigned Cne) as cmp), 0)
-    ->
+  | Iinttest_imm (((Ceq | Cne) as cmp), 0) ->
     output_test_zero i.arg.(0);
     taken (cond cmp)
   | Iinttest_imm
-      ( (( Isigned (Ceq | Cne | Clt | Cgt | Cle | Cge)
-         | Iunsigned (Ceq | Cne | Clt | Cgt | Cle | Cge) ) as cmp),
+      ( ((Ceq | Cne | Clt | Cgt | Cle | Cge | Cult | Cugt | Cule | Cuge) as cmp),
         n ) ->
     I.cmp (int n) (arg i 0);
     taken (cond cmp)
@@ -879,22 +874,6 @@ let emit_test i ~(taken : X86_ast.condition -> unit) = function
   | Ieventest ->
     I.test (int 1) (arg8 i 0);
     taken E
-
-(* Deallocate the stack frame before a return or tail call *)
-
-let output_epilogue f =
-  if !frame_required
-  then (
-    let n = frame_size () - 8 - if fp then 8 else 0 in
-    if n <> 0
-    then (
-      I.add (int n) rsp;
-      D.cfi_adjust_cfa_offset ~bytes:(-n));
-    if fp then I.pop rbp;
-    f ();
-    (* reset CFA back cause function body may continue *)
-    if n <> 0 then D.cfi_adjust_cfa_offset ~bytes:n)
-  else f ()
 
 (* Floating-point constants *)
 
@@ -1621,25 +1600,24 @@ let emit_static_cast (cast : Cmm.static_cast) i =
   | V128_of_scalar Float32x4 | V256_of_scalar Float32x8 ->
     if distinct then movss (arg i 0) (resX i 0)
   | Scalar_of_v128 Int16x8 | Scalar_of_v256 Int16x16 ->
-    (* [movw] and [movzx] cannot operate on vector registers. We must zero
-       extend as the result is an untagged positive int. CR mslater: (SIMD)
-       remove zx once we have unboxed int16 *)
+    (* CR-someday mslater: int16# shouldn't require sign extension *)
+    (* [movw] and [movzx] cannot operate on vector registers. We must sign
+       extend as the result is an untagged int8. *)
     movd (argX i 0) (res32 i 0);
-    I.movzx (res16 i 0) (res i 0)
+    I.movsx (res16 i 0) (res i 0)
   | Scalar_of_v128 Int8x16 | Scalar_of_v256 Int8x32 ->
-    (* [movb] and [movzx] cannot operate on vector registers. We must zero
-       extend as the result is an untagged positive int. CR mslater: (SIMD)
-       remove zx once we have unboxed int8 *)
+    (* CR-someday mslater: int8# shouldn't require sign extension *)
+    (* [movb] and [movzx] cannot operate on vector registers. We must sign
+       extend as the result is an untagged int16. *)
     movd (argX i 0) (res32 i 0);
-    I.movzx (res8 i 0) (res i 0)
+    I.movsx (res8 i 0) (res i 0)
   | V128_of_scalar Int16x8
   | V128_of_scalar Int8x16
   | V256_of_scalar Int16x16
   | V256_of_scalar Int8x32 ->
     (* [movw] and [movb] cannot operate on vector registers. Moving 32 bits is
-       OK because the argument is an untagged positive int and these operations
-       leave the top bits of the vector unspecified. CR mslater: (SIMD) don't
-       load 32 bits once we have unboxed int16/int8 *)
+       OK because the argument is an untagged int and these operations leave the
+       top bits of the vector unspecified. *)
     movd (arg32 i 0) (resX i 0)
   | V512_of_scalar _ | Scalar_of_v512 _ ->
     (* CR-soon mslater: avx512 *)
@@ -1764,6 +1742,10 @@ let emit_simd_instr_with_memory_arg (simd : Simd.Mem.operation) i addr =
   | Mul_f32 -> sse_or_avx3 mulps vmulps_X_X_Xm128 (arg i 0) addr (res i 0)
   | Div_f32 -> sse_or_avx3 divps vdivps_X_X_Xm128 (arg i 0) addr (res i 0)
 
+let prologue_stack_offset () =
+  assert !frame_required;
+  frame_size () - 8 - if fp then 8 else 0
+
 (* Emit an instruction *)
 let emit_instr ~first ~fallthrough i =
   let open Simd_instrs in
@@ -1779,11 +1761,23 @@ let emit_instr ~first ~fallthrough i =
       I.mov rsp rbp);
     if !frame_required
     then
-      let n = frame_size () - 8 - if fp then 8 else 0 in
+      let n = prologue_stack_offset () in
       if n <> 0
       then (
         I.sub (int n) rsp;
         D.cfi_adjust_cfa_offset ~bytes:n)
+  | Lepilogue_open ->
+    (* Deallocate the stack frame before a return or tail call *)
+    let n = prologue_stack_offset () in
+    if n <> 0
+    then (
+      I.add (int n) rsp;
+      D.cfi_adjust_cfa_offset ~bytes:(-n));
+    if fp then I.pop rbp
+  | Lepilogue_close ->
+    (* reset CFA back cause function body may continue *)
+    let n = prologue_stack_offset () in
+    if n <> 0 then D.cfi_adjust_cfa_offset ~bytes:n
   | Lop (Move | Spill | Reload) -> move i.arg.(0) i.res.(0)
   | Lop (Const_int n) ->
     if Nativeint.equal n 0n
@@ -1858,7 +1852,7 @@ let emit_instr ~first ~fallthrough i =
     add_used_symbol func.sym_name;
     emit_call func;
     record_frame i.live (Dbg_other i.dbg)
-  | Lcall_op Ltailcall_ind -> output_epilogue (fun () -> I.jmp (arg i 0))
+  | Lcall_op Ltailcall_ind -> I.jmp (arg i 0)
   | Lcall_op (Ltailcall_imm { func }) ->
     if String.equal func.sym_name !function_name
     then
@@ -1866,10 +1860,9 @@ let emit_instr ~first ~fallthrough i =
       | None -> Misc.fatal_error "jump to missing tailrec entry point"
       | Some tailrec_entry_point ->
         I.jmp (emit_label_arg ~section:Text tailrec_entry_point)
-    else
-      output_epilogue (fun () ->
-          add_used_symbol func.sym_name;
-          emit_jump func)
+    else (
+      add_used_symbol func.sym_name;
+      emit_jump func)
   | Lcall_op (Lextcall { func; alloc; stack_ofs; stack_align; _ }) ->
     add_used_symbol func;
     if stack_ofs > 0
@@ -2252,6 +2245,9 @@ let emit_instr ~first ~fallthrough i =
       ~dependencies:[| res i 0 |]
       ~instr:i ~address Onetwentyeight_unaligned Store_modify;
     emit_simd_instr_with_memory_arg op i address
+  | Lop (Specific (Illvm_intrinsic intr)) ->
+    Misc.fatal_errorf
+      "Emit: Unexpected llvm_intrinsic %s: not using LLVM backend" intr
   | Lop (Static_cast cast) -> emit_static_cast cast i
   | Lop (Reinterpret_cast cast) -> emit_reinterpret_cast cast i
   | Lop (Specific (Icldemote addr)) ->
@@ -2317,14 +2313,14 @@ let emit_instr ~first ~fallthrough i =
     I.mov (addressing (Ibased (semaphore_sym, Global, 2)) WORD i 0) (res16 i 0);
     (* If the semaphore is 0, then the result is 0, otherwise 1. *)
     I.cmp (int 0) (res16 i 0);
-    I.set (cond (Iunsigned Cne)) (res8 i 0);
+    I.set (cond Cne) (res8 i 0);
     I.movzx (res8 i 0) (res i 0)
   | Lop Dls_get ->
     if Config.runtime5
-    then I.mov (domain_field Domainstate.Domain_dls_root) (res i 0)
+    then I.mov (domain_field Domainstate.Domain_dls_state) (res i 0)
     else Misc.fatal_error "Dls is not supported in runtime4."
   | Lreloadretaddr -> ()
-  | Lreturn -> output_epilogue (fun () -> I.ret ())
+  | Lreturn -> I.ret ()
   | Llabel { label = lbl; section_name } ->
     let lbl = label_to_asm_label ~section:Text lbl in
     emit_Llabel fallthrough lbl section_name
@@ -2421,8 +2417,8 @@ let emit_instr ~first ~fallthrough i =
 let rec emit_all ~first ~fallthrough i =
   match i.desc with
   | Lend -> ()
-  | Lprologue | Lreloadretaddr | Lreturn | Lentertrap | Lpoptrap _ | Lop _
-  | Lcall_op _ | Llabel _ | Lbranch _
+  | Lprologue | Lepilogue_open | Lepilogue_close | Lreloadretaddr | Lreturn
+  | Lentertrap | Lpoptrap _ | Lop _ | Lcall_op _ | Llabel _ | Lbranch _
   | Lcondbranch (_, _)
   | Lcondbranch3 (_, _, _)
   | Lswitch _ | Ladjust_stack_offset _ | Lpushtrap _ | Lraise _ | Lstackcheck _
@@ -2771,8 +2767,8 @@ let emit_probe_handler_wrapper p =
       name, handler_code_sym
     | Lcall_op
         (Lcall_ind | Ltailcall_ind | Lcall_imm _ | Ltailcall_imm _ | Lextcall _)
-    | Lprologue | Lend | Lreloadretaddr | Lreturn | Lentertrap | Lpoptrap _
-    | Lop _ | Llabel _ | Lbranch _
+    | Lprologue | Lepilogue_open | Lepilogue_close | Lend | Lreloadretaddr
+    | Lreturn | Lentertrap | Lpoptrap _ | Lop _ | Llabel _ | Lbranch _
     | Lcondbranch (_, _)
     | Lcondbranch3 (_, _, _)
     | Lswitch _ | Ladjust_stack_offset _ | Lpushtrap _ | Lraise _
@@ -2935,8 +2931,8 @@ let emit_probe_notes0 () =
       | Lcall_op
           ( Lcall_ind | Ltailcall_ind | Lcall_imm _ | Ltailcall_imm _
           | Lextcall _ )
-      | Lprologue | Lend | Lreloadretaddr | Lreturn | Lentertrap | Lpoptrap _
-      | Lop _ | Llabel _ | Lbranch _
+      | Lprologue | Lepilogue_open | Lepilogue_close | Lend | Lreloadretaddr
+      | Lreturn | Lentertrap | Lpoptrap _ | Lop _ | Llabel _ | Lbranch _
       | Lcondbranch (_, _)
       | Lcondbranch3 (_, _, _)
       | Lswitch _ | Ladjust_stack_offset _ | Lpushtrap _ | Lraise _

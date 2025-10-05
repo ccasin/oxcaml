@@ -647,8 +647,9 @@ let arrayblit_runtime env args loc =
   if List.compare_length_with args 5 <> 0 then wrong_arity_for_arrayblit loc;
   let external_call_desc =
     let name = "caml_array_blit" in
-    Primitive.make ~name ~alloc:false ~c_builtin:false
-      ~effects:Arbitrary_effects ~coeffects:Has_coeffects ~native_name:name
+    (* Note: [caml_array_blit] can enter the GC, so [alloc] must be [true]. *)
+    Primitive.make ~name ~alloc:true ~c_builtin:false ~effects:Arbitrary_effects
+      ~coeffects:Has_coeffects ~native_name:name
       ~native_repr_args:
         [ (* The arrays might be local *)
           Primitive.Prim_local, L.Same_as_ocaml_repr (Base Value);
@@ -777,6 +778,22 @@ let transform_primitive0 env (prim : L.primitive) args loc =
           "Lambda_to_flambda.transform_primitive: Pbigarrayset with unknown \
            layout and elements should only have dimensions between 1 and 3 \
            (see translprim).")
+  | Pctconst const, _ when !Clflags.jsir ->
+    let name =
+      match const with
+      | Big_endian -> "big_endian"
+      | Word_size -> "word_size"
+      | Int_size -> "int_size"
+      | Max_wosize -> "max_wosize"
+      | Ostype_unix -> "ostype_unix"
+      | Ostype_win32 -> "ostype_win32"
+      | Ostype_cygwin -> "ostype_cygwin"
+      | Backend_type -> "backend_type"
+      | Runtime5 -> "runtime5"
+    in
+    let name = Format.sprintf "caml_sys_const_%s" name in
+    let desc = L.simple_prim_on_values ~name ~arity:1 ~alloc:false in
+    Primitive (L.Pccall desc, [L.lambda_unit], loc)
   | _, _ -> Primitive (prim, args, loc)
   [@@ocaml.warning "-fragile-match"]
 

@@ -227,6 +227,8 @@ let print_out_value ppf tree =
     | tree -> print_simple_tree ppf tree
   and print_constr_param ppf = function
     | Oval_int i -> parenthesize_if_neg ppf "%i" i (i < 0)
+    | Oval_int8 i -> parenthesize_if_neg ppf "%is" i (i < 0)
+    | Oval_int16 i -> parenthesize_if_neg ppf "%iS" i (i < 0)
     | Oval_int32 i -> parenthesize_if_neg ppf "%lil" i (i < 0l)
     | Oval_int64 i -> parenthesize_if_neg ppf "%LiL" i (i < 0L)
     | Oval_nativeint i -> parenthesize_if_neg ppf "%nin" i (i < 0n)
@@ -244,6 +246,8 @@ let print_out_value ppf tree =
   and print_simple_tree ppf =
     function
       Oval_int i -> fprintf ppf "%i" i
+    | Oval_int8 i -> fprintf ppf "%is" i
+    | Oval_int16 i -> fprintf ppf "%iS" i
     | Oval_int32 i -> fprintf ppf "%lil" i
     | Oval_int64 i -> fprintf ppf "%LiL" i
     | Oval_nativeint i -> fprintf ppf "%nin" i
@@ -457,26 +461,25 @@ and print_out_type_mode ~arg mode ppf ty =
 
 and print_out_type_1 ppf =
   function
-  | Otyp_arrow (lab, am, ty1, rm, ty2) ->
+  | Otyp_arrow (lab, am, ty1, ty2) ->
       pp_open_box ppf 0;
       print_arg_label_and_out_type ppf lab ty1 ~print_type:(print_out_arg am);
       pp_print_string ppf " ->";
       pp_print_space ppf ();
-      print_out_ret rm ppf ty2;
+      print_out_ret ppf ty2;
       pp_close_box ppf ()
   | ty -> print_out_type_2 ppf ty
 
 and print_out_arg am ppf ty =
   print_out_type_mode ~arg:true am ppf ty
 
-and print_out_ret rm ppf =
+and print_out_ret ppf =
   function
-  | Otyp_arrow _ as ty ->
+  | Otyp_ret (rm, (Otyp_arrow _ as ty)) ->
     begin match rm with
-    | Orm_not_arrow _ -> assert false
     | Orm_no_parens ->
       print_out_type_1 ppf ty
-    | Orm_parens rm ->
+    | Orm_any rm | Orm_parens rm ->
       let m_legacy, m_new = partition_modes rm in
       print_out_modes_legacy ppf m_legacy;
       pp_print_char ppf '(';
@@ -484,10 +487,8 @@ and print_out_ret rm ppf =
       pp_print_char ppf ')';
       print_out_modes_new ppf m_new
     end
-  | ty ->
-    match rm with
-    | Orm_not_arrow rm -> print_out_type_mode ~arg:false rm ppf ty
-    | _ -> assert false
+  | Otyp_ret (Orm_any rm, ty) -> print_out_type_mode ~arg:false rm ppf ty
+  | _ -> assert false
 
 and print_out_type_2 ppf =
   function
@@ -565,6 +566,7 @@ and print_out_type_3 ppf =
       print_out_jkind jk
   | Otyp_of_kind jk ->
     fprintf ppf "(type@ :@ %a)" print_out_jkind jk
+  | Otyp_ret _ -> assert false
 and print_out_type ppf typ =
   print_out_type_0 ppf typ
 and print_simple_out_type ppf typ =

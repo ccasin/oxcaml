@@ -157,6 +157,10 @@ let default_ddebug_invariants = false
 
 let ddebug_invariants = ref default_ddebug_invariants
 
+let default_ddwarf_types = false
+
+let ddwarf_types = ref default_ddwarf_types
+
 type dwarf_format =
   | Thirty_two
   | Sixty_four
@@ -176,6 +180,8 @@ let dwarf_inlined_frames = ref false
 let default_gdwarf_compression = "zlib"
 
 let gdwarf_compression = ref default_gdwarf_compression
+
+let ddwarf_metrics = ref false
 
 let get_dwarf_compression_flag () =
   if !dwarf_inlined_frames || not !restrict_to_upstream_dwarf

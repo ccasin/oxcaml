@@ -41,9 +41,13 @@ let basic (map : spilled_map) (instr : Cfg.basic Cfg.instruction) =
       | Floatop (_, _)
       | Csel _ | Reinterpret_cast _ | Static_cast _ | Probe_is_enabled _
       | Name_for_debugger _ | Alloc _ )
-  | Reloadretaddr | Prologue | Pushtrap _ | Poptrap _ | Stack_check _ ->
+  | Reloadretaddr | Prologue | Epilogue | Pushtrap _ | Poptrap _ | Stack_check _
+    ->
     (* no rewrite *)
     May_still_have_spilled_registers
+  | Op (Specific (Illvm_intrinsic _)) ->
+    (* should not happen *)
+    fatal "unexpected instruction"
 
 let terminator (map : spilled_map) (term : Cfg.terminator Cfg.instruction) =
   match term.desc with
