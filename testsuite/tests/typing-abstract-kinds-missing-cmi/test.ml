@@ -1,6 +1,5 @@
 (* TEST
  readonly_files = "a.ml b.ml c.ml";
- subdirectories = "subdir";
  setup-ocamlc.byte-build-env;
  module = "a.ml";
  ocamlc.byte;
@@ -8,10 +7,12 @@
  ocamlc.byte;
  module = "c.ml";
  ocamlc.byte;
- script = "rm -f a.cmi c.cmi c.cmo";
+ script = "rm -f a.cmi a.cmo c.cmi c.cmo";
+ script;
  module = "c.ml";
  ocamlc_byte_exit_status = "2";
  ocamlc.byte;
+ compiler_reference = "${test_source_directory}/test.missing.reference";
  check-ocamlc.byte-output;
 *)
 
