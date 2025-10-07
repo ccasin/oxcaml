@@ -295,7 +295,7 @@ module Error = struct
           from_attribute : Builtin_attributes.jkind_attribute Location.loc
         }
     | Unimplemented_syntax
-    | With_on_right
+    | With_on_right : (_ * allowed) History.annotation_context -> t
 
   exception User_error of Location.t * t
 end
@@ -1471,7 +1471,7 @@ module Const = struct
     | With (base, type_, modalities) -> (
       let base = of_user_written_annotation_unchecked_level env context base in
       match context with
-      | Right_jkind _ -> raise ~loc:type_.ptyp_loc With_on_right
+      | Right_jkind c -> raise ~loc:type_.ptyp_loc (With_on_right c)
       | Left_jkind (transl_type, _) ->
         let type_ = transl_type type_ in
         let modality =
@@ -3389,8 +3389,15 @@ let report_error ~loc : Error.t -> _ = function
         Pprintast.jkind_annotation jkind hint)
   | Unimplemented_syntax ->
     Location.errorf ~loc "@[<v>Unimplemented kind syntax@]"
-  | With_on_right ->
-    Location.errorf ~loc "'with' syntax is not allowed on a right mode."
+  | With_on_right c -> (
+    match c with
+    | Jkind_declaration _ ->
+      Location.errorf ~loc "'with' syntax is not allowed in kind declarations."
+    | Type_declaration _ | Type_parameter _ | Newtype_declaration _
+    | Constructor_type_parameter _ | Existential_unpack _ | Univar _
+    | Type_variable _ | Type_wildcard _ | Type_of_kind _ | With_error_message _
+      ->
+      Location.errorf ~loc "'with' syntax is not allowed on a right mode.")
 
 let () =
   Location.register_error_of_exn (function

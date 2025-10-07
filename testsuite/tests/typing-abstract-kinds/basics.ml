@@ -252,9 +252,8 @@ type t
 Line 3, characters 30-31:
 3 | kind_ k = immutable_data with t
                                   ^
-Error: 'with' syntax is not allowed on a right mode.
+Error: 'with' syntax is not allowed in kind declarations.
 |}]
-(* XXX better error *)
 
 (************************)
 (* Test 9: no recursion *)
