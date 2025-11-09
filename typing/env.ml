@@ -4378,7 +4378,7 @@ let lookup_all_labels_from_type ?(use=true) ~record_form ~loc usage ty_path env
 
 type settable_variable =
   | Instance_variable of Path.t * Asttypes.mutable_flag * string * type_expr
-  | Mutable_variable of Ident.t * Mode.Value.r * type_expr * Jkind.Sort.t
+  | Mutable_variable of Ident.t * Mode.Value.r * type_expr * Jkind_types.Sort.t
 
 let lookup_settable_variable ?(use=true) ~loc name env =
   match IdTbl.find_name_and_locks wrap_value ~mark:use name env.values with
