@@ -4,8 +4,8 @@
 
 (* Basic tests for abstract kinds. No with-kind substutitions yet. *)
 
-(******************************************************)
-(* Test 1: Abstract kinds allowed in sigs and structs *)
+(****************************************************)
+(* Test: Abstract kinds allowed in sigs and structs *)
 
 kind_ k
 
@@ -28,8 +28,8 @@ module M : sig kind_ k type t : k end
 module M' : S
 |}]
 
-(****************************************************)
-(* Test 2: Kind aliases allowed in sigs and structs *)
+(**************************************************)
+(* Test: Kind aliases allowed in sigs and structs *)
 
 kind_ k = immutable_data
 
@@ -52,8 +52,8 @@ module M : sig kind_ k = float64 type t : float64 end
 module M' : S
 |}]
 
-(*************************************************************)
-(* Test 3: Abstract kinds are no concrete kind in particular *)
+(***********************************************************)
+(* Test: Abstract kinds are no concrete kind in particular *)
 
 kind_ k
 [%%expect{|
@@ -105,8 +105,8 @@ Error: The kind of type "#(float# * int64#)" is
          because of the definition of t at line 1, characters 0-31.
 |}]
 
-(************************************************)
-(* Test 4: Abstract kinds are not representable *)
+(**********************************************)
+(* Test: Abstract kinds are not representable *)
 
 kind_ k
 
@@ -128,8 +128,8 @@ Error: This pattern matches values of type "t"
          because we must know concretely how to pass a function argument.
 |}]
 
-(***********************************************)
-(* Test 5: Abstract kinds are a subkind of max *)
+(*********************************************)
+(* Test: Abstract kinds are a subkind of max *)
 
 kind_ k
 type t : k
@@ -152,8 +152,8 @@ Error: The kind of type "t" is k
          because of the definition of s at line 1, characters 0-19.
 |}]
 
-(******************************************************)
-(* Test 6: kind aliases work like the kind they alias *)
+(****************************************************)
+(* Test: kind aliases work like the kind they alias *)
 
 kind_ k = value & value mod portable
 
@@ -197,8 +197,8 @@ Line 1, characters 56-57:
 Error: This value escapes its region.
 |}]
 
-(******************************************************************)
-(* Test 7: expanding through aliases takes the meet of the bounds *)
+(****************************************************************)
+(* Test: expanding through aliases takes the meet of the bounds *)
 
 module A = struct
   kind_ ka = float64
@@ -241,8 +241,8 @@ Error: The kind of type "t" is float64 mod global portable
          because of the definition of s3 at line 1, characters 0-31.
 |}]
 
-(**************************)
-(* Test 8: no with bounds *)
+(************************)
+(* Test: no with bounds *)
 
 type t
 
@@ -255,8 +255,8 @@ Line 3, characters 30-31:
 Error: 'with' syntax is not allowed in kind declarations.
 |}]
 
-(************************)
-(* Test 9: no recursion *)
+(**********************)
+(* Test: no recursion *)
 
 kind_ k_rec = k_rec
 [%%expect{|
@@ -266,8 +266,8 @@ Line 1, characters 14-19:
 Error: Unbound jkind "k_rec"
 |}]
 
-(******************************************)
-(* Test 10: you can shadow built-in kinds *)
+(***************************************)
+(* Test: you can shadow built-in kinds *)
 
 module Spicy = struct
   kind_ value = float64 & float64
@@ -292,8 +292,8 @@ Line 1, characters 9-20:
 Error: Unbound module "Spicy"
 |}]
 
-(**************************************)
-(* Test 11: Abstracting in signatures *)
+(***********************************)
+(* Test: Abstracting in signatures *)
 
 (* You can abstract away an alias *)
 module M : sig
@@ -372,8 +372,8 @@ Error: Signature mismatch:
        Their definitions are not equal.
 |}]
 
-(******************************)
-(* Test 12: Recursive modules *)
+(***************************)
+(* Test: Recursive modules *)
 
 (* You can use a kind from a recursive buddy *)
 module rec M1 : sig
@@ -430,8 +430,8 @@ module rec M1 : sig kind_ k end
 and M2 : sig kind_ k end
 |}]
 
-(**************************)
-(* Test 13: Strengthening *)
+(***********************)
+(* Test: Strengthening *)
 
 module type S = sig
   module type T = sig kind_ k end

@@ -2660,6 +2660,7 @@ let store_jkind ~check id info shape env =
     check_usage loc id info.jkind_uid
       (fun s -> Warnings.Unused_kind_declaration s)
       !jkind_declarations;
+  Builtin_attributes.mark_alerts_used info.jkind_attributes;
   let jkda =
     { jkda_declaration = info;
       jkda_shape = shape }
