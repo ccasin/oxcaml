@@ -353,7 +353,7 @@ val lookup_all_labels_from_type:
 
 type settable_variable =
   | Instance_variable of Path.t * Asttypes.mutable_flag * string * type_expr
-  | Mutable_variable of Ident.t * Mode.Value.r * type_expr * Jkind.Sort.t
+  | Mutable_variable of Ident.t * Mode.Value.r * type_expr * Jkind_types.Sort.t
 
 (** For a mutable variable, [use] means mark as mutated. For an instance
     variable, it means mark as used. *)
