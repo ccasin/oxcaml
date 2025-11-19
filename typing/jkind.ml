@@ -572,6 +572,11 @@ module Base_and_axes = struct
       (Base.format format_layout)
       base Mod_bounds.debug_print mod_bounds With_bounds.debug_print with_bounds
 
+  type 'a expand_result =
+    | Expanded of 'a
+    | Missing_cmi of Path.t
+    | Not_expanded
+
   (* This function does one step of expansion on the jkind base. Returns [None]
      if the kind can not be expanded further (it is abstract, already a layout,
      or we are missing the appropriate cmi).
@@ -579,19 +584,17 @@ module Base_and_axes = struct
      It takes a parameter [layout_of_const] to deal with the fact that a looked
      up jkind has a [Layout.Const.t], and sometimes we want to convert that to a
      [Layout.t] but other times we'd like to leave it. *)
-  (* XXX this and other expansions really need to distinguish missing cmi (the
-     Not_found case) from others *)
   let expand_base_once ~layout_of_const env t =
     match t.base with
-    | Layout _ -> None
+    | Layout _ -> Not_expanded
     | Kconstr p -> (
       match Env.find_jkind p env with
-      | exception Not_found -> None
-      | { jkind_manifest = None; _ } -> None
+      | exception Not_found -> Missing_cmi p
+      | { jkind_manifest = None; _ } -> Not_expanded
       | { jkind_manifest = Some jkind; _ } ->
         (* XXX probably rewrite this to not allocate a new jkind if it's the
            same as the inner one. *)
-        Some
+        Expanded
           { base = Base.map_layout layout_of_const jkind.base;
             mod_bounds = Mod_bounds.meet t.mod_bounds jkind.mod_bounds;
             with_bounds =
@@ -599,11 +602,19 @@ module Base_and_axes = struct
               (* jkind is an lr kind and therefore has no with bounds. *)
           })
 
-  (* XXX needs to signal missing cmi *)
   let rec fully_expand_aliases ~layout_of_const env (t : (_, _) base_and_axes) =
     match expand_base_once ~layout_of_const env t with
-    | None -> t
-    | Some t -> fully_expand_aliases ~layout_of_const env t
+    | Not_expanded -> t
+    | Missing_cmi _ -> t
+    | Expanded t -> fully_expand_aliases ~layout_of_const env t
+
+  let rec fully_expand_aliases_report_missing_cmi ~layout_of_const env
+      (t : (_, _) base_and_axes) =
+    match expand_base_once ~layout_of_const env t with
+    | Not_expanded -> t, None
+    | Missing_cmi p -> t, Some p
+    | Expanded t ->
+      fully_expand_aliases_report_missing_cmi ~layout_of_const env t
 
   type 'r normalize_mode =
     | Require_best : disallowed normalize_mode
@@ -1064,10 +1075,10 @@ module Jkind_desc = struct
       ( Base_and_axes.expand_base_once ~layout_of_const env t1,
         Base_and_axes.expand_base_once ~layout_of_const env t2 )
     with
-    | None, None -> None
-    | None, Some t2 -> Some (t1, t2)
-    | Some t1, None -> Some (t1, t2)
-    | Some t1, Some t2 -> Some (t1, t2)
+    | (Not_expanded | Missing_cmi _), (Not_expanded | Missing_cmi _) -> None
+    | (Not_expanded | Missing_cmi _), Expanded t2 -> Some (t1, t2)
+    | Expanded t1, (Not_expanded | Missing_cmi _) -> Some (t1, t2)
+    | Expanded t1, Expanded t2 -> Some (t1, t2)
 
   (* [expand_to_comparable_bases] expands the provided bases until they could be
      compared for [sub].  So, for example, it will stop when the two bases are
@@ -2164,40 +2175,48 @@ let format env ppf jkind = Desc.format env ppf (Jkind_desc.get jkind.jkind)
 
 module Report_missing_cmi : sig
   (* used both in format_history and in Violation.report_general *)
-  val report_missing_cmi : Format.formatter -> Path.t option -> unit
+  val report_missing_cmis : Format.formatter -> Path.Set.t -> unit
 end = struct
   open Format
 
   (* CR layouts: Remove this horrible (but useful) heuristic once we have
      transitive dependencies in jenga. *)
-  let missing_cmi_hint ppf type_path =
+  let guess_library_name path =
+    (* A heuristic for guessing at a plausible library name for an identifier
+       with a missing .cmi file; definitely less likely to be right outside of
+       Jane Street. *)
     let root_module_name p = p |> Path.head |> Ident.name in
     let delete_trailing_double_underscore s =
       if Misc.Stdlib.String.ends_with ~suffix:"__" s
       then String.sub s 0 (String.length s - 2)
       else s
     in
-    (* A heuristic for guessing at a plausible library name for an identifier
-       with a missing .cmi file; definitely less likely to be right outside of
-       Jane Street. *)
-    let guess_library_name : Path.t -> string option = function
-      | Pdot _ as p ->
-        Some
-          (match root_module_name p with
-          | "Location" | "Longident" -> "ocamlcommon"
-          | mn ->
-            mn |> String.lowercase_ascii |> delete_trailing_double_underscore)
-      | Pident _ | Papply _ | Pextra_ty _ -> None
-    in
-    Option.iter
-      (fprintf ppf "@,Hint: Adding \"%s\" to your dependencies might help.")
-      (guess_library_name type_path)
+    match (path : Path.t) with
+    | Pdot _ as p ->
+      Some
+        (match root_module_name p with
+        | "Location" | "Longident" -> "ocamlcommon"
+        | mn ->
+          mn |> String.lowercase_ascii |> delete_trailing_double_underscore)
+    | Pident _ | Papply _ | Pextra_ty _ -> None
 
-  let report_missing_cmi ppf = function
-    | Some p ->
-      fprintf ppf "@,@[No .cmi file found containing %a.%a@]" !printtyp_path p
-        missing_cmi_hint p
-    | None -> ()
+  let missing_cmi_hint ppf library_name =
+    fprintf ppf "@,Hint: Adding \"%s\" to your dependencies might help."
+      library_name
+
+  let report_missing_cmis ppf paths =
+    let libraries_to_hint =
+      Path.Set.fold
+        (fun p acc ->
+          match guess_library_name p with
+          | None -> acc
+          | Some s -> Misc.Stdlib.String.Set.add s acc)
+        paths Misc.Stdlib.String.Set.empty
+    in
+    Path.Set.iter
+      (fprintf ppf "@,@[No .cmi file found containing %a.@]" !printtyp_path)
+      paths;
+    Misc.Stdlib.String.Set.iter (missing_cmi_hint ppf) libraries_to_hint
 end
 
 include Report_missing_cmi
@@ -2714,19 +2733,53 @@ module Violation = struct
     if first_ran_out then report_fuel_for_type "first";
     if second_ran_out then report_fuel_for_type "second"
 
-  let report_general ~level preamble pp_former former ppf t =
-    let env, mismatch_type =
-      match t.violation with
-      | Not_a_subjkind (env, k1, k2, _) -> (
-        ( env,
-          match Jkind_desc.expand_to_comparable_bases env k1.jkind k2.jkind with
-          | None -> Kind
-          | Some (k1, k2) ->
-            if Sub_result.is_le (Base.sub_expanded ~level k1.base k2.base)
-            then Mode
-            else Layout ))
-      | No_intersection (env, _, _) -> env, Layout
+  let categorize_mismatch ~level t =
+    let expand env k1 k2 =
+      (* We fully expand aliases here so that we can:
+         - See if the bases are related, to decide whether to issue an error
+           for kinds, layouts, or modal bounds
+         - See if expansion hits any missing cmis, which we should give the
+           user a hint about - they might be the reason for the failure.
+      *)
+      let k1, cmi1 =
+        Base_and_axes.fully_expand_aliases_report_missing_cmi
+          ~layout_of_const:Layout.of_const env k1.jkind
+      in
+      let k2, cmi2 =
+        Base_and_axes.fully_expand_aliases_report_missing_cmi
+          ~layout_of_const:Layout.of_const env k2.jkind
+      in
+      ( k1.base,
+        k2.base,
+        Path.Set.of_list (Option.to_list cmi1 @ Option.to_list cmi2) )
     in
+    let env, base1, base2, missing_cmis =
+      match t.violation with
+      | Not_a_subjkind (env, k1, k2, _) ->
+        let base1, base2, cmis = expand env k1 k2 in
+        env, base1, base2, cmis
+      | No_intersection (env, k1, k2) ->
+        let base1, base2, cmis = expand env k1 k2 in
+        env, base1, base2, cmis
+    in
+    let mismatch_type =
+      match base1, base2 with
+      | Kconstr k1, Kconstr k2 -> if Path.same k1 k2 then Mode else Kind
+      | Layout l1, Layout l2 -> (
+        match t.violation with
+        | Not_a_subjkind _ ->
+          if Sub_result.is_le (Layout.sub ~level l1 l2) then Mode else Layout
+        | No_intersection _ -> Layout)
+      | Kconstr _, Layout Layout.Any -> Mode
+      | Kconstr _, Layout _ | Layout _, Kconstr _ -> (
+        match t.violation with
+        | Not_a_subjkind _ -> Kind
+        | No_intersection _ -> Layout)
+    in
+    env, mismatch_type, missing_cmis
+
+  let report_general ~level preamble pp_former former ppf t =
+    let env, mismatch_type, missing_cmis = categorize_mismatch ~level t in
     let layout_or_kind =
       match mismatch_type with Mode | Kind -> "kind" | Layout -> "layout"
     in
@@ -2757,7 +2810,7 @@ module Violation = struct
       else
         dprintf "%s a sub%s of@ %a" verb layout_or_kind format_base_or_kind k2
     in
-    let Pack_jkind k1, Pack_jkind k2, fmt_k1, fmt_k2, missing_cmi_option =
+    let Pack_jkind k1, Pack_jkind k2, fmt_k1, fmt_k2, missing_cmis =
       match t with
       | { violation = Not_a_subjkind (_, k1, k2, _); missing_cmi } -> (
         let missing_cmi =
@@ -2775,20 +2828,20 @@ module Violation = struct
             Pack_jkind k2,
             dprintf "%s@ %a" layout_or_kind format_base_or_kind k1,
             subjkind_format "is not" k2,
-            None )
+            missing_cmis )
         | Some p ->
           ( Pack_jkind k1,
             Pack_jkind k2,
             dprintf "an unknown %s" layout_or_kind,
             subjkind_format "might not be" k2,
-            Some p ))
+            Path.Set.add p missing_cmis ))
       | { violation = No_intersection (_, k1, k2); missing_cmi } ->
         assert (Option.is_none missing_cmi);
         ( Pack_jkind k1,
           Pack_jkind k2,
           dprintf "%s@ %a" layout_or_kind format_base_or_kind k1,
           dprintf "does not overlap with@ %a" format_base_or_kind k2,
-          None )
+          missing_cmis )
     in
     if display_histories
     then
@@ -2816,7 +2869,7 @@ module Violation = struct
     else
       fprintf ppf "@[<hov 2>%s%a has %t,@ which %t.@]" preamble pp_former former
         fmt_k1 fmt_k2;
-    report_missing_cmi ppf missing_cmi_option;
+    report_missing_cmis ppf missing_cmis;
     report_reason ppf t.violation;
     report_fuel ppf t.violation
 
