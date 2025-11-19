@@ -1415,7 +1415,7 @@ module Const = struct
         Base_and_axes.fully_expand_aliases ~layout_of_const env actual
       in
       let matching_layouts =
-        match base.jkind.base, actual.base with
+        match base_jkind.base, actual.base with
         | Kconstr p1, Kconstr p2 -> Path.same p1 p2
         | Layout l1, Layout l2 -> Jkind_types.Layout.Const.equal l1 l2
         | (Kconstr _ | Layout _), _ -> false

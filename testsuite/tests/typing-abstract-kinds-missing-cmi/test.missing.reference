@@ -1,9 +1,0 @@
-File "c.ml", line 4, characters 0-32:
-4 | type s2 : value mod portable = t
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: The kind of type "t" is A.k mod portable
-         because of the definition of t at file "c.ml", line 1, characters 0-12.
-       But the kind of type "t" must be a subkind of value mod portable
-         because of the definition of s2 at file "c.ml", line 4, characters 0-32.
-       No .cmi file found containing A.k.
-       Hint: Adding "a" to your dependencies might help.

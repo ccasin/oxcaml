@@ -1,1 +1,0 @@
-kind_ k = value
