@@ -1292,6 +1292,8 @@ module Jkind_with_bounds : sig
 
   val map_type_expr :
     (type_expr -> type_expr) -> ('l * 'r) with_bounds -> ('l * 'r) with_bounds
+
+  val is_empty : ('l * 'r) with_bounds -> bool
 end
 
 (* This module exists here to resolve a dependency cycle ([Subst] must not

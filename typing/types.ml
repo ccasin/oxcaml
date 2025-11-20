@@ -418,6 +418,9 @@ and jkind_packed = Pack_jkind : ('l * 'r) jkind -> jkind_packed
 
 and jkind_declaration =
   {
+    (* CR layouts: Though it's semantically correct to have a const jkind for
+       the manifest, it's not obvious if this is the right choice from a
+       performance perspective. See internal ticket 5719. *)
     jkind_manifest : jkind_const_desc_lr option;
     jkind_attributes : Parsetree.attributes;
     jkind_uid : Shape.Uid.t;
@@ -1935,6 +1938,11 @@ module Jkind_with_bounds = struct
     | No_with_bounds -> No_with_bounds
     | With_bounds tys ->
       With_bounds (With_bounds_types.map_with_key (fun ty ti -> f ty, ti) tys)
+
+  let is_empty (type l r) (t : (l * r) t) : bool =
+    match t with
+    | No_with_bounds -> true
+    | With_bounds tys -> With_bounds_types.is_empty tys
 end
 
 module Jkind_base_and_axes = struct
