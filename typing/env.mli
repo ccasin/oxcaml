@@ -123,6 +123,7 @@ val find_type_expansion_opt:
    of the compiler's type-based optimisations. *)
 val find_modtype_expansion: Path.t -> t -> module_type
 val find_modtype_expansion_lazy: Path.t -> t -> Subst.Lazy.module_type
+val find_jkind_expansion : Path.t -> t -> jkind_const_desc_lr
 
 val find_hash_type: Path.t -> t -> type_declaration
 (* Find the "#t" type given the path for "t" *)

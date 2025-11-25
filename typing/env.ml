@@ -1920,11 +1920,11 @@ let find_type_expansion_opt path env =
       (decl.type_params, body, decl.type_expansion_scope)
   | _ -> raise Not_found
 
-let _find_jkind_expansion path env = (* XXX expose and use *)
+let find_jkind_expansion path env =
   let decl = find_jkind path env in
   match decl.jkind_manifest with
+  | None -> raise Not_found
   | Some body -> body
-  | _ -> raise Not_found
 
 let find_modtype_expansion_lazy path env =
   match (find_modtype_lazy path env).mtd_type with

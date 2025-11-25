@@ -1311,10 +1311,9 @@ module Const = struct
     match t.base with
     | Layout l -> Ok l
     | Kconstr p -> (
-      match Env.find_jkind p env with
+      match Env.find_jkind_expansion p env with
       | exception Not_found -> Error p
-      | { jkind_manifest = None; _ } -> Error p
-      | { jkind_manifest = Some jkind; _ } -> get_layout_result env jkind)
+      | jkind -> get_layout_result env jkind)
 
   let equal env t1 t2 =
     Jkind_desc.equate_or_equal env ~allow_mutation:false
@@ -1948,11 +1947,9 @@ let extract_layout : 'l 'r. _ -> ('l * 'r) jkind -> _ =
   match t.jkind.base with
   | Layout l -> Ok l
   | Kconstr p -> (
-    match Env.find_jkind p env with
+    match Env.find_jkind_expansion p env with
     | exception Not_found -> Error p
-    | { jkind_manifest = None; _ } -> Error p
-    | { jkind_manifest = Some jkind; _ } ->
-      Const.get_layout_result env jkind |> Result.map Layout.of_const)
+    | jkind -> Const.get_layout_result env jkind |> Result.map Layout.of_const)
 
 let get_layout env t = extract_layout env t |> Result.to_option
 
