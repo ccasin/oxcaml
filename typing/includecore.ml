@@ -1589,9 +1589,7 @@ let jkind_declarations ~loc env name
     name;
   match decl1.jkind_manifest, decl2.jkind_manifest with
   | _, None -> None
-  | None, Some _ ->
-    (* XXX do I need the weird path case here? *)
-    Some Manifest_missing
+  | None, Some _ -> Some Manifest_missing
   | Some k1, Some k2 ->
     if Jkind.Const.equal env k1 k2
     then None
