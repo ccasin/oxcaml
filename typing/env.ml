@@ -3420,9 +3420,7 @@ let use_jkind ~use ~loc path jkda =
   if use then begin
     let decl = jkda.jkda_declaration in
     mark_jkind_used decl.jkind_uid;
-    Builtin_attributes.check_alerts loc decl.jkind_attributes
-      (Path.name path)
-    (* XXX I guess this means we support alerts - test them *)
+    Builtin_attributes.check_alerts loc decl.jkind_attributes (Path.name path)
   end
 
 let use_label ~use ~loc usage env lbl =
