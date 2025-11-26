@@ -190,10 +190,6 @@ module type Sort = sig
 
   val format : Format.formatter -> t -> unit
 
-  (** Checks whether this sort is [void], defaulting to [value] if a sort
-      variable is unfilled. *)
-  val is_void_defaulting : t -> bool
-
   (** [default_to_value_and_get] extracts the sort as a `const`.  If it's a variable,
       it is set to [value] first. *)
   val default_to_value_and_get : t -> Const.t

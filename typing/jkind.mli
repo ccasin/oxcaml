@@ -662,10 +662,6 @@ val get_const : 'd Types.jkind -> 'd Const.t option
 
 (** [default_to_value t] is [ignore (get_layout_defaulting_to_value t)] *)
 val default_to_value : 'd Types.jkind -> unit
-
-(** [is_void t] is [Void = get_layout_defaulting_to_value t].  In particular, it
-    will default the jkind to value if needed to make this false. *)
-val is_void_defaulting : 'd Types.jkind -> bool
 (* CR layouts v5: When we have proper support for void, we'll want to change
    these three functions to default to void - it's the most efficient thing
    when we have a choice. *)

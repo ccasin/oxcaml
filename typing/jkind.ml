@@ -3115,13 +3115,6 @@ let sub_jkind_l ~type_equal ~context ~level ?(allow_any_crossing = false) env
     in
     Ok ()
 
-(* XXX check callsites - does this (and related functions) need to return "I
-   don't know" sometimes. Or at least the mli should say what they do on
-   abstract kinds. *)
-let is_void_defaulting = function
-  | { jkind = { base = Layout (Sort s); _ }; _ } -> Sort.is_void_defaulting s
-  | _ -> false
-
 let is_obviously_max = function
   (* This doesn't do any mutation because mutating a sort variable can't make it
      any, and modal upper bounds are constant. *)
