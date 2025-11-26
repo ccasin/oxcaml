@@ -561,3 +561,23 @@ Error: The kind of type "t" is X.N.k
        But the kind of type "t" must be a subkind of X.M.k
          because of the definition of s at line 3, characters 2-20.
 |}]
+
+(****************)
+(* Test: arrays *)
+
+(* XXX *)
+
+(******************************)
+(* Test: Bad product behavior *)
+
+(* We reject this for now. See internal ticket 5769. *)
+kind_ k
+kind_ k_prod = k & k
+
+[%%expect{|
+kind_ k
+Line 2, characters 15-20:
+2 | kind_ k_prod = k & k
+                   ^^^^^
+Error: Abstract kinds are not yet supported in products.
+|}]

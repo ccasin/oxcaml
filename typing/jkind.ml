@@ -296,6 +296,7 @@ module Error = struct
         }
     | Unimplemented_syntax
     | With_on_right : (_ * allowed) History.annotation_context -> t
+    | Abstract_kind_in_product
 
   exception User_error of Location.t * t
 end
@@ -1552,17 +1553,19 @@ module Const = struct
   (*******************************)
   (* converting user annotations *)
 
-  let jkind_of_product_annotations (type l r) env (jkinds : (l * r) t list) =
+  let jkind_of_product_annotations (type l r) ~loc env (jkinds : (l * r) t list)
+      =
     let folder (type l r) (layouts_acc, mod_bounds_acc, with_bounds_acc)
         (kind : (l * r) t) =
       let { base; mod_bounds; with_bounds } =
         Base_and_axes.fully_expand_aliases_const env kind
       in
       let layout =
-        (* The [Kconstr] case is a sad approximation - fix when we have
-           [layout_of] or product kinds *)
-        (* XXX write a test showing this. *)
-        match base with Kconstr _ -> Layout.Const.Any | Layout l -> l
+        (* CR layouts: The [Kconstr] case here is pretty sad - see internal
+           ticket 5769 *)
+        match base with
+        | Kconstr _ -> raise ~loc Abstract_kind_in_product
+        | Layout l -> l
       in
       ( layout :: layouts_acc,
         Mod_bounds.join mod_bounds mod_bounds_acc,
@@ -1606,7 +1609,7 @@ module Const = struct
              context)
           ts
       in
-      jkind_of_product_annotations env jkinds
+      jkind_of_product_annotations ~loc env jkinds
     | Pjka_with (base, type_, modalities) -> (
       let base =
         of_user_written_annotation_unchecked_level ~use_abstract_jkinds env
@@ -3440,6 +3443,8 @@ let report_error ~loc : Error.t -> _ = function
     | Type_variable _ | Type_wildcard _ | Type_of_kind _ | With_error_message _
       ->
       Location.errorf ~loc "'with' syntax is not allowed on a right mode.")
+  | Abstract_kind_in_product ->
+    Location.errorf ~loc "Abstract kinds are not yet supported in products."
 
 let () =
   Location.register_error_of_exn (function
