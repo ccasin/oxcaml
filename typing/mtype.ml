@@ -139,7 +139,6 @@ and strengthen_lazy_sig' ~aliasable sg p =
   | (Sig_class_type _ as sigelt) :: rem ->
       sigelt :: strengthen_lazy_sig' ~aliasable rem p
   | Sig_jkind(id, decl, vis) :: rem ->
-      (* XXX write tests for strengthening *)
       let decl =
         match decl.jkind_manifest with
         | Some _ -> decl
