@@ -2968,12 +2968,9 @@ module Jkind_jkind = struct
         mod_bounds;
         with_bounds = No_with_bounds }
       ~annotation:None ~why:(Value_creation why)
-      (* CJC XXX: some of the diff here needs to move to one of the deps
-         features *)
 end
 
 module Jkind_builtins_memo = struct
-  (* XXX consider memoizing the ones that are kconstrs. *)
   open Allowance
   open Jkind_const
 
