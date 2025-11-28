@@ -80,6 +80,7 @@ type error =
   | Signature_parameter_expected of module_type
   | Signature_result_expected of module_type
   | Recursive_include_functor
+  | Recursive_jkind_declaration
   | With_no_component of Longident.t
   | With_mismatch of Longident.t * Includemod.explanation
   | With_makes_applicative_functor_ill_typed of
@@ -1464,10 +1465,8 @@ and approx_sig_items env ssg=
           ) decls [rem]
           |> List.flatten
       | Psig_jkind sdecl ->
-          let id, env, decl = Typedecl.transl_jkind_decl env sdecl in
-          let rem = approx_sig_items env srem in
-          Sig_jkind (id, decl.jkind_jkind, Exported) :: rem
-         (* XXX some kind of recursive check here? *)
+          (* CR layouts: support this - internal ticket 5793 *)
+          raise (Error(sdecl.pjkind_loc, env, Recursive_jkind_declaration))
       | _ ->
           approx_sig_items env srem
 
@@ -4565,6 +4564,10 @@ let report_error ~loc _env = function
   | Recursive_include_functor ->
       Location.errorf ~loc
         "@[Including a functor is not supported in recursive module signatures @]"
+  | Recursive_jkind_declaration ->
+      Location.errorf ~loc
+        "@[Kind declarations are not yet supported in recursive module \
+         signatures@]"
   | With_no_component lid ->
       Location.errorf ~loc
         "@[The signature constrained by %a has no component named %a@]"

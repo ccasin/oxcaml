@@ -397,126 +397,29 @@ Error: Signature mismatch:
 (***************************)
 (* Test: Recursive modules *)
 
-(* You can use a kind from a recursive buddy *)
-module rec M1 : sig
-  kind_ k = value
+(* Kind declarations are banned in recursive module signatures, in
+   the first version. We plan to support this soon. *)
+module rec M : sig
+  kind_ k
 end = struct
-  kind_ k = value
+  kind_ k
 end
+[%%expect{|
+Line 2, characters 2-9:
+2 |   kind_ k
+      ^^^^^^^
+Error: Kind declarations are not yet supported in recursive module signatures
+|}]
 
-and M2 : sig
+(* They are fine in the structure though. *)
+module rec M : sig
   type t : value
 end = struct
-  type t : M1.k
-end
-[%%expect{|
-module rec M1 : sig kind_ k = value end
-and M2 : sig type t end
-|}]
-
-(* You can use it in a kind def too *)
-module rec M1 : sig
-  kind_ k
-end = struct
-  kind_ k = M2.k
-end
-
-and M2 : sig
-  kind_ k
-end = struct
-  kind_ k
-end
-[%%expect{|
-module rec M1 : sig kind_ k end
-and M2 : sig kind_ k end
-|}]
-
-(* But not in ways that make the signatures depend on each other (the usual
-   rule) *)
-module rec M1 : sig
   kind_ k = value
-end = struct
-  kind_ k = value
-end
-
-and M2 : sig
-  type t : M1.k
-end = struct
-  type t : M1.k
+  type t : k
 end
 [%%expect{|
-Line 8, characters 11-15:
-8 |   type t : M1.k
-               ^^^^
-Error: This module type is recursive. This use of the recursive module "M1"
-       within the definition of the module "M2"
-       makes the module type of "M2" depend on the module type of "M1".
-       Such recursive definitions of module types are not allowed.
-|}]
-
-module rec M1 : sig
-  kind_ k = M2.k
-end = struct
-  kind_ k = M2.k
-end
-
-and M2 : sig
-  kind_ k
-end = struct
-  kind_ k
-end
-[%%expect{|
-Line 2, characters 12-16:
-2 |   kind_ k = M2.k
-                ^^^^
-Error: This module type is recursive. This use of the recursive module "M2"
-       within the definition of the module "M1"
-       makes the module type of "M1" depend on the module type of "M2".
-       Such recursive definitions of module types are not allowed.
-|}]
-
-(* You can sort of make recursive kinds this way, but the fact the signatures
-   can't reference each other prevents any bad loops. *)
-module rec M1 : sig
-  kind_ k
-end = struct
-  kind_ k = M2.k
-end
-
-and M2 : sig
-  kind_ k
-end = struct
-  kind_ k = M1.k
-end
-[%%expect{|
-module rec M1 : sig kind_ k end
-and M2 : sig kind_ k end
-|}]
-
-type t1 : M1.k
-type t2 : M2.k = t1
-[%%expect{|
-type t1 : M1.k
-Line 2, characters 0-19:
-2 | type t2 : M2.k = t1
-    ^^^^^^^^^^^^^^^^^^^
-Error: The kind of type "t1" is M1.k
-         because of the definition of t1 at line 1, characters 0-14.
-       But the kind of type "t1" must be a subkind of M2.k
-         because of the definition of t2 at line 2, characters 0-19.
-|}]
-
-type t2 : M2.k
-type t1 : M1.k = t2
-[%%expect{|
-type t2 : M2.k
-Line 2, characters 0-19:
-2 | type t1 : M1.k = t2
-    ^^^^^^^^^^^^^^^^^^^
-Error: The kind of type "t2" is M2.k
-         because of the definition of t2 at line 1, characters 0-14.
-       But the kind of type "t2" must be a subkind of M1.k
-         because of the definition of t1 at line 2, characters 0-19.
+module rec M : sig type t end
 |}]
 
 (***********************)
