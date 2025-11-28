@@ -527,3 +527,115 @@ type r = t1 s
 type t2 : k1
 type q = t2 t1'
 |}]
+
+(*****************************************************)
+(* Test: Kinds in generative vs applicative functors *)
+
+(* This is an applicative functor - we check that [F(X).k] gives the same [k]
+   for the same [X] (and different [k]s for different [X]s. *)
+module F (X : sig type t end) = struct
+  kind_ k
+end
+
+module M1 = struct type t end
+module M2 = struct type t end
+
+module F_M1 = F(M1)
+module F_M1' = F(M1)
+module F_M2 = F(M2)
+
+module M : sig kind_ k = F_M1.k end = F_M1'
+module M : sig kind_ k = F_M1'.k end = F_M1
+
+[%%expect{|
+module F : functor (X : sig type t end) -> sig kind_ k end
+module M1 : sig type t end
+module M2 : sig type t end
+module F_M1 : sig kind_ k = F(M1).k end
+module F_M1' : sig kind_ k = F(M1).k end
+module F_M2 : sig kind_ k = F(M2).k end
+module M : sig kind_ k = F_M1.k end
+module M : sig kind_ k = F_M1'.k end
+|}]
+
+module M : sig kind_ k = F_M2.k end = F_M1
+
+[%%expect{|
+Line 1, characters 38-42:
+1 | module M : sig kind_ k = F_M2.k end = F_M1
+                                          ^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig kind_ k = F(M1).k end
+       is not included in
+         sig kind_ k = F_M2.k end
+       Kind declarations do not match:
+         kind_ k = F(M1).k
+       is not included in
+         kind_ k = F_M2.k
+       Their definitions are not equal.
+|}]
+
+(* This is a generative functor - any two applications of it give different [k]s
+   *)
+module F () = struct
+  kind_ k
+end
+
+module M1 = F ()
+module M2 = F ()
+
+module M : sig kind_ k = M1.k end = M2
+
+[%%expect{|
+module F : functor () -> sig kind_ k end
+module M1 : sig kind_ k end
+module M2 : sig kind_ k end
+Line 8, characters 36-38:
+8 | module M : sig kind_ k = M1.k end = M2
+                                        ^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig kind_ k = M2.k end
+       is not included in
+         sig kind_ k = M1.k end
+       Kind declarations do not match:
+         kind_ k = M2.k
+       is not included in
+         kind_ k = M1.k
+       Their definitions are not equal.
+|}]
+
+(* As with types, an applicative functor can't include the output of a
+   generative functor that creates a kind. *)
+
+module F_gen () = struct kind_ k end
+
+module F_app (X : sig type s end) = struct
+  module M = F_gen ()
+end
+
+[%%expect{|
+module F_gen : functor () -> sig kind_ k end
+Line 4, characters 13-21:
+4 |   module M = F_gen ()
+                 ^^^^^^^^
+Error: This expression creates fresh types or fresh kinds.
+       It is not allowed inside applicative functors.
+|}]
+
+module F_gen (X : sig type s end) () = struct kind_ k end
+
+module F_app (X : sig type s end) = struct
+  include X
+  include functor F_gen
+end
+
+[%%expect{|
+module F_gen : functor (X : sig type s end) () -> sig kind_ k end
+Line 5, characters 18-23:
+5 |   include functor F_gen
+                      ^^^^^
+Error: This functor creates fresh types when applied.
+       Including it is not allowed inside applicative functors.
+|}]

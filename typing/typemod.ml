@@ -214,7 +214,8 @@ let extract_sig_functor_open funct_body env loc mty sig_acc =
               sig..end -> () -> sig..end *)
         match Mtype.scrape extended_env mty_result with
         | Mty_signature sg_result -> Tincl_functor coercion, sg_result
-        | Mty_functor (Unit,_) when funct_body && Mtype.contains_type env mty ->
+        | Mty_functor (Unit,_)
+          when funct_body && Mtype.contains_type_or_kind env mty ->
             raise (Error (loc, env, Not_includable_in_functor_body))
         | Mty_functor (Unit,mty_result) -> begin
             match Mtype.scrape extended_env mty_result with
@@ -3053,7 +3054,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         | _ ->
             raise (Error(smod.pmod_loc, env, Not_a_packed_module exp.exp_type))
       in
-      if funct_body && Mtype.contains_type env mty then
+      if funct_body && Mtype.contains_type_or_kind env mty then
         raise (Error (smod.pmod_loc, env, Not_allowed_in_functor_body));
       { mod_desc = Tmod_unpack(exp, mty);
         mod_type = mty;
@@ -3187,7 +3188,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
           else
             raise (Error (app_view.f_loc, env, Apply_generative));
       end;
-      if funct_body && Mtype.contains_type env funct.mod_type then
+      if funct_body && Mtype.contains_type_or_kind env funct.mod_type then
         raise (Error (apply_loc, env, Not_allowed_in_functor_body));
       { mod_desc = Tmod_apply_unit funct;
         mod_type = mty_res;
@@ -4673,7 +4674,7 @@ let report_error ~loc _env = function
         Location.print_filename intf_name
   | Not_allowed_in_functor_body ->
       Location.errorf ~loc
-        "@[This expression creates fresh types.@ %s@]"
+        "@[This expression creates fresh types or fresh kinds.@ %s@]"
         "It is not allowed inside applicative functors."
   | Not_includable_in_functor_body ->
       Location.errorf ~loc
