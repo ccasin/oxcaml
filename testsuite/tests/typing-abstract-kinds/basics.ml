@@ -639,3 +639,88 @@ Line 5, characters 18-23:
 Error: This functor creates fresh types when applied.
        Including it is not allowed inside applicative functors.
 |}]
+
+(*******************)
+(* Test: Shadowing *)
+
+(* As with types, you can't shadow a kind declared in this structure or
+   signature. *)
+module M = struct
+  kind_ k
+  kind_ k
+end
+
+[%%expect{|
+Line 3, characters 2-9:
+3 |   kind_ k
+      ^^^^^^^
+Error: Multiple definition of the jkind name "k".
+       Names must be unique in a given structure or signature.
+|}]
+
+module type S = sig
+  kind_ k
+  kind_ k
+end
+
+[%%expect{|
+Line 3, characters 2-9:
+3 |   kind_ k
+      ^^^^^^^
+Error: Multiple definition of the jkind name "k".
+       Names must be unique in a given structure or signature.
+|}]
+
+(* You can't get around this with an include *)
+module M = struct kind_ k end
+module M' = struct
+  kind_ k
+  include M
+end
+
+[%%expect{|
+module M : sig kind_ k end
+Line 4, characters 2-11:
+4 |   include M
+      ^^^^^^^^^
+Error: Multiple definition of the jkind name "k".
+       Names must be unique in a given structure or signature.
+|}]
+
+module type S = sig kind_ k end
+module type S' = sig
+  kind_ k
+  include S
+end
+
+[%%expect{|
+module type S = sig kind_ k end
+Line 4, characters 2-11:
+4 |   include S
+      ^^^^^^^^^
+Error: Multiple definition of the jkind name "k".
+       Names must be unique in a given structure or signature.
+|}]
+
+(* But you are allowed to shadow something that is itself from an include. *)
+module M = struct kind_ k end
+module M' = struct
+  include M
+  kind_ k
+end
+
+[%%expect{|
+module M : sig kind_ k end
+module M' : sig kind_ k end
+|}]
+
+module type S = sig kind_ k end
+module type S' = sig
+  include S
+  kind_ k
+end
+
+[%%expect{|
+module type S = sig kind_ k end
+module type S' = sig kind_ k end
+|}]

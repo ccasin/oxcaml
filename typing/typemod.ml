@@ -1546,6 +1546,7 @@ module Signature_names : sig
   val check_modtype   : ?info:info -> t -> Location.t -> Ident.t -> unit
   val check_class     : ?info:info -> t -> Location.t -> Ident.t -> unit
   val check_class_type: ?info:info -> t -> Location.t -> Ident.t -> unit
+  val check_jkind     : ?info:info -> t -> Location.t -> Ident.t -> unit
 
   val check_sig_item:
     ?info:info -> t -> Location.t -> Signature_group.rec_group -> unit
@@ -1684,6 +1685,8 @@ end = struct
     check Sig_component_kind.Class t loc id info
   let check_class_type ?(info=`Exported) t loc id =
     check Sig_component_kind.Class_type t loc id info
+  let check_jkind ?(info=`Exported) t loc id =
+    check Sig_component_kind.Jkind t loc id info
 
   let classify =
     let open Sig_component_kind in
@@ -2305,8 +2308,8 @@ and transl_signature env {psg_items; psg_modalities; psg_loc} =
     | Psig_extension (ext, _attrs) ->
         raise (Error_forward (Builtin_attributes.error_of_extension ext))
     | Psig_jkind sdecl ->
-        (* XXX do Signature_names thing to prevent shadowing *)
         let id, newenv, decl = Typedecl.transl_jkind_decl env sdecl in
+        Signature_names.check_jkind names decl.jkind_loc decl.jkind_id;
         let item = Sig_jkind(id, decl.jkind_jkind, Exported) in
         mksig (Tsig_jkind decl) env loc, [item], newenv
   in
@@ -3813,8 +3816,8 @@ and type_structure ?(toplevel = None) funct_body anchor env ?expected_mode
           Builtin_attributes.mark_alert_used x;
         Tstr_attribute x, [], shape_map, env
     | Pstr_jkind x ->
-        (* XXX do Signature_names thing to prevent shadowing *)
         let id, env, decl = Typedecl.transl_jkind_decl env x in
+        Signature_names.check_jkind names decl.jkind_loc decl.jkind_id;
         let shape_map =
           Shape.Map.add_jkind shape_map id decl.jkind_jkind.jkind_uid
         in
