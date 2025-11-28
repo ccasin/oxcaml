@@ -581,3 +581,46 @@ Line 2, characters 15-20:
                    ^^^^^
 Error: Abstract kinds are not yet supported in products.
 |}]
+
+(************************************)
+(* Test: include functor and nondep *)
+
+(* By testing include functor, this also tests [sig_make_manifest] and
+   [nondep_*] for jkinds. Note the functor parameter appears in a kind
+   in three key positions handled separately by nondep:
+   - kind decl manifest
+   - type decl kind annotation
+   - type decl parameter *)
+module type S = sig
+  kind_ k1
+  type t1 : k1
+end
+
+module F(X : S) = struct
+  kind_ k2 = X.k1
+  type ('a : X.k1) t1' : X.k1
+end
+
+kind_ k1
+type t1 : k1
+
+include functor F
+
+type ('a : k2) s
+type r = t1 s
+type t2 : k2
+type q : k2 = t2 t1'
+
+[%%expect{|
+module type S = sig kind_ k1 type t1 : k1 end
+module F :
+  functor (X : S) -> sig kind_ k2 = X.k1 type ('a : X.k1) t1' : X.k1 end
+kind_ k1
+type t1 : k1
+kind_ k2 = k1
+type ('a : k1) t1' : k1
+type ('a : k2) s
+type r = t1 s
+type t2 : k1
+type q = t2 t1'
+|}]

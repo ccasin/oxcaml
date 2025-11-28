@@ -363,8 +363,15 @@ let rec sig_make_manifest sg =
                    | Some _ -> decl.mtd_type }
     in
     Sig_modtype(Ident.rename id, newdecl, vis) :: sig_make_manifest rem
-  | Sig_jkind _ as sigelt  :: rem ->
-    (* XXX wrong - write some include functor test cases. *)
+  | Sig_jkind (id, decl, vis) as sigelt  :: rem ->
+    let sigelt =
+      match decl.jkind_manifest with
+      | Some _ -> sigelt
+      | None ->
+        let manifest = Jkind.Const.kconstr (Pident id) in
+        let newdecl = { decl with jkind_manifest = Some manifest } in
+        Sig_jkind (Ident.rename id, newdecl, vis)
+    in
     sigelt :: sig_make_manifest rem
 
 let rec make_aliases_absent ~aliased pres mty =
@@ -533,7 +540,8 @@ and nondep_sig_item env va ids = function
       Sig_class(id, Ctype.nondep_class_declaration env ids d, rs, vis)
   | Sig_class_type(id, d, rs, vis) ->
       Sig_class_type(id, Ctype.nondep_cltype_declaration env ids d, rs, vis)
-  | Sig_jkind _ as sig_item -> sig_item (* XXX *)
+  | Sig_jkind (id, d, vis) ->
+      Sig_jkind (id, Ctype.nondep_jkind_declaration env ids d, vis)
 
 and nondep_sig env va ids sg =
   let scope = Ctype.create_scope () in

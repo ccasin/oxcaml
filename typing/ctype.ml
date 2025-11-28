@@ -7183,15 +7183,50 @@ let nondep_variants = TypeHash.create 17
 let clear_hash ()   =
   TypeHash.clear nondep_hash; TypeHash.clear nondep_variants
 
+(* The [desc_of_const] parameter lets this work on both [jkind_desc]s and
+   [jkind_const_desc] *)
+let rec nondep_jkind_desc_base env ids ~desc_of_const jkind_desc =
+  match jkind_desc.base with
+  | Kconstr p -> begin
+      match Path.find_free_opt ids p with
+      | None -> jkind_desc
+      | Some id ->
+        match Jkind.Const.expand_once env jkind_desc with
+        | None -> raise (Nondep_cannot_erase id)
+        | Some jkind ->
+          nondep_jkind_desc_base env ids ~desc_of_const (desc_of_const jkind)
+      end
+  | Layout _ ->
+    (* Nothing to do here because there are no paths in layouts (yet?). *)
+    jkind_desc
+
+let nondep_jkind_const_desc_base env ids jkind_desc =
+  nondep_jkind_desc_base env ids ~desc_of_const:(fun x -> x) jkind_desc
+
+let nondep_jkind_desc_base env ids jkind_desc =
+  nondep_jkind_desc_base env ids
+      ~desc_of_const:Jkind.Base_and_axes.jkind_desc_of_const jkind_desc
+
+let nondep_jkind_base env ids jkind =
+  let jkind_desc = nondep_jkind_desc_base env ids jkind.jkind in
+  if jkind_desc == jkind.jkind then jkind else { jkind with jkind = jkind_desc }
+
 let rec nondep_type_rec ?(expand_private=false) env ids ty =
   let try_expand env t =
     if expand_private then try_expand_safe_opt env t
     else try_expand_safe env t
   in
   match get_desc ty with
-    Tvar _ | Tunivar _ -> ty
-    (* CR layouts v2.8: This needs to traverse the jkind. Internal
-       ticket 5113. *)
+    Tvar { name; jkind } ->
+    let jkind' = nondep_jkind_base env ids jkind in
+    if not (jkind' == jkind) then
+      set_type_desc ty (Tvar { name; jkind = jkind' });
+    ty
+  | Tunivar { name; jkind } ->
+    let jkind' = nondep_jkind_base env ids jkind in
+    if not (jkind' == jkind) then
+      set_type_desc ty (Tvar { name; jkind = jkind' });
+    ty
   | _ -> try TypeHash.find nondep_hash ty
   with Not_found ->
     let ty' = newgenstub ~scope:(get_scope ty)
@@ -7296,12 +7331,15 @@ let rec nondep_type_decl env mid is_covariant decl =
             with Nondep_cannot_erase _ ->
               None, decl.type_private
     and jkind =
-      try Jkind.map_type_expr (nondep_type_rec env mid) decl.type_jkind
+      let jkind = nondep_jkind_base env mid decl.type_jkind in
+        (* { decl.type_jkind with
+         *   jkind = { jkind = nondep_jkind_base env mid jkind.jkind } } *)
+      try Jkind.map_type_expr (nondep_type_rec env mid) jkind
       (* CR layouts v2.8: This should be done with a proper nondep_jkind.
          Internal ticket 5113. *)
       with Nondep_cannot_erase _ when is_covariant ->
         let context = mk_jkind_context_check_principal env in
-        Jkind.round_up ~context env decl.type_jkind |>
+        Jkind.round_up ~context env jkind |>
         Jkind.disallow_right
     in
     clear_hash ();
@@ -7432,6 +7470,17 @@ let nondep_cltype_declaration env ids decl =
   in
   clear_hash ();
   decl
+
+let nondep_jkind_declaration env ids decl =
+  match decl.jkind_manifest with
+  | None -> decl
+  | Some jkind ->
+    (* As the manifest of a jkind decl is lr, we need not worry about with
+       bounds here. *)
+    let jkind_manifest = nondep_jkind_const_desc_base env ids jkind in
+    if jkind_manifest == jkind
+    then decl
+    else { decl with jkind_manifest = Some jkind_manifest}
 
 (* collapse conjunctive types in class parameters *)
 let rec collapse_conj env visited ty =

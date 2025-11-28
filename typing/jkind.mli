@@ -128,6 +128,10 @@ module With_bounds : sig
   val format : Format.formatter -> ('l * 'r) Types.with_bounds -> unit
 end
 
+module Base_and_axes : sig
+  val jkind_desc_of_const : 'd Types.jkind_const_desc -> 'd Types.jkind_desc
+end
+
 (** A [jkind] is a full description of the runtime representation of values
     of a given type. It includes sorts, but also the abstract top jkind
     [Any] and subjkinds of other sorts, such as [Immediate].
@@ -281,6 +285,8 @@ module Const : sig
     context:('l * allowed) History.annotation_context ->
     Parsetree.jkind_annotation ->
     ('l * allowed) t
+
+  val expand_once : Env.t -> (_, 'd) Types.base_and_axes -> 'd t option
 
   (* CR layouts: Remove this once we have a better story for printing with jkind
      abbreviations. *)

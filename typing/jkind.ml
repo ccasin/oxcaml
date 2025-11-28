@@ -568,6 +568,9 @@ end
 module Base_and_axes = struct
   include Jkind_base_and_axes
 
+  let jkind_desc_of_const const =
+    { const with base = Base.map_layout ~f:Layout.of_const const.base }
+
   let debug_print format_layout ppf { base; mod_bounds; with_bounds } =
     Format.fprintf ppf "{ base = %a;@ mod_bounds = %a;@ with_bounds = %a }"
       (Base.format format_layout)
@@ -623,7 +626,7 @@ module Base_and_axes = struct
     | Missing_cmi _ -> t
     | Expanded t ->
       let const = fully_expand_aliases_const env t in
-      { const with base = Base.map_layout ~f:Layout.of_const const.base }
+      jkind_desc_of_const const
 
   let rec fully_expand_aliases_const_report_missing_cmi env t =
     match expand_base_once_const env t with
@@ -639,7 +642,7 @@ module Base_and_axes = struct
       let const, missing_cmi =
         fully_expand_aliases_const_report_missing_cmi env t
       in
-      map_layout ~f:Layout.of_const const, missing_cmi
+      jkind_desc_of_const const, missing_cmi
 
   type 'r normalize_mode =
     | Require_best : disallowed normalize_mode
@@ -1097,14 +1100,14 @@ module Jkind_desc = struct
     with
     | (Not_expanded | Missing_cmi _), (Not_expanded | Missing_cmi _) -> None
     | (Not_expanded | Missing_cmi _), Expanded t2 ->
-      let t2 = Base_and_axes.map_layout ~f:Layout.of_const t2 in
+      let t2 = Base_and_axes.jkind_desc_of_const t2 in
       Some (t1, t2)
     | Expanded t1, (Not_expanded | Missing_cmi _) ->
-      let t1 = Base_and_axes.map_layout ~f:Layout.of_const t1 in
+      let t1 = Base_and_axes.jkind_desc_of_const t1 in
       Some (t1, t2)
     | Expanded t1, Expanded t2 ->
-      let t1 = Base_and_axes.map_layout ~f:Layout.of_const t1 in
-      let t2 = Base_and_axes.map_layout ~f:Layout.of_const t2 in
+      let t1 = Base_and_axes.jkind_desc_of_const t1 in
+      let t2 = Base_and_axes.jkind_desc_of_const t2 in
       Some (t1, t2)
 
   (* [expand_to_comparable_bases] expands the provided bases until they could be
@@ -1301,6 +1304,11 @@ let set_outcometree_of_modalities p = outcometree_of_modalities := p
 module Const = struct
   include Jkind_const
 
+  let expand_once env t =
+    match Base_and_axes.expand_base_once_const env t with
+    | Expanded t -> Some t
+    | Missing_cmi _ | Not_expanded -> None
+
   let kconstr path =
     { base = Kconstr path;
       mod_bounds = Mod_bounds.max;
@@ -1318,8 +1326,8 @@ module Const = struct
 
   let equal env t1 t2 =
     Jkind_desc.equate_or_equal env ~allow_mutation:false
-      (Base_and_axes.map_layout ~f:Layout.of_const t1)
-      (Base_and_axes.map_layout ~f:Layout.of_const t2)
+      (Base_and_axes.jkind_desc_of_const t1)
+      (Base_and_axes.jkind_desc_of_const t2)
 
   module To_out_jkind_const : sig
     (** Convert a [t] into a [Outcometree.out_jkind_const].
