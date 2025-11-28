@@ -465,10 +465,48 @@ Error: The kind of type "t" is X.N.k
          because of the definition of s at line 3, characters 2-20.
 |}]
 
-(****************)
-(* Test: arrays *)
+(*********************************)
+(* Test: arrays and separability *)
 
-(* XXX *)
+(* Since fully abstract kinds aren't separable, you can't have an array of
+   them. But you can have an array of a kind with abstract base and the
+   appropriate mod bound. *)
+kind_ k
+type t1 : k
+type s1 = t1 array
+[%%expect{|
+kind_ k
+type t1 : k
+Line 3, characters 10-12:
+3 | type s1 = t1 array
+              ^^
+Error: This type "t1" should be an instance of type "('a : any mod separable)"
+       The kind of t1 is k
+         because of the definition of t1 at line 2, characters 0-11.
+       But the kind of t1 must be a subkind of any mod separable
+         because it's the type argument to the array type.
+|}]
+
+type t2 : k mod separable
+type s2 = t2 array
+[%%expect{|
+type t2 : k mod separable
+type s2 = t2 array
+|}]
+
+type ('a : k mod separable) s3 = 'a array
+[%%expect{|
+type ('a : k mod separable) s3 = 'a array
+|}]
+
+kind_ k' = k mod separable
+type t4 : k'
+type s4 = t4 array
+[%%expect{|
+kind_ k' = k mod separable
+type t4 : k mod separable
+type s4 = t4 array
+|}]
 
 (******************************)
 (* Test: Bad product behavior *)
