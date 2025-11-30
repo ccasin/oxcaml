@@ -1372,7 +1372,7 @@ Error: The kind of type "existential_abstract" is value mod non_float
 
 (* not yet supported *)
 module _ : sig
-  type 'a gel : kind_of_ 'a mod global
+  type 'a gel : (kind_of_ 'a) mod global
   type 'a t : _
   kind_ immediate = value mod global unique many sync uncontended
   kind_ immutable_data = value mod sync uncontended many
@@ -1380,7 +1380,7 @@ module _ : sig
   kind_ data = value mod sync many
   kind_ abstract
 end = struct
-  type 'a gel : kind_of_ 'a mod global
+  type 'a gel : (kind_of_ 'a) mod global
   type 'a t : _
   kind_ immediate = value mod global unique many sync uncontended
   kind_ immutable_data = value mod sync uncontended many
@@ -1393,9 +1393,9 @@ end
    supported. Internal ticket 5118. *)
 
 [%%expect{|
-Line 10, characters 16-27:
-10 |   type 'a gel : kind_of_ 'a mod global
-                     ^^^^^^^^^^^
+Line 10, characters 16-29:
+10 |   type 'a gel : (kind_of_ 'a) mod global
+                     ^^^^^^^^^^^^^
 Error: Unimplemented kind syntax
 |}]
 

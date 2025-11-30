@@ -2125,6 +2125,12 @@ module Jkind_const = struct
       with_bounds = No_with_bounds
     }
 
+  let kconstr path =
+    { base = Kconstr path;
+      mod_bounds = Jkind_mod_bounds.max;
+      with_bounds = No_with_bounds
+    }
+
   (* This function is shallow in the sense that it does not expand abstract
      kinds. That's fine for the places where it is used (printing and a memo
      table), but it is not semantic equality.  This function _must not_ expand

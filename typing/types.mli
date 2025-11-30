@@ -1366,6 +1366,8 @@ module Jkind_const : sig
 
   include Allowance.Allow_disallow with type (_, _, 'd) sided = 'd t
 
+  val kconstr : Path.t -> (allowed * allowed) t
+
   module Builtin : sig
     type nonrec t =
       { jkind : (allowed * allowed) t;
