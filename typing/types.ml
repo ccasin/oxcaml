@@ -270,6 +270,13 @@ module Jkind_mod_bounds = struct
     let separability = Separability.join (separability t1) (separability t2) in
     create crossing ~externality ~nullability ~separability
 
+  let meet t1 t2 =
+    let crossing = Crossing.meet (crossing t1) (crossing t2) in
+    let externality = Externality.meet (externality t1) (externality t2) in
+    let nullability = Nullability.meet (nullability t1) (nullability t2) in
+    let separability = Separability.meet (separability t1) (separability t2) in
+    create crossing ~externality ~nullability ~separability
+
   (* Returns the set of axes that is relevant under a given modality. For
      example, under the [global] modality, the areality axis is *not*
      relevant. *)
@@ -2060,6 +2067,11 @@ module Jkind_with_bounds = struct
     | With_bounds tys -> With_bounds_types.is_empty tys
 end
 
+module Jkind_base = struct
+  let map_layout ~f b =
+    match b with Layout l -> Layout (f l) | Kconstr b -> Kconstr b
+end
+
 module Jkind_base_and_axes = struct
   module Allow_disallow = Allowance.Magic_allow_disallow (struct
     type (_, 'layout, 'd) sided = ('layout, 'd) base_and_axes
@@ -2121,6 +2133,12 @@ module Jkind_const = struct
 
   let max =
     { base = Layout Jkind_types.Layout.Const.max;
+      mod_bounds = Jkind_mod_bounds.max;
+      with_bounds = No_with_bounds
+    }
+
+  let kconstr path =
+    { base = Kconstr path;
       mod_bounds = Jkind_mod_bounds.max;
       with_bounds = No_with_bounds
     }

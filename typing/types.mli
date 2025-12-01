@@ -128,6 +128,7 @@ module Jkind_mod_bounds : sig
 
   val equal : t -> t -> bool
   val join : t -> t -> t
+  val meet : t -> t -> t
 
   val relevant_axes_of_modality :
     relevant_for_shallow:[ `Irrelevant | `Relevant ] ->
@@ -1334,6 +1335,13 @@ end
 
 (* This module exists here to resolve a dependency cycle: [Subst], [Predef],
    [Datarepr], and [Env] must not depend on [Jkind]. It is not intended for use
+   outside of those modules. *)
+module Jkind_base : sig
+  val map_layout : f:('a -> 'b) -> 'a jkind_base -> 'b jkind_base
+end
+
+(* This module exists here to resolve a dependency cycle: [Subst], [Predef],
+   [Datarepr], and [Env] must not depend on [Jkind]. It is not intended for use
    outside of [Jkind]. *)
 module Jkind_base_and_axes : sig
   include Allowance.Allow_disallow
@@ -1365,6 +1373,8 @@ module Jkind_const : sig
   val shallow_no_with_bounds_and_equal : 'd1 t -> 'd2 t -> bool
 
   include Allowance.Allow_disallow with type (_, _, 'd) sided = 'd t
+
+  val kconstr : Path.t -> (allowed * allowed) t
 
   module Builtin : sig
     type nonrec t =

@@ -300,13 +300,6 @@ let raise ~loc err = raise (Error.User_error (loc, err))
 module Mod_bounds = struct
   include Types.Jkind_mod_bounds
 
-  let meet t1 t2 =
-    let crossing = Crossing.meet (crossing t1) (crossing t2) in
-    let externality = Externality.meet (externality t1) (externality t2) in
-    let nullability = Nullability.meet (nullability t1) (nullability t2) in
-    let separability = Separability.meet (separability t1) (separability t2) in
-    create crossing ~externality ~nullability ~separability
-
   let less_or_equal t1 t2 =
     let[@inline] modal_less_or_equal ax : Sub_result.t =
       let a = t1 |> crossing |> (Crossing.proj [@inlined hint]) ax in
@@ -521,6 +514,8 @@ type jkind_context =
   }
 
 module Base = struct
+  include Jkind_base
+
   let to_string layout_to_string = function
     | Layout l -> layout_to_string l
     | Kconstr p -> Path.name p
@@ -546,9 +541,6 @@ module Base = struct
     | Kconstr _, Layout Layout.Any -> Some base1
     | Layout Layout.Any, Kconstr _ -> Some base2
     | Kconstr _, Layout _ | Layout _, Kconstr _ -> None
-
-  let map_layout ~f b =
-    match b with Layout l -> Layout (f l) | Kconstr b -> Kconstr b
 
   let format format_layout ppf base =
     match base with
