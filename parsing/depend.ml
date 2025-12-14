@@ -140,7 +140,7 @@ and add_package_type bv (lid, l) =
 and add_jkind bv (jkind : jkind_annotation) =
   match jkind.pjka_desc with
   | Pjk_default -> ()
-  | Pjk_abbreviation _ -> ()
+  | Pjk_abbreviation l -> add bv l
   | Pjk_mod (jkind, (_ : modes)) -> add_jkind bv jkind
   | Pjk_with (jkind, typ, (_ : modalities)) ->
       add_jkind bv jkind;
@@ -180,7 +180,8 @@ let add_type_declaration bv td =
   | Ptype_record_unboxed_product lbls ->
       List.iter (fun pld -> add_type bv pld.pld_type) lbls
   | Ptype_open -> () in
-  add_tkind td.ptype_kind
+  add_tkind td.ptype_kind;
+  List.iter (fun (ty, _) -> add_type bv ty) td.ptype_params
 
 let add_extension_constructor bv ext =
   match ext.pext_kind with

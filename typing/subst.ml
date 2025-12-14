@@ -153,7 +153,8 @@ end = struct
         ~ran_out_of_fuel_during_normalize
         ~annotation:
           (Some { pjka_loc = Location.none;
-                  pjka_desc = Pjk_abbreviation (Lident builtin.name) })
+                  pjka_desc = Pjk_abbreviation { loc = Location.none;
+                                                 txt = Lident builtin.name } })
         ~why:Jkind_intf.History.Imported)
 
   let best_builtins =
