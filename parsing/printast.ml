@@ -549,7 +549,7 @@ and jkind_annotation i ppf (jkind : jkind_annotation) =
   match jkind.pjka_desc with
   | Pjk_default -> line i ppf "Pjk_default\n"
   | Pjk_abbreviation jkind ->
-      line i ppf "Pjk_abbreviation %a\n" fmt_longident jkind
+      line i ppf "Pjk_abbreviation %a\n" fmt_longident_loc jkind
   | Pjk_mod (jkind, m) ->
       line i ppf "Pjk_mod\n";
       jkind_annotation (i+1) ppf jkind;

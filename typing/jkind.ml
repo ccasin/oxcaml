@@ -1656,7 +1656,7 @@ module Const = struct
     let loc = jkind.pjka_loc in
     match jkind.pjka_desc with
     | Pjk_abbreviation name ->
-      let p, _ = Env.lookup_jkind ~use:use_abstract_jkinds ~loc name env in
+      let p, _ = Env.lookup_jkind ~use:use_abstract_jkinds ~loc name.txt env in
       kconstr p |> allow_left |> allow_right
     | Pjk_mod (base, modifiers) ->
       let base =
