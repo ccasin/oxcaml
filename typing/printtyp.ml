@@ -888,8 +888,9 @@ let set_printing_env env =
   end
 
 let wrap_printing_env env f =
+  let old_env = !printing_env in
   set_printing_env env; reset_naming_context ();
-  try_finally f ~always:(fun () -> set_printing_env Env.empty)
+  try_finally f ~always:(fun () -> set_printing_env old_env)
 
 let wrap_printing_env ~error env f =
   if error then Env.without_cmis (wrap_printing_env env) f

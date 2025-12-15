@@ -94,8 +94,8 @@ type error =
       { vars : type_expr list; item : value_description; mty : module_type }
   | Implementation_is_required of string
   | Interface_not_compiled of string
-  | Not_allowed_in_functor_body
-  | Not_includable_in_functor_body
+  | Not_allowed_in_functor_body of Mtype.Contains_type_or_jkind.t
+  | Not_includable_in_functor_body of Mtype.Contains_type_or_jkind.t
   | Not_a_packed_module of type_expr
   | Incomplete_packed_module of type_expr
   | Scoping_pack of Longident.t * type_expr
@@ -175,6 +175,13 @@ let extract_sig_open env loc mty =
       raise(Error(loc, env, Cannot_scrape_alias path))
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
+let check_for_generated_type_or_jkind ~funct_body env loc mty exn =
+  if funct_body then
+    match Mtype.Contains_type_or_jkind.check env mty with
+    | None -> ()
+    | Some tj ->
+      raise (Error (loc, env, exn tj))
+
 (* Extract the signature of a functor's body, using the provided [sig_acc]
    signature to fill in names from its parameter *)
 let extract_sig_functor_open funct_body env loc mty sig_acc =
@@ -216,10 +223,9 @@ let extract_sig_functor_open funct_body env loc mty sig_acc =
         match Mtype.scrape extended_env mty_result with
         | Mty_signature sg_result ->
             Tincl_functor { input_coercion; input_repr }, sg_result
-        | Mty_functor (Unit,_)
-          when funct_body && Mtype.contains_type_or_kind env mty ->
-            raise (Error (loc, env, Not_includable_in_functor_body))
         | Mty_functor (Unit,mty_result) -> begin
+            check_for_generated_type_or_jkind ~funct_body env loc mty
+              (fun tj -> Not_includable_in_functor_body tj);
             match Mtype.scrape extended_env mty_result with
             | Mty_signature sg_result ->
               Tincl_gen_functor { input_coercion; input_repr }, sg_result
@@ -3067,8 +3073,8 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         | _ ->
             raise (Error(smod.pmod_loc, env, Not_a_packed_module exp.exp_type))
       in
-      if funct_body && Mtype.contains_type_or_kind env mty then
-        raise (Error (smod.pmod_loc, env, Not_allowed_in_functor_body));
+      check_for_generated_type_or_jkind ~funct_body env smod.pmod_loc mty
+        (fun tj -> Not_allowed_in_functor_body tj);
       { mod_desc = Tmod_unpack(exp, mty);
         mod_type = mty;
         mod_mode = Value.disallow_right mode, None;
@@ -3201,8 +3207,8 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
           else
             raise (Error (app_view.f_loc, env, Apply_generative));
       end;
-      if funct_body && Mtype.contains_type_or_kind env funct.mod_type then
-        raise (Error (apply_loc, env, Not_allowed_in_functor_body));
+      check_for_generated_type_or_jkind ~funct_body env apply_loc funct.mod_type
+        (fun tj -> Not_allowed_in_functor_body tj);
       { mod_desc = Tmod_apply_unit funct;
         mod_type = mty_res;
         mod_mode = alloc_as_value (Alloc.disallow_right functor_res_mode), None;
@@ -4648,13 +4654,15 @@ let report_error ~loc _env = function
       Location.errorf ~loc
         "@[Could not find the .cmi file for interface@ %a.@]"
         Location.print_filename intf_name
-  | Not_allowed_in_functor_body ->
+  | Not_allowed_in_functor_body tj ->
       Location.errorf ~loc
-        "@[This expression creates fresh types or fresh kinds.@ %s@]"
+        "@[This expression creates fresh %s.@ %s@]"
+        (Mtype.Contains_type_or_jkind.to_string_plural tj)
         "It is not allowed inside applicative functors."
-  | Not_includable_in_functor_body ->
+  | Not_includable_in_functor_body tj ->
       Location.errorf ~loc
-        "@[This functor creates fresh types when applied.@ %s@]"
+        "@[This functor creates fresh %s when applied.@ %s@]"
+        (Mtype.Contains_type_or_jkind.to_string_plural tj)
         "Including it is not allowed inside applicative functors."
   | Not_a_packed_module ty ->
       Location.errorf ~loc
