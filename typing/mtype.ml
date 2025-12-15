@@ -676,43 +676,55 @@ let no_code_needed env mty = no_code_needed_mod env Mp_present mty
 
 (* Check whether a module type may return types *)
 
-let rec contains_type_or_kind env mty =
-  match scrape env mty with
-    Mty_ident _ -> raise Exit (* PR#6427 *)
-  | Mty_signature sg ->
-      contains_type_or_kind_sig env sg
-  | Mty_functor (_, body) ->
-      contains_type_or_kind env body
-  | Mty_alias _ ->
-      ()
-  | Mty_strengthen _ -> raise Exit
+module Contains_type_or_jkind = struct
+  type t = Type | Jkind
 
-and contains_type_or_kind_sig env = List.iter (contains_type_or_kind_item env)
+  let to_string_plural = function
+    | Type -> "types"
+    | Jkind -> "kinds"
 
-and contains_type_or_kind_item env = function
-    Sig_type (_,({type_manifest = None} |
-                 {type_kind = Type_abstract _; type_private = Private}),_, _)
-  | Sig_jkind (_, {jkind_manifest = None; _}, _)
-  | Sig_modtype _
-  | Sig_typext (_, {ext_args = Cstr_record _}, _, _) ->
-      (* We consider that extension constructors with an inlined
-         record create a type (the inlined record), even though
-         it would be technically safe to ignore that considering
-         the current constraints which guarantee that this type
-         is kept local to expressions.  *)
-      raise Exit
-  | Sig_module (_, _, {md_type = mty}, _, _) ->
-      contains_type_or_kind env mty
-  | Sig_value _
-  | Sig_type _
-  | Sig_typext _
-  | Sig_class _
-  | Sig_class_type _
-  | Sig_jkind _ ->
-      ()
+  exception Contains of t
 
-let contains_type_or_kind env mty =
-  try contains_type_or_kind env mty; false with Exit -> true
+  let rec contains_type_or_jkind env mty =
+    match scrape env mty with
+      Mty_ident _ -> raise (Contains Type) (* PR#6427 *)
+    | Mty_signature sg ->
+        contains_type_or_jkind_sig env sg
+    | Mty_functor (_, body) ->
+        contains_type_or_jkind env body
+    | Mty_alias _ ->
+        ()
+    | Mty_strengthen _ -> raise (Contains Type)
+
+  and contains_type_or_jkind_sig env =
+    List.iter (contains_type_or_jkind_item env)
+
+  and contains_type_or_jkind_item env = function
+      Sig_type (_,({type_manifest = None} |
+                   {type_kind = Type_abstract _; type_private = Private}),_, _)
+    | Sig_modtype _
+    | Sig_typext (_, {ext_args = Cstr_record _}, _, _) ->
+        (* We consider that extension constructors with an inlined
+           record create a type (the inlined record), even though
+           it would be technically safe to ignore that considering
+           the current constraints which guarantee that this type
+           is kept local to expressions.  *)
+        raise (Contains Type)
+    | Sig_jkind (_, {jkind_manifest = None; _}, _) ->
+        raise (Contains Jkind)
+    | Sig_module (_, _, {md_type = mty}, _, _) ->
+        contains_type_or_jkind env mty
+    | Sig_value _
+    | Sig_type _
+    | Sig_typext _
+    | Sig_class _
+    | Sig_class_type _
+    | Sig_jkind _ ->
+        ()
+
+  let check env mty =
+    try contains_type_or_jkind env mty; None with Contains tj -> Some tj
+end
 
 
 (* Remove module aliases from a signature *)

@@ -559,9 +559,9 @@ module Jkind0 : sig
       (** A list of the core builtin jkinds exposed by predef. *)
       val builtins : t list
 
-      (** A superset of [builtins], which also includes common kinds like [float64
-          mod everything] (the kind of [float#]). Used in printing and for
-          memoization in subst. *)
+      (** A superset of [builtins], which also includes common kinds like
+          [float64 mod everything] (the kind of [float#]). Used in printing and
+          for memoization in subst. *)
       val common_jkinds : t list
 
       val of_attribute : Builtin_attributes.jkind_attribute -> t

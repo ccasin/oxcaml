@@ -4959,7 +4959,7 @@ let report_lookup_error ~level _loc env ppf = function
         (Style.as_inline_code !print_longident) lid;
       spellcheck ppf extract_cltypes env lid
   | Unbound_jkind lid ->
-      fprintf ppf "Unbound jkind %a"
+      fprintf ppf "Unbound kind %a"
         (Style.as_inline_code !print_longident) lid;
       spellcheck ppf extract_jkinds env lid
   | Unbound_settable_variable s ->

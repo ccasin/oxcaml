@@ -261,6 +261,8 @@ module Const : sig
 
   val equal : Env.t -> (allowed * allowed) t -> (allowed * allowed) t -> bool
 
+  (* [use_abstract_jkinds] controls whether references to other kinds here count
+     as uses of them for unused abstract kind warnings. *)
   val of_annotation :
     ?use_abstract_jkinds:bool ->
     context:('l * allowed) History.annotation_context ->
@@ -371,6 +373,8 @@ val of_new_legacy_sort :
 val of_new_non_float_sort_var :
   why:History.concrete_creation_reason -> level:int -> 'd Types.jkind * sort
 
+(* [use_abstract_jkinds] controls whether references to other kinds here count
+   as uses of them for unused abstract kind warnings. *)
 val of_annotation :
   ?use_abstract_jkinds:bool ->
   context:('l * allowed) History.annotation_context ->
@@ -378,6 +382,8 @@ val of_annotation :
   Parsetree.jkind_annotation ->
   ('l * allowed) Types.jkind
 
+(* [use_abstract_jkinds] controls whether references to other kinds here count
+   as uses of them for unused abstract kind warnings. *)
 val of_annotation_option_default :
   ?use_abstract_jkinds:bool ->
   default:('l * allowed) Types.jkind ->
@@ -395,6 +401,9 @@ val of_annotation_option_default :
     Returns the jkind (at quality [Not_best]) and the user-written annotation.
 
     Raises if a disallowed or unknown jkind is present.
+
+    [use_abstract_jkinds] controls whether references to other kinds here count
+    as uses of them for unused abstract kind warnings.
 *)
 val of_type_decl :
   ?use_abstract_jkinds:bool ->
@@ -789,8 +798,7 @@ val map_type_expr :
 val is_obviously_max : ('l * allowed) Types.jkind -> bool
 
 (** Checks to see whether a right-jkind's mod-bounds are the maximum
-    mod-bounds. Never does any mutation. Is fully accurate, but may
-    need to expand and load cmi files. *)
+    mod-bounds. Never does any mutation. *)
 val mod_bounds_are_max : Env.t -> ('l * allowed) Types.jkind -> bool
 
 (** Checks to see whether a jkind has layout any. Never does any mutation. *)

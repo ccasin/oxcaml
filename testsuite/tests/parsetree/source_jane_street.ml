@@ -1363,7 +1363,7 @@ type existential_abstract =
     Mk : ('a : value mod portable). 'a abstract -> existential_abstract
 |}]
 
-module _ : sig
+module M : sig
   kind_ immediate = value mod global many uncontended
   kind_ immutable_data = value mod uncontended many
   kind_ immutable = value mod uncontended
@@ -1377,30 +1377,14 @@ end = struct
   kind_ abstract
 end
 [%%expect{|
-Line 2, characters 2-53:
-2 |   kind_ immediate = value mod global many uncontended
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 191 [unused-kind-declaration]: unused kind immediate.
-
-Line 3, characters 2-51:
-3 |   kind_ immutable_data = value mod uncontended many
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 191 [unused-kind-declaration]: unused kind immutable_data.
-
-Line 4, characters 2-41:
-4 |   kind_ immutable = value mod uncontended
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 191 [unused-kind-declaration]: unused kind immutable.
-
-Line 5, characters 2-29:
-5 |   kind_ data = value mod many
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 191 [unused-kind-declaration]: unused kind data.
-
-Line 6, characters 2-16:
-6 |   kind_ abstract
-      ^^^^^^^^^^^^^^
-Warning 191 [unused-kind-declaration]: unused kind abstract.
+module M :
+  sig
+    kind_ immediate = value mod global many
+    kind_ immutable_data = value mod many
+    kind_ immutable = value
+    kind_ data = value mod many
+    kind_ abstract
+  end @@ stateless
 |}]
 
 (* not yet supported *)
@@ -1412,7 +1396,8 @@ end = struct
   type 'a t : _
 end
 
-(* CR layouts v2.8: Expect this output to change once `kind_of_` is supported *)
+(* CR layouts: Expect this output to change once `kind_of_` is   supported.
+   Internal ticket 2912. *)
 [%%expect{|
 Line 5, characters 16-27:
 5 |   type 'a gel : kind_of_ 'a mod global

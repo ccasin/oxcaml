@@ -279,6 +279,16 @@ Line 3, characters 30-31:
 Error: 'with' syntax is not allowed in kind declarations.
 |}]
 
+(* This one could be allowed because the concrete with bound could be expanded
+   away, but for simplicity we choose not to. *)
+kind_ k = immutable_data with int
+[%%expect{|
+Line 1, characters 30-33:
+1 | kind_ k = immutable_data with int
+                                  ^^^
+Error: 'with' syntax is not allowed in kind declarations.
+|}]
+
 (**********************)
 (* Test: no recursion *)
 
@@ -287,7 +297,7 @@ kind_ k_rec = k_rec
 Line 1, characters 14-19:
 1 | kind_ k_rec = k_rec
                   ^^^^^
-Error: Unbound jkind "k_rec"
+Error: Unbound kind "k_rec"
 |}]
 
 (***************************************)
@@ -398,7 +408,7 @@ Error: Signature mismatch:
 (* Test: Recursive modules *)
 
 (* Kind declarations are banned in recursive module signatures, in
-   the first version. We plan to support this soon. *)
+   the first version. We plan to support this soon. Internal ticket 5793. *)
 module rec M : sig
   kind_ k
 end = struct
@@ -660,7 +670,7 @@ module F_gen : functor () -> sig kind_ k end
 Line 4, characters 13-21:
 4 |   module M = F_gen ()
                  ^^^^^^^^
-Error: This expression creates fresh types or fresh kinds.
+Error: This expression creates fresh kinds.
        It is not allowed inside applicative functors.
 |}]
 
@@ -676,7 +686,7 @@ module F_gen : functor (X : sig type s end) () -> sig kind_ k end
 Line 5, characters 18-23:
 5 |   include functor F_gen
                       ^^^^^
-Error: This functor creates fresh types when applied.
+Error: This functor creates fresh kinds when applied.
        Including it is not allowed inside applicative functors.
 |}]
 
@@ -742,6 +752,24 @@ Error: Multiple definition of the jkind name "k".
        Names must be unique in a given structure or signature.
 |}]
 
+(* Nor an include functor. *)
+module F(X : sig kind_ k end) = X
+
+module M = struct
+  kind_ k
+
+  include functor F
+end
+
+[%%expect{|
+module F : functor (X : sig kind_ k end) -> sig kind_ k = X.k end
+Line 6, characters 2-19:
+6 |   include functor F
+      ^^^^^^^^^^^^^^^^^
+Error: Multiple definition of the jkind name "k".
+       Names must be unique in a given structure or signature.
+|}]
+
 (* But you are allowed to shadow something that is itself from an include. *)
 module M = struct kind_ k end
 module M' = struct
@@ -763,4 +791,20 @@ end
 [%%expect{|
 module type S = sig kind_ k end
 module type S' = sig kind_ k end
+|}]
+
+(* Or an include functor. *)
+module F(X : sig kind_ k end) = struct kind_ k2 = X.k end
+
+module M = struct
+  kind_ k
+
+  include functor F
+
+  kind_ k2 = value
+end
+
+[%%expect{|
+module F : functor (X : sig kind_ k end) -> sig kind_ k2 = X.k end
+module M : sig kind_ k kind_ k2 = value end
 |}]
