@@ -808,3 +808,34 @@ end
 module F : functor (X : sig kind_ k end) -> sig kind_ k2 = X.k end
 module M : sig kind_ k kind_ k2 = value end
 |}]
+
+(**************************)
+(* Test: [module type of] *)
+
+module M = struct
+  kind_ k1
+  kind_ k1' = k1
+
+  kind_ k2 = float64
+  kind_ k2' = k2 mod global
+end
+
+module type S = module type of M
+
+[%%expect{|
+module M :
+  sig
+    kind_ k1
+    kind_ k1' = k1
+    kind_ k2 = float64
+    kind_ k2' = float64 mod global
+  end
+module type S =
+  sig
+    kind_ k1
+    kind_ k1' = k1
+    kind_ k2 = float64
+    kind_ k2' = float64 mod global
+  end
+|}]
+
