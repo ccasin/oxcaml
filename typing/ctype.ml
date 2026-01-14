@@ -2638,7 +2638,7 @@ let constrain_type_jkind ~fixed env ty jkind =
           Error (Jkind.Violation.of_ ~context env
                    (Not_a_subjkind (ty's_jkind, jkind,
                                     Nonempty_list.to_list sub_failure_reasons)))
-       | Has_intersection sub_failure_reasons ->
+       | May_have_intersection sub_failure_reasons ->
            let sub_failure_reasons = Nonempty_list.to_list sub_failure_reasons in
            let product ~fuel tys =
              let num_components = List.length tys in
@@ -2836,7 +2836,7 @@ let rec intersect_type_jkind ~reason env ty1 jkind2 =
        one. See the comment above this function arguing why this is OK here. *)
     (* CR layouts v2.8: Think about doing better, but it's probably not worth
        it. Internal ticket 5112. *)
-    Jkind.intersection_or_error ~type_equal ~context ~reason env jkind1 jkind2
+    Jkind.intersection ~type_equal ~context ~reason env jkind1 jkind2
 
 (* See comment on [jkind_unification_mode] *)
 let unification_jkind_check uenv ty jkind =
@@ -3472,8 +3472,8 @@ let equivalent_with_nolabels l1 l2 =
 (* the [tk] means we're comparing a type against a jkind; axes do
    not matter, so a jkind extracted from a type_declaration does
    not need to be substed *)
-let has_jkind_intersection_tk ~level env ty jkind =
-  Jkind.has_intersection ~level env (type_jkind env ty) jkind
+let may_have_jkind_intersection_tk ~level env ty jkind =
+  Jkind.may_have_intersection ~level env (type_jkind env ty) jkind
 
 (* [mcomp] tests if two types are "compatible" -- i.e., if they could ever
    unify.  (This is distinct from [eqtype], which checks if two types *are*
@@ -3490,7 +3490,7 @@ let has_jkind_intersection_tk ~level env ty jkind =
 
 let rec mcomp type_pairs env t1 t2 =
   let check_jkinds ty jkind =
-    if not (has_jkind_intersection_tk ~level:!current_level env ty
+    if not (may_have_jkind_intersection_tk ~level:!current_level env ty
               (Jkind.disallow_right jkind))
     then raise Incompatible
   in
@@ -3526,8 +3526,8 @@ let rec mcomp type_pairs env t1 t2 =
             begin try
               let decl = Env.find_type p env in
               if non_aliasable p decl || is_datatype decl ||
-                 not (has_jkind_intersection_tk ~level:!current_level env other
-                        decl.type_jkind)
+                 not (may_have_jkind_intersection_tk ~level:!current_level env
+                        other decl.type_jkind)
               then raise Incompatible
             with Not_found -> ()
             end
@@ -3657,8 +3657,8 @@ and mcomp_type_decl type_pairs env p1 p2 tl1 tl2 =
     let decl = Env.find_type p1 env in
     let decl' = Env.find_type p2 env in
     let check_jkinds () =
-      if not (Jkind.has_intersection ~level:!current_level env decl.type_jkind
-                decl'.type_jkind)
+      if not (Jkind.may_have_intersection ~level:!current_level env
+                decl.type_jkind decl'.type_jkind)
       then raise Incompatible
     in
     if compatible_paths p1 p2 then begin
@@ -3788,13 +3788,18 @@ let add_jkind_equation ~reason uenv destination jkind1 =
   (* Here we check whether the source and destination jkinds intersect.  If
      they don't, we can give a type error.  If they do, and destination is
      abstract, we can improve type checking by assigning destination that
-     jkind. *)
+     jkind.
+
+     If we can't determine whether they intersect (due to abstract kinds), we
+     conservatively assume they might intersect (so no error), but we don't
+     refine the type since we don't know the intersection. *)
   let env = get_env uenv in
   match
     intersect_type_jkind ~reason ~level:!current_level env destination jkind1
   with
-  | Error err -> raise_for Unify (Bad_jkind (destination,err))
-  | Ok jkind -> begin
+  | Jkind.No_intersection err -> raise_for Unify (Bad_jkind (destination,err))
+  | Jkind.Unknown -> ()
+  | Jkind.Intersection jkind -> begin
       match get_desc destination with
       | Tconstr (p, _, _)
         when is_instantiable ~for_jkind_eqn:true env p ->
@@ -3806,7 +3811,9 @@ let add_jkind_equation ~reason uenv destination jkind1 =
             match Jkind.try_allow_r jkind, Jkind.try_allow_r decl.type_jkind with
             | Some jkind, Some decl_jkind when
                    not (Jkind.equal env jkind decl_jkind) ->
-               let refined_decl = { decl with type_jkind = Jkind.disallow_right jkind } in
+               let refined_decl =
+                 { decl with type_jkind = Jkind.disallow_right jkind }
+               in
                set_env uenv (Env.add_local_constraint p refined_decl env)
             | _ -> ()
           with

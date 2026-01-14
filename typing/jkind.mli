@@ -692,9 +692,31 @@ val equal : Env.t -> Types.jkind_lr -> Types.jkind_lr -> bool
 (** Checks whether two jkinds have a non-empty intersection. Might mutate
     sort variables. Works over any mix of l- and r-jkinds, because the only
     way not to have an intersection is by looking at the layout: all axes
-    have a bottom element. *)
-val has_intersection :
+    have a bottom element.
+
+    When abstract kinds are involved and we cannot determine whether there is an
+    intersection, this conservatively returns [true]. *)
+val may_have_intersection :
   level:int -> Env.t -> 'd1 Types.jkind -> 'd2 Types.jkind -> bool
+
+type 'd intersection_result =
+  | Intersection of 'd Types.jkind
+  | No_intersection of Violation.t
+  | Unknown
+      (** [Unknown] can happen in the case of computing an intersection with an
+        abstract kind. In cases related to GADT matching, we need to distinguish
+        it from the [No_intersection] result to avoid unsoundly believing match
+        cases are unreachable. *)
+
+val intersection :
+  type_equal:(Types.type_expr -> Types.type_expr -> bool) ->
+  context:jkind_context ->
+  reason:History.interact_reason ->
+  level:int ->
+  Env.t ->
+  ('l1 * allowed) Types.jkind ->
+  ('l2 * allowed) Types.jkind ->
+  ('l1 * allowed) intersection_result
 
 (** Finds the intersection of two jkinds, constraining sort variables to
     create one if needed, or returns a [Violation.t] if an intersection does
@@ -702,7 +724,12 @@ val has_intersection :
     consists of the provided reason followed by the history of the first
     jkind argument.  That is, due to histories, this function is asymmetric;
     it should be thought of as modifying the first jkind to be the
-    intersection of the two, not something that modifies the second jkind. *)
+    intersection of the two, not something that modifies the second jkind.
+
+    Note: When abstract kinds are involved and we cannot determine whether
+    there is an intersection, this returns [Error] since we can't prove the
+    intersection exists. Use [intersection_result] if you need to distinguish
+    this case from definite non-intersection. *)
 val intersection_or_error :
   type_equal:(Types.type_expr -> Types.type_expr -> bool) ->
   context:jkind_context ->
@@ -728,9 +755,9 @@ type sub_or_intersect =
   | Sub  (** The first jkind is a subjkind of the second. *)
   | Disjoint of Sub_failure_reason.t Misc.Nonempty_list.t
       (** The two jkinds have no common ground. *)
-  | Has_intersection of Sub_failure_reason.t Misc.Nonempty_list.t
-      (** The first jkind is not a subjkind of the second, but the two jkinds have an
-          intersection: try harder. *)
+  | May_have_intersection of Sub_failure_reason.t Misc.Nonempty_list.t
+      (** The first jkind is not a subjkind of the second, but the two jkinds
+          may have an intersection: try harder. *)
 
 (** [sub_or_intersect t1 t2] does a subtype check, returning a [sub_or_intersect];
     see comments there for more info. *)

@@ -839,3 +839,74 @@ module type S =
   end
 |}]
 
+(***************************************************)
+(* Test: GADTs, exhaustiveness, and abstract kinds *)
+
+(* Basic GADT with abstract kind - exhaustiveness warning expected.  When a type
+   has an abstract kind, we can't rule out that it might equal another type, so
+   pattern matching must be conservative. *)
+module M1 : sig
+  kind_ k
+  type t_k : k
+  type ('a : any) t = Int : int t | K : t_k t
+  val v : int t
+end = struct
+  kind_ k = value
+  type t_k : k = int
+  type ('a : any) t = Int : int t | K : t_k t
+  let v = K
+end
+
+let f1 (x : int M1.t) = match x with
+  | M1.Int -> "int"
+
+[%%expect{|
+module M1 :
+  sig
+    kind_ k
+    type t_k : k
+    type ('a : any) t = Int : int t | K : t_k t
+    val v : int t
+  end
+Lines 13-14, characters 24-19:
+13 | ........................match x with
+14 |   | M1.Int -> "int"
+Warning 8 [partial-match]: this pattern-matching is not exhaustive.
+Here is an example of a case that is not matched:
+K
+
+val f1 : int M1.t -> string = <fun>
+|}]
+
+(* Exhaustive match with all constructors - no warning *)
+let f2 (x : int M1.t) = match x with
+  | M1.Int -> "int"
+  | M1.K -> "k"
+
+[%%expect{|
+val f2 : int M1.t -> string = <fun>
+|}]
+
+(* When the kind is known (not abstract), exhaustiveness works normally *)
+module M4 : sig
+  kind_ k = float64
+  type t_k : k
+  type ('a : any) t = Int : int t | K : t_k t
+end = struct
+  kind_ k = float64
+  type t_k : k = float#
+  type ('a : any) t = Int : int t | K : t_k t
+end
+
+let f4 (x : int M4.t) = match x with
+  | M4.Int -> "int"
+
+[%%expect{|
+module M4 :
+  sig
+    kind_ k = float64
+    type t_k : float64
+    type ('a : any) t = Int : int t | K : t_k t
+  end
+val f4 : int M4.t -> string = <fun>
+|}]
