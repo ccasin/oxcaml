@@ -1155,6 +1155,11 @@ end
 include Jkind0.Jkind
 
 module Jkind_desc = struct
+  type 'a intersection_result =
+    | Intersection of 'a
+    | No_intersection
+    | Unknown
+
   let unsafely_set_bounds env t ~from =
     let from = Base_and_axes.fully_expand_aliases env from in
     { t with mod_bounds = from.mod_bounds; with_bounds = from.with_bounds }
@@ -1280,7 +1285,7 @@ module Jkind_desc = struct
       ({ base = base2; mod_bounds = mod_bounds2; with_bounds = with_bounds2 } as
       t2) =
     let has_intersection_with_base base =
-      Some
+      Intersection
         { base;
           mod_bounds = Mod_bounds.meet mod_bounds1 mod_bounds2;
           with_bounds = With_bounds.meet with_bounds1 with_bounds2
@@ -1289,7 +1294,7 @@ module Jkind_desc = struct
     match base1, base2 with
     | Layout l1, Layout l2 -> (
       match Layout.intersection ~level l1 l2 with
-      | None -> None
+      | None -> No_intersection
       | Some l -> has_intersection_with_base (Layout l))
     | Kconstr p1, Kconstr p2 when Path.same p1 p2 ->
       has_intersection_with_base base1
@@ -1297,7 +1302,7 @@ module Jkind_desc = struct
       has_intersection_with_base base
     | Layout _, Kconstr _ | Kconstr _, Layout _ | Kconstr _, Kconstr _ -> (
       match expand_pair env t1 t2 with
-      | None -> None
+      | None -> Unknown
       | Some (t1, t2) -> intersection ~level env t1 t2)
 
   let sub_layout ~level env t1 t2 =
@@ -3012,21 +3017,28 @@ let combine_histories ~type_equal ~context ~level env reason (Pack_jkind k1)
         history2 = k2.history
       }
 
-let has_intersection ~level env t1 t2 =
+let may_have_intersection ~level env t1 t2 =
   (* Need to check only the layouts: all the axes have bottom elements. *)
   match Jkind_desc.expand_to_comparable_bases env t1.jkind t2.jkind with
-  | None -> false
+  | None -> true
   | Some
       ( { base = base1; mod_bounds = _; with_bounds = _ },
         { base = base2; mod_bounds = _; with_bounds = _ } ) ->
     Option.is_some (Base.intersection_expanded ~level base1 base2)
 
-let intersection_or_error ~type_equal ~context ~reason ~level env t1 t2 =
+type 'd intersection_result =
+  | Intersection of 'd jkind
+  | No_intersection of Violation.t
+  | Unknown
+
+let intersection ~type_equal ~context ~reason ~level env t1 t2 =
   match Jkind_desc.intersection ~level env t1.jkind t2.jkind with
-  | None ->
-    Error (Violation.of_ ~context env (Violation.No_intersection (t1, t2)))
-  | Some jkind ->
-    Ok
+  | Jkind_desc.No_intersection ->
+    No_intersection
+      (Violation.of_ ~context env (Violation.No_intersection (t1, t2)))
+  | Jkind_desc.Unknown -> Unknown
+  | Jkind_desc.Intersection jkind ->
+    Intersection
       { jkind;
         annotation = None;
         history =
@@ -3039,6 +3051,16 @@ let intersection_or_error ~type_equal ~context ~reason ~level env t1 t2 =
         quality =
           Not_best (* As required by the fact that this is a [jkind_r] *)
       }
+
+let intersection_or_error ~type_equal ~context ~reason ~level env t1 t2 =
+  match intersection ~type_equal ~context ~reason ~level env t1 t2 with
+  | No_intersection err -> Error err
+  | Intersection jkind -> Ok jkind
+  | Unknown ->
+    (* Can't determine intersection due to abstract kinds. Return error because
+       we can't prove the intersection exists. For code paths that want to be
+       conservative (like GADT pattern matching), use [intersection] directly. *)
+    Error (Violation.of_ ~context env (Violation.No_intersection (t1, t2)))
 
 let round_up (type l r) ~context env (t : (allowed * r) jkind) :
     (l * allowed) jkind =
@@ -3066,20 +3088,20 @@ let sub ~type_equal ~context ~level env sub super =
 type sub_or_intersect =
   | Sub
   | Disjoint of Violation.Sub_failure_reason.t Nonempty_list.t
-  | Has_intersection of Violation.Sub_failure_reason.t Nonempty_list.t
+  | May_have_intersection of Violation.Sub_failure_reason.t Nonempty_list.t
 
 let sub_or_intersect ~type_equal ~context ~level env t1 t2 =
   match sub_with_reason ~type_equal ~context ~level env t1 t2 with
   | Ok () -> Sub
   | Error reason ->
-    if has_intersection ~level env t1 t2
-    then Has_intersection reason
+    if may_have_intersection ~level env t1 t2
+    then May_have_intersection reason
     else Disjoint reason
 
 let sub_or_error ~type_equal ~context ~level env t1 t2 =
   match sub_or_intersect ~type_equal ~context ~level env t1 t2 with
   | Sub -> Ok ()
-  | Disjoint reason | Has_intersection reason ->
+  | Disjoint reason | May_have_intersection reason ->
     Error
       (Violation.of_ ~context env
          (Violation.Not_a_subjkind (t1, t2, Nonempty_list.to_list reason)))
