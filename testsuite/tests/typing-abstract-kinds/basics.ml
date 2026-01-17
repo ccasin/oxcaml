@@ -910,3 +910,74 @@ module M4 :
   end
 val f4 : int M4.t -> string = <fun>
 |}]
+
+(*******************************************************************)
+(* Test: Incompleteness when GADT implies equality of abstract kinds
+
+   When a GADT match implies two types are equal, we might expect to learn their
+   kinds are equal, or really that the kinds of both types are the intersection
+   of the original kinds of both types. We don't have a way to do this now when
+   an abstract kind is involved, so type inference is incomplete in the sense
+   that some things the user might expect to be true under a gadt match
+   aren't.
+
+   Type inference around gadts was already incomplete for a bunch of reasons, so
+   this isn't surprising or concerning - this test just documents the current
+   behavior. *)
+module type S = sig
+  kind_ k
+  type t : k
+end
+
+(* This bit works - we can still learn relevant type equations. *)
+module F (X : S) (Y : S) = struct
+  type ('a : any) repr =
+    | X : X.t repr
+    | Y : Y.t repr
+
+  let use_y (_ : Y.t repr) : unit = ()
+  let use_x (_ : X.t repr) : unit = ()
+
+  let f (x1 : X.t repr) (x2 : X.t repr) (y : Y.t repr) : unit =
+    match x1 with
+    | X -> ()
+    | Y -> (use_y x2; use_x y)
+end
+
+[%%expect{|
+module type S = sig kind_ k type t : k end
+module F :
+  functor (X : S) (Y : S) ->
+    sig
+      type ('a : any) repr = X : X.t repr | Y : Y.t repr
+      val use_y : Y.t repr -> unit
+      val use_x : X.t repr -> unit
+      val f : X.t repr -> X.t repr -> Y.t repr -> unit
+    end
+|}]
+
+(* But we can't directly that [X.t] must have kind [Y.k]. *)
+module F2 (X : S) (Y : S) = struct
+  type ('a : any) repr =
+    | X_val : X.t repr
+    | Y_val : Y.t repr
+
+  let f (x : X.t repr) : unit =
+    match x with
+    | X_val -> ()
+    | Y_val ->
+      let module M = struct
+        type t : Y.k = X.t
+      end in
+      ()
+end
+
+[%%expect{|
+Line 11, characters 8-26:
+11 |         type t : Y.k = X.t
+             ^^^^^^^^^^^^^^^^^^
+Error: The kind of type "X.t" is X.k
+         because of the definition of t at line 3, characters 2-12.
+       But the kind of type "X.t" must be a subkind of Y.k
+         because of the definition of t at line 11, characters 8-26.
+|}]
