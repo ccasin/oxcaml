@@ -432,6 +432,60 @@ end
 module rec M : sig type t end
 |}]
 
+(* You can't hide one in a nested module or functor *)
+module rec M : sig
+  module N : sig
+    kind_ k
+  end
+end = struct
+  module N = struct
+    kind_ k
+  end
+end
+[%%expect{|
+Line 3, characters 4-11:
+3 |     kind_ k
+        ^^^^^^^
+Error: Kind declarations are not yet supported in recursive module signatures
+|}]
+
+module rec M : sig
+  module F (Arg : sig end) : sig
+    kind_ k
+  end
+end = struct
+  module F (Arg : sig end) = struct
+    kind_ k
+  end
+end
+[%%expect{|
+Line 3, characters 4-11:
+3 |     kind_ k
+        ^^^^^^^
+Error: Kind declarations are not yet supported in recursive module signatures
+|}]
+
+(* Kind declarations that come from signatures which are defined before the
+   recursive group are fine, since they can't be use to introduce recursive
+   kinds. *)
+module K : sig
+  kind_ k
+end = struct
+  kind_ k
+end
+
+module rec M : sig
+  module M1 = K
+  module M2 : module type of K
+end = struct
+  module M1 = K
+  module M2 = K
+end
+[%%expect{|
+module K : sig kind_ k end
+module rec M : sig module M1 = K module M2 : sig kind_ k end end
+|}]
+
 (***********************)
 (* Test: Strengthening *)
 
@@ -911,15 +965,14 @@ module M4 :
 val f4 : int M4.t -> string = <fun>
 |}]
 
-(*******************************************************************)
-(* Test: Incompleteness when GADT implies equality of abstract kinds
+(*********************************************************************)
+(* Test: Incompleteness when GADT implies equality of abstract kinds *)
 
-   When a GADT match implies two types are equal, we might expect to learn their
+(* When a GADT match implies two types are equal, we might expect to learn their
    kinds are equal, or really that the kinds of both types are the intersection
    of the original kinds of both types. We don't have a way to do this now when
    an abstract kind is involved, so type inference is incomplete in the sense
-   that some things the user might expect to be true under a gadt match
-   aren't.
+   that some things the user might expect to be true under a gadt match aren't.
 
    Type inference around gadts was already incomplete for a bunch of reasons, so
    this isn't surprising or concerning - this test just documents the current
