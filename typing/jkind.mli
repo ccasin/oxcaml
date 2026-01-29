@@ -63,6 +63,7 @@ module Sub_failure_reason : sig
   type t = Jkind0.Violation.Sub_failure_reason.t =
     | Axis_disagreement of Jkind_axis.Axis.packed
     | Layout_disagreement
+    | With_bounds_on_left
     | Constrain_ran_out_of_fuel
 end
 
@@ -563,7 +564,7 @@ val set_externality_upper_bound :
 
 (** Gets the nullability from a jkind. *)
 val get_nullability :
-  context:jkind_context -> Env.t -> Types.jkind_l -> Jkind_axis.Nullability.t
+  context:jkind_context -> Env.t -> 'd Types.jkind -> Jkind_axis.Nullability.t
 
 (** Computes a jkind that is the same as the input but with an updated maximum
     mode for the nullability axis *)
@@ -807,12 +808,13 @@ val sub_jkind_l :
   (unit, Violation.t) result
 
 (** "round up" a [jkind_l] to a [jkind_r] such that the input is less than the
-    output. *)
+    output. If the base is abstract, it may not be possible to eliminate the with
+    bounds, in which case this returns [None]. *)
 val round_up :
   context:jkind_context ->
   Env.t ->
   (allowed * 'r) Types.jkind ->
-  ('l * allowed) Types.jkind
+  ('l * allowed) Types.jkind option
 
 (** Map a function over types in [upper_bounds] *)
 val map_type_expr :

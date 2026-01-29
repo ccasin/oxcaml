@@ -1834,6 +1834,7 @@ module Jkind0 = struct
       type t =
         | Axis_disagreement of Jkind_axis.Axis.packed
         | Layout_disagreement
+        | With_bounds_on_left
         | Constrain_ran_out_of_fuel
     end
 

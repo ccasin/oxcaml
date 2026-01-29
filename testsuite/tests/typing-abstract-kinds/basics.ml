@@ -632,6 +632,31 @@ type t2 : k1
 type q = t2 t1'
 |}]
 
+
+(***************************)
+(* Test: Nondep error case *)
+
+(* We can't always round up jkinds with abstract bases, so we may need to error
+   because of a type that can't be erased in the with bounds. *)
+module F(X : sig type t end) = struct
+  kind_ k
+  type t : k with X.t
+end
+
+module M = F(struct type t end)
+    [%%expect{|
+module F :
+  functor (X : sig type t end) -> sig kind_ k type t : k with X.t end
+Line 6, characters 11-31:
+6 | module M = F(struct type t end)
+               ^^^^^^^^^^^^^^^^^^^^
+Error: This functor has type
+       "functor (X : sig type t end) -> sig kind_ k type t : k with X.t end"
+       The parameter cannot be eliminated in the result type.
+       Please bind the argument to a module identifier.
+|}]
+
+
 (*****************************************************)
 (* Test: Kinds in generative vs applicative functors *)
 
@@ -1033,4 +1058,77 @@ Error: The kind of type "X.t" is X.k
          because of the definition of t at line 3, characters 2-12.
        But the kind of type "X.t" must be a subkind of Y.k
          because of the definition of t at line 11, characters 8-26.
+|}]
+
+(***********************************)
+(* Test: With kinds and subkinding *)
+
+kind_ k1
+kind_ k2
+type t1 : k1
+type t2 : k2
+type ('a : k1) require_k1
+[%%expect{|
+kind_ k1
+kind_ k2
+type t1 : k1
+type t2 : k2
+type ('a : k1) require_k1
+|}]
+
+(* This could be allowed because [t1]'s kind is [k1] so the with bound doesn't
+   actually affect anything, but currently we're conservative. *)
+type a : k1 with t1
+type b = a require_k1
+[%%expect{|
+type a : k1 with t1
+Line 2, characters 9-10:
+2 | type b = a require_k1
+             ^
+Error: This type "a" should be an instance of type "('a : k1)"
+       The kind of a is k1 with t1
+         because of the definition of a at line 1, characters 0-19.
+       But the kind of a must be a subkind of k1
+         because of the definition of require_k1 at line 5, characters 0-25.
+|}]
+
+(* This one should always be rejected. *)
+type a : k1 with t2
+type b = a require_k1
+
+[%%expect{|
+type a : k1 with t2
+Line 2, characters 9-10:
+2 | type b = a require_k1
+             ^
+Error: This type "a" should be an instance of type "('a : k1)"
+       The kind of a is k1 with t2
+         because of the definition of a at line 1, characters 0-19.
+       But the kind of a must be a subkind of k1
+         because of the definition of require_k1 at line 5, characters 0-25.
+|}]
+
+(* should be rejected *)
+type a : k2 with t1 with t2
+type b = a require_k1
+[%%expect{|
+type a : k2 with t1 with t2
+Line 2, characters 9-10:
+2 | type b = a require_k1
+             ^
+Error: This type "a" should be an instance of type "('a : k1)"
+       The kind of a is k2 with t1 with t2
+         because of the definition of a at line 1, characters 0-27.
+       But the kind of a must be a subkind of k1
+         because of the definition of require_k1 at line 5, characters 0-25.
+|}]
+
+(* should be accepted *)
+module M : sig
+  type a : immutable_data with t1 with t2
+end = struct
+  type a : immutable_data with t1 with t2
+end
+[%%expect{|
+module M : sig type a : immutable_data with t1 with t2 end
 |}]
