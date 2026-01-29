@@ -649,9 +649,9 @@ module Base_and_axes = struct
     in
     expand base mod_bounds
 
-  type 'r normalize_mode =
-    | Require_best : disallowed normalize_mode
-    | Ignore_best : 'r normalize_mode
+  type normalize_mode =
+    | Require_best : normalize_mode
+    | Ignore_best : normalize_mode
 
   module Fuel_status = struct
     type t =
@@ -659,31 +659,32 @@ module Base_and_axes = struct
       | Sufficient_fuel
   end
 
-  (* Normalize the jkind. If mode is [Require_best], only jkinds that have quality [Best]
-     will be used. If mode is [Ignore_best], then jkinds that have quality [Not_best] will
-     also be used. Since [Ignore_best] can use [Not_best] jkinds, the result is guaranteed
-     to have no with-bounds.
+  (* Normalize the jkind. If mode is [Require_best], only jkinds that have
+     quality [Best] will be used. If mode is [Ignore_best], then jkinds that
+     have quality [Not_best] will also be used. However, even in [Ignore_best]
+     mode it may not be possible to eliminate all with-bounds: when the base is
+     abstract, we may need to keep them in case the base is later filled in with
+     a kind that crosses.
 
      At each step during normalization, before expanding a type, [map_type_info]
      is used to map the type-info for the type being expanded. The type can be
      prevented from being expanded by mapping the relevant axes to an empty
      set. [map_type_info] is used by sub_jkind_l to remove irrelevant axes.
 
-     The [skip_axes] argument says which axes we can skip normalizing along. The behavior
-     of this function for these axes is undefined; do *not* look at the results for these
-     axes.
-  *)
+     The [skip_axes] argument says which axes we can skip normalizing along. The
+     behavior of this function for these axes is undefined; do *not* look at the
+     results for these axes. *)
   let normalize :
-      type l r1 r2.
+      type l r1.
       context:_ ->
-      mode:r2 normalize_mode ->
+      mode:normalize_mode ->
       skip_axes:_ ->
       previously_ran_out_of_fuel:bool ->
       ?map_type_info:
         (type_expr -> With_bounds_type_info.t -> With_bounds_type_info.t) ->
       Env.t ->
       (_, l * r1) base_and_axes ->
-      (_, l * r2) base_and_axes * Fuel_status.t =
+      (_, l * r1) base_and_axes * Fuel_status.t =
    fun ~context ~mode ~skip_axes ~previously_ran_out_of_fuel ?map_type_info env
        t ->
     (* DEBUGGING
@@ -692,6 +693,12 @@ module Base_and_axes = struct
          relevant_axes;
     *)
     let t = fully_expand_aliases env t in
+    let t_has_abstract_base =
+      (* If the kind's base is abstract, optimization that skip axes where the
+         mod_bounds are already max don't apply, because the base may later be
+         filled in with something that does cross some axes. *)
+      match t.base with Layout _ -> false | Kconstr _ -> true
+    in
     (* handle a few common cases first, before doing anything else *)
     match t with
     | { with_bounds = No_with_bounds; _ } as t -> t, Sufficient_fuel
@@ -700,8 +707,9 @@ module Base_and_axes = struct
            || With_bounds_types.is_empty tys ->
       { t with with_bounds = No_with_bounds }, Sufficient_fuel
     | _
-      when Mod_bounds.is_max_within_set t.mod_bounds
-             (Axis_set.complement skip_axes) ->
+      when (not t_has_abstract_base)
+           && Mod_bounds.is_max_within_set t.mod_bounds
+                (Axis_set.complement skip_axes) ->
       { t with with_bounds = No_with_bounds }, Sufficient_fuel
     | _ ->
       (* Sadly, it seems hard (impossible?) to be sure to expand all types
@@ -948,10 +956,13 @@ module Base_and_axes = struct
       end in
       let rec loop (ctl : Loop_control.t) bounds_so_far relevant_axes :
           (type_expr * With_bounds_type_info.t) list ->
-          Mod_bounds.t * (l * r2) with_bounds * Loop_control.t = function
+          Mod_bounds.t * (l * disallowed) with_bounds * Loop_control.t =
+        function
         (* early cutoff *)
         | [] -> bounds_so_far, No_with_bounds, ctl
-        | _ when Mod_bounds.is_max_within_set bounds_so_far relevant_axes ->
+        | _
+          when (not t_has_abstract_base)
+               && Mod_bounds.is_max_within_set bounds_so_far relevant_axes ->
           (* CR layouts v2.8: we can do better by early-terminating on a per-axis
              basis *)
           ( bounds_so_far,
@@ -970,10 +981,14 @@ module Base_and_axes = struct
 
              We also don't care about axes that aren't in [relevant_axes]. *)
           let relevant_axes_for_ty =
-            Axis_set.intersection
-              (Axis_set.diff ti.relevant_axes
-                 (Mod_bounds.get_max_axes bounds_so_far))
-              relevant_axes
+            let from_ti =
+              if t_has_abstract_base
+              then ti.relevant_axes
+              else
+                Axis_set.diff ti.relevant_axes
+                  (Mod_bounds.get_max_axes bounds_so_far)
+            in
+            Axis_set.intersection from_ti relevant_axes
           in
           match Axis_set.is_empty relevant_axes_for_ty with
           | true ->
@@ -1020,12 +1035,12 @@ module Base_and_axes = struct
             in
             let found_jkind_for_ty ctl b_upper_bounds b_with_bounds quality
                 skippable_axes :
-                Mod_bounds.t * (l * r2) with_bounds * Loop_control.t =
+                Mod_bounds.t * (l * disallowed) with_bounds * Loop_control.t =
               let relevant_axes_for_ty =
                 Axis_set.diff relevant_axes_for_ty skippable_axes
               in
-              match quality, mode with
-              | Best, _ | Not_best, Ignore_best -> (
+              match quality, mode, t_has_abstract_base with
+              | Best, _, _ | Not_best, Ignore_best, false -> (
                 (* The relevant axes are the intersection of the relevant axes within our
                    branch of the with-bounds tree, and the relevant axes on this
                    particular with-bound *)
@@ -1056,11 +1071,11 @@ module Base_and_axes = struct
                 | Ran_out_of_fuel, Require_best ->
                   (* See Note [Ran out of fuel when requiring best]. *)
                   Mod_bounds.max, No_with_bounds, ctl)
-              | Not_best, Require_best ->
+              | Not_best, Require_best, _ | Not_best, Ignore_best, true ->
                 (* CR layouts v2.8: The type annotation on the next line is
                    necessary only because [loop] is
                    local. Bizarre. Investigate. *)
-                let bounds_so_far, (bs' : (l * r2) With_bounds.t), ctl =
+                let bounds_so_far, (bs' : (l * disallowed) With_bounds.t), ctl =
                   loop ctl bounds_so_far relevant_axes bs
                 in
                 ( bounds_so_far,
@@ -1101,11 +1116,15 @@ module Base_and_axes = struct
       in
       let mod_bounds = Mod_bounds.set_max_in_set t.mod_bounds skip_axes in
       let mod_bounds, with_bounds, ctl =
-        loop Loop_control.starting mod_bounds
-          (Axis_set.complement skip_axes)
-          (With_bounds.to_list t.with_bounds)
+        match t.with_bounds with
+        | No_with_bounds -> mod_bounds, No_with_bounds, Loop_control.starting
+        | With_bounds _ ->
+          (loop Loop_control.starting mod_bounds
+             (Axis_set.complement skip_axes)
+             (With_bounds.to_list t.with_bounds)
+            : _ * (_ * r1) with_bounds * _)
       in
-      let normalized_t : (_, l * r2) base_and_axes =
+      let normalized_t : (_, l * r1) base_and_axes =
         match mode, ctl.fuel_status with
         | Require_best, Sufficient_fuel | Ignore_best, _ ->
           { t with mod_bounds; with_bounds }
@@ -1145,7 +1164,7 @@ module Base_and_axes = struct
              mod- and with-bounds, because down here we detect the case and
              simply return [t].
           *)
-          t |> disallow_right
+          t
       in
       normalized_t, ctl.fuel_status
 end
@@ -1236,17 +1255,29 @@ module Jkind_desc = struct
       | None -> false
       | Some (t1, t2) -> equate_or_equal ~allow_mutation env t1 t2)
 
-  let sub_expanded (type l) ~level
-      ({ base = base1; mod_bounds = bounds1; with_bounds = No_with_bounds } :
-        (allowed * allowed) jkind_desc)
+  let sub_expanded (type l r) ~level
+      ({ base = base1; mod_bounds = bounds1; with_bounds = with_bounds1 } :
+        (allowed * r) jkind_desc)
       ({ base = base2; mod_bounds = bounds2; with_bounds = No_with_bounds } :
         (l * allowed) jkind_desc) =
     (* Rather than carefully expanding only as much as needed, this assumes both
-       kinds are fully expanded. See comment about [axes_max_on_right] in [sub]
-       just below for why we do it this way. *)
-    let base = Base.sub_expanded ~level base1 base2 in
-    let bounds = Mod_bounds.less_or_equal bounds1 bounds2 in
-    Sub_result.combine base bounds
+       kinds are fully expanded, and that [sub] is Ignore_best normalized. See
+       comment about [axes_max_on_right] in [sub] just below for why we do it
+       this way. *)
+    let bases = Base.sub_expanded ~level base1 base2 in
+    match with_bounds1 with
+    | No_with_bounds ->
+      let bounds = Mod_bounds.less_or_equal bounds1 bounds2 in
+      Sub_result.combine bases bounds
+    | With_bounds _ -> (
+      (* Ignore_best normalization guarantees this only happens when the sub's
+         base is abstract after expansion. We punt: only succeeding if the rhs
+         is fully max. It's possible to do a bit better, with help from
+         normalize. For example, we could allow [k mod contended with int < any
+         mod contended]. *)
+      match base2 with
+      | Layout Any when Mod_bounds.is_max bounds2 -> Sub_result.Less
+      | _ -> Sub_result.combine bases (Sub_result.Not_le [With_bounds_on_left]))
 
   let sub (type l r) ~type_equal:_ ~context ~level env
       ~sub_previously_ran_out_of_fuel (sub : (allowed * r) jkind_desc)
@@ -1261,18 +1292,19 @@ module Jkind_desc = struct
 
          Possibly the normalization of [sub] should somehow be interleaved with
          the expansion of [super] to avoid needing this, but we leave that
-         question for the in-progress rework of normalization.
-      *)
+         question for the in-progress rework of normalization. *)
       Base_and_axes.fully_expand_aliases env super
     in
     let axes_max_on_right =
-      (* Optimization: if the upper_bound is max on the right, then that axis
-         is irrelevant - the left will always satisfy the right along that
-         axis. *)
-      Mod_bounds.get_max_axes super.mod_bounds
+      (* Optimization: if the upper_bound is max on the right, then that axis is
+         irrelevant - the left will always satisfy the right along that
+         axis. But we can only do this optimization for a concrete base, as an
+         abstract base may later be filled in with lower bounds. *)
+      match super.base with
+      | Layout _ -> Mod_bounds.get_max_axes super.mod_bounds
+      | Kconstr _ -> Axis_set.empty
     in
     let sub, _ =
-      (* Base_and_axes.normalize ~skip_axes:Axis_set.empty ~mode:Ignore_best *)
       Base_and_axes.normalize ~skip_axes:axes_max_on_right
         ~previously_ran_out_of_fuel:sub_previously_ran_out_of_fuel
         ~mode:Ignore_best ~context env sub
@@ -2005,7 +2037,7 @@ type normalize_mode =
   | Ignore_best
 
 let[@inline] normalize ~mode ~context env t =
-  let mode : _ Base_and_axes.normalize_mode =
+  let mode : Base_and_axes.normalize_mode =
     match mode with Require_best -> Require_best | Ignore_best -> Ignore_best
   in
   let jkind, fuel_result =
@@ -2067,18 +2099,28 @@ let sort_of_jkind env (t : jkind_l) : sort =
   in
   sort_of_layout layout
 
-let get_mode_crossing (type l r) ~context env (jk : (l * r) jkind) =
-  (* It is sad that we must eagerly fully expand the kind here, which might
-     involve loading a bunch of cmis. But our eager approach to mode crossing
-     demands it. *)
-  let jkind = Base_and_axes.fully_expand_aliases env jk.jkind in
-  let ( ({ base = _; mod_bounds; with_bounds = No_with_bounds } :
-          (_ * allowed) jkind_desc),
-        _ ) =
-    Base_and_axes.normalize ~mode:Ignore_best
-      ~skip_axes:Axis_set.all_nonmodal_axes
+let get_mod_bounds (type l r) ~context ~skip_axes env (jk : (l * r) jkind) =
+  let jk, _ =
+    Base_and_axes.normalize ~mode:Ignore_best ~skip_axes
       ~previously_ran_out_of_fuel:jk.ran_out_of_fuel_during_normalize ~context
-      env jkind
+      env jk.jkind
+  in
+  match jk with
+  | { base = Kconstr _; with_bounds = With_bounds _; _ } ->
+    (* We could do something more precise here, only setting axes that have
+       with_bounds to max. But as such kinds already aren't representable, and
+       this function is mainly used for mode crossing or optimizations, we don't
+       expect this to come up much. *)
+    Mod_bounds.max
+  | { base = Kconstr _ | Layout _; with_bounds = No_with_bounds; mod_bounds } ->
+    mod_bounds
+  | { base = Layout _; with_bounds = With_bounds _; _ } ->
+    Misc.fatal_error
+      "Jkind.get_mod_crossing: violated Ignore_best normalize invariant."
+
+let get_mode_crossing (type l r) ~context env (jk : (l * r) jkind) =
+  let mod_bounds =
+    get_mod_bounds ~context ~skip_axes:Axis_set.all_nonmodal_axes env jk
   in
   Mod_bounds.crossing mod_bounds
 
@@ -2091,12 +2133,8 @@ let all_except_externality =
   Axis_set.singleton (Nonmodal Externality) |> Axis_set.complement
 
 let get_externality_upper_bound ~context env jk =
-  let ( ({ base = _; mod_bounds; with_bounds = No_with_bounds } :
-          (_ * allowed) jkind_desc),
-        _ ) =
-    Base_and_axes.normalize ~mode:Ignore_best ~skip_axes:all_except_externality
-      ~previously_ran_out_of_fuel:jk.ran_out_of_fuel_during_normalize ~context
-      env jk.jkind
+  let mod_bounds =
+    get_mod_bounds ~context ~skip_axes:all_except_externality env jk
   in
   Mod_bounds.get mod_bounds ~axis:(Nonmodal Externality)
 
@@ -2125,13 +2163,9 @@ let get_nullability ~context env jk =
   if all_with_bounds_are_irrelevant
   then Mod_bounds.nullability jkind.mod_bounds
   else
-    let ( ({ base = _; mod_bounds; with_bounds = No_with_bounds } :
-            (_ * allowed) jkind_desc),
-          _ ) =
-      Base_and_axes.normalize ~mode:Ignore_best ~context
-        ~skip_axes:all_except_nullability
-        ~previously_ran_out_of_fuel:jk.ran_out_of_fuel_during_normalize env
-        jk.jkind
+    let mod_bounds =
+      get_mod_bounds ~context ~skip_axes:all_except_nullability env
+        { jk with jkind }
     in
     Mod_bounds.get mod_bounds ~axis:(Nonmodal Nullability)
 
@@ -2711,7 +2745,9 @@ module Violation = struct
               Some (Axis_set.add disagreeing_axes_so_far axis)
             | Axis_disagreement (Pack axis), None ->
               Some (Axis_set.singleton axis)
-            | (Layout_disagreement | Constrain_ran_out_of_fuel), _ ->
+            | ( ( Layout_disagreement | Constrain_ran_out_of_fuel
+                | With_bounds_on_left ),
+                _ ) ->
               disagreeing_axes_so_far)
           None reasons
       in
@@ -3063,14 +3099,19 @@ let intersection_or_error ~type_equal ~context ~reason ~level env t1 t2 =
     Error (Violation.of_ ~context env (Violation.No_intersection (t1, t2)))
 
 let round_up (type l r) ~context env (t : (allowed * r) jkind) :
-    (l * allowed) jkind =
+    (l * allowed) jkind option =
   let normalized =
     normalize ~mode:Ignore_best ~context env (t |> disallow_right)
   in
-  { t with
-    jkind = { normalized.jkind with with_bounds = No_with_bounds };
-    quality = Not_best (* As required by the fact that this is a [jkind_r] *)
-  }
+  match normalized.jkind.with_bounds with
+  | No_with_bounds ->
+    Some
+      { t with
+        jkind = { normalized.jkind with with_bounds = No_with_bounds };
+        quality =
+          Not_best (* As required by the fact that this is a [jkind_r] *)
+      }
+  | With_bounds _ -> None
 
 (* this is hammered on; it must be fast! *)
 let check_sub ~context env sub super =
@@ -3142,7 +3183,7 @@ let sub_jkind_l ~type_equal ~context ~level ?(allow_any_crossing = false) env
   in
   match allow_any_crossing with
   | true -> Ok ()
-  | false ->
+  | false -> (
     let best_super, _ =
       (* MB_EXPAND_R *)
       Base_and_axes.normalize ~context ~skip_axes:Axis_set.empty
@@ -3156,12 +3197,7 @@ let sub_jkind_l ~type_equal ~context ~level ?(allow_any_crossing = false) env
       Mod_bounds.get_max_axes best_super.mod_bounds
     in
     let right_bounds_seq = right_bounds |> With_bounds_types.to_seq in
-    let ( ({ base = _;
-             mod_bounds = sub_upper_bounds;
-             with_bounds = No_with_bounds
-           } :
-            (_ * allowed) jkind_desc),
-          _ ) =
+    let sub, _ =
       (* MB_EXPAND_L *)
       (* Here we progressively expand types on the left.
 
@@ -3202,13 +3238,22 @@ let sub_jkind_l ~type_equal ~context ~level ?(allow_any_crossing = false) env
           { relevant_axes = Axis_set.diff left_relevant_axes right_relevant_axes
           })
     in
-    let* () =
-      (* MB_MODE : verify that the remaining upper_bounds from sub are <=
-         super's bounds *)
-      let super_lower_bounds = best_super.mod_bounds in
-      require_le (Mod_bounds.less_or_equal sub_upper_bounds super_lower_bounds)
-    in
-    Ok ()
+    match sub with
+    | { base = _; mod_bounds = sub_upper_bounds; with_bounds = No_with_bounds }
+      ->
+      let* () =
+        (* MB_MODE : verify that the remaining upper_bounds from sub are <=
+           super's bounds *)
+        let super_lower_bounds = best_super.mod_bounds in
+        require_le
+          (Mod_bounds.less_or_equal sub_upper_bounds super_lower_bounds)
+      in
+      Ok ()
+    | { base = Kconstr _; with_bounds = With_bounds _; _ } ->
+      require_le (Not_le [With_bounds_on_left])
+    | { base = Layout _; with_bounds = With_bounds _; _ } ->
+      Misc.fatal_error
+        "Jkind.sub_jkind_l: Ignore_best normalize invariant violation.")
 
 let is_obviously_max (t : (_ * allowed) jkind) =
   match t with

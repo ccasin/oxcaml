@@ -2820,9 +2820,9 @@ let constrain_type_jkind_exn env texn ty jkind =
    in some cases where its not (this will happen when pattern matching on a
    "false" GADT pattern), but not to say the intersection is empty if it isn't.
 *)
-let rec intersect_type_jkind ~reason env ty1 jkind2 =
+let rec intersect_type_jkind ~reason ~level env ty1 jkind2 =
   match get_desc ty1 with
-  | Tpoly (ty, _) -> intersect_type_jkind ~reason env ty jkind2
+  | Tpoly (ty, _) -> intersect_type_jkind ~reason ~level env ty jkind2
   | _ ->
     (* [intersect_type_jkind] is called rarely, so we don't bother with trying
        to avoid this call as in [constrain_type_jkind] *)
@@ -2836,7 +2836,10 @@ let rec intersect_type_jkind ~reason env ty1 jkind2 =
        one. See the comment above this function arguing why this is OK here. *)
     (* CR layouts v2.8: Think about doing better, but it's probably not worth
        it. Internal ticket 5112. *)
-    Jkind.intersection ~type_equal ~context ~reason env jkind1 jkind2
+    match jkind1, jkind2 with
+    | Some jkind1, Some jkind2 ->
+      Jkind.intersection ~type_equal ~context ~reason ~level env jkind1 jkind2
+    | _, _ -> Jkind.Unknown
 
 (* See comment on [jkind_unification_mode] *)
 let unification_jkind_check uenv ty jkind =
@@ -7365,10 +7368,11 @@ let rec nondep_type_decl env mid is_covariant decl =
       try Jkind.map_type_expr (nondep_type_rec env mid) jkind
       (* CR layouts v2.8: This should be done with a proper nondep_jkind.
          Internal ticket 5113. *)
-      with Nondep_cannot_erase _ when is_covariant ->
+      with Nondep_cannot_erase _ as err when is_covariant ->
         let context = mk_jkind_context_check_principal env in
-        Jkind.round_up ~context env jkind |>
-        Jkind.disallow_right
+        match Jkind.round_up ~context env jkind with
+        | None -> raise err
+        | Some jkind -> jkind |> Jkind.disallow_right
     in
     clear_hash ();
     let priv =
