@@ -4149,7 +4149,7 @@ let type_implementation target modulename initial_env ast =
       Env.reset_required_globals ();
       Env.reset_probes ();
       if !Clflags.print_types then (* #7656 *)
-        ignore @@ Warnings.parse_options false "-32-34-37-38-60";
+        ignore @@ Warnings.parse_options false "-32-34-37-38-60-191";
       if !Clflags.as_parameter then
         error Cannot_compile_implementation_as_parameter;
       let expected_mode = Env.mode_unit |> Value.disallow_left in
