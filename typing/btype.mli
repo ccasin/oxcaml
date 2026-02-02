@@ -635,7 +635,7 @@ module Jkind0 : sig
     val mark_best : ('l * 'r) jkind -> ('l * disallowed) jkind
 
     val map_type_expr :
-      (type_expr -> type_expr) -> (allowed * 'r) jkind -> (allowed * 'r) jkind
+      (type_expr -> type_expr) -> ('l * 'r) jkind -> ('l * 'r) jkind
 
     val has_with_bounds : jkind_l -> bool
 

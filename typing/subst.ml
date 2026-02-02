@@ -471,8 +471,19 @@ let rec typexp copy_scope s ty =
   in
   let desc = get_desc ty in
   match desc with
-    Tvar _ | Tunivar _ ->
-      if should_duplicate_vars || get_id ty < 0 then
+    Tvar { jkind = jk } | Tunivar { jkind = jk } ->
+      let desc, jkind_changed =
+        let jk' = jkind copy_scope s jk in
+        if jk == jk' then desc, false else
+          let desc =
+            match desc with
+            | Tvar tv -> Tvar { tv with jkind = jk' }
+            | Tunivar tv -> Tunivar { tv with jkind = jk' }
+            | _ -> assert false
+          in
+          desc, true
+      in
+      if should_duplicate_vars || get_id ty < 0 || jkind_changed then
         let ty' =
           match s.additional_action with
           | Duplicate_variables -> newpersty desc
@@ -596,6 +607,24 @@ let rec typexp copy_scope s ty =
     Transient_expr.set_stub_desc ty' desc;
     ty'
 
+and jkind : 'l 'r. _ -> _ -> ('l * 'r) jkind -> ('l * 'r) jkind =
+  fun copy_scope s jkind ->
+  let jkind =
+    match jkind.jkind.base with
+    | Kconstr p ->
+      let p' = jkind_path s p in
+      if Path.compare p p' = 0 then
+        jkind
+      else
+        { jkind with jkind = { jkind.jkind with base = Kconstr p'} }
+    | Layout _ -> jkind
+  in
+  let jkind = Jkind.map_type_expr (typexp copy_scope s) jkind in
+  match s.additional_action with
+  | Prepare_for_saving { prepare_jkind; _ } ->
+    prepare_jkind !location_for_jkind_check_errors jkind
+  | Duplicate_variables | No_action -> jkind
+
 (* [loc] is different than [s.loc]:
      - [s.loc] is a way for the external client of the module to indicate the
        location of the copy.
@@ -605,6 +634,10 @@ let rec typexp copy_scope s ty =
 let typexp copy_scope s loc ty =
   location_for_jkind_check_errors := loc;
   typexp copy_scope s ty
+
+let jkind copy_scope s loc jk =
+  location_for_jkind_check_errors := loc;
+  jkind copy_scope s jk
 
 (*
    Always make a copy of the type. If this is not done, type levels
@@ -656,19 +689,6 @@ let unsafe_mode_crossing copy_scope s loc
     unsafe_with_bounds =
       Jkind.With_bounds.map_type_expr (typexp copy_scope s loc)
         unsafe_with_bounds }
-
-let jkind copy_scope s loc jkind =
-  let jkind =
-    match jkind.jkind.base with
-    | Kconstr p ->
-      let base = Kconstr (jkind_path s p) in
-      { jkind with jkind = { jkind.jkind with base } }
-    | Layout _ -> jkind
-  in
-  let jkind = Jkind.map_type_expr (typexp copy_scope s loc) jkind in
-  match s.additional_action with
-  | Prepare_for_saving { prepare_jkind; _ } -> prepare_jkind loc jkind
-  | Duplicate_variables | No_action -> jkind
 
 let jkind_const s
       ({ with_bounds = No_with_bounds } as jkind : jkind_const_desc_lr) =
