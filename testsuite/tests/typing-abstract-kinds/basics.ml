@@ -486,6 +486,50 @@ module K : sig kind_ k end
 module rec M : sig module M1 = K module M2 : sig kind_ k end end
 |}]
 
+module M : sig
+  kind_ k = value
+end = struct
+  kind_ k
+end
+[%%expect{|
+Lines 3-5, characters 6-3:
+3 | ......struct
+4 |   kind_ k
+5 | end
+Error: Signature mismatch:
+       Modules do not match:
+         sig kind_ k end
+       is not included in
+         sig kind_ k = value end
+       Kind declarations do not match:
+         kind_ k
+       is not included in
+         kind_ k = value
+       The the first is abstract, but the second is not.
+|}]
+
+module M : sig
+  kind_ k = any
+end = struct
+  kind_ k
+end
+[%%expect{|
+Lines 3-5, characters 6-3:
+3 | ......struct
+4 |   kind_ k
+5 | end
+Error: Signature mismatch:
+       Modules do not match:
+         sig kind_ k end
+       is not included in
+         sig kind_ k = any end
+       Kind declarations do not match:
+         kind_ k
+       is not included in
+         kind_ k = any
+       The the first is abstract, but the second is not.
+|}]
+
 (***********************)
 (* Test: Strengthening *)
 
@@ -1131,4 +1175,35 @@ end = struct
 end
 [%%expect{|
 module M : sig type a : immutable_data with t1 with t2 end
+|}]
+
+(***************************************)
+(* Test: Lack of short paths for kinds *)
+
+(* built-in jkinds get printed as their nice names *)
+type t : mutable_data mod contended
+[%%expect{|
+type t : sync_data
+|}]
+
+(* But there's no similar facility for user-defined names *)
+kind_ my_kind = value mod portable
+type t : value mod portable
+[%%expect{|
+kind_ my_kind = value mod portable
+type t : value mod portable
+|}]
+
+(*********************************************************)
+(* Test: You can't omit a kind in a functor application. *)
+module F(X : sig kind_ k end) = struct end [@@warning "-191"]
+
+module M = F(struct end)
+[%%expect{|
+module F : functor (X : sig kind_ k end) -> sig end
+Line 3, characters 11-24:
+3 | module M = F(struct end)
+               ^^^^^^^^^^^^^
+Error: Modules do not match: sig end is not included in sig kind_ k end
+     The kind "k" is required but not provided
 |}]

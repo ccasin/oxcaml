@@ -405,7 +405,7 @@ module Jkind0 : sig
     val map_layout :
       ('a -> 'b) -> ('a, 'd) base_and_axes -> ('b, 'd) base_and_axes
 
-    val map_option_layout :
+    val map_layout_option :
       ('a -> 'b option) -> ('a, 'd) base_and_axes ->
       ('b, 'd) base_and_axes option
 

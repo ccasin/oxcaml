@@ -820,9 +820,8 @@ let core env id x =
         "is not included in"
         !Oprint.out_sig_item
         (Printtyp.tree_of_jkind_declaration id diff.expected)
-        (Includecore.report_jkind_mismatch
-           "the first" "the second" env) diff.symptom
-        show_locs (diff.got.jkind_loc, diff.expected.jkind_loc)
+        (Includecore.report_jkind_mismatch "the first" "the second")
+        diff.symptom show_locs (diff.got.jkind_loc, diff.expected.jkind_loc)
         Printtyp.Conflicts.print_explanations
 
 let missing_field ppf item =

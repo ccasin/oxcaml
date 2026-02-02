@@ -365,7 +365,7 @@ let kind_of_field_desc fd = match fd.kind with
   | Field_modtype -> "module type"
   | Field_class -> "class"
   | Field_classtype -> "class type"
-  | Field_jkind -> "jkind"
+  | Field_jkind -> "kind"
 
 let field_desc kind id = { kind; name = Ident.name id }
 

@@ -659,20 +659,19 @@ let unsafe_mode_crossing copy_scope s loc
 
 let jkind copy_scope s loc jkind =
   let jkind =
-    match s.additional_action with
-    | Prepare_for_saving { prepare_jkind; _ } -> prepare_jkind loc jkind
-    | Duplicate_variables | No_action -> jkind
-  in
-  let jkind =
     match jkind.jkind.base with
     | Kconstr p ->
       let base = Kconstr (jkind_path s p) in
       { jkind with jkind = { jkind.jkind with base } }
     | Layout _ -> jkind
   in
-  Jkind.map_type_expr (typexp copy_scope s loc) jkind
+  let jkind = Jkind.map_type_expr (typexp copy_scope s loc) jkind in
+  match s.additional_action with
+  | Prepare_for_saving { prepare_jkind; _ } -> prepare_jkind loc jkind
+  | Duplicate_variables | No_action -> jkind
 
-let jkind_const s (jkind : jkind_const_desc_lr) =
+let jkind_const s
+      ({ with_bounds = No_with_bounds } as jkind : jkind_const_desc_lr) =
   let jkind =
     match jkind.base with
     | Kconstr p ->
@@ -680,7 +679,6 @@ let jkind_const s (jkind : jkind_const_desc_lr) =
       { jkind with base }
     | Layout _ -> jkind
   in
-  (* This is an lr jkind, so there are no type expressions to map over *)
   jkind
 
 let jkind_declaration s decl =

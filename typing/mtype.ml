@@ -138,17 +138,18 @@ and strengthen_lazy_sig' ~aliasable sg p =
       sigelt :: strengthen_lazy_sig' ~aliasable rem p
   | (Sig_class_type _ as sigelt) :: rem ->
       sigelt :: strengthen_lazy_sig' ~aliasable rem p
-  | Sig_jkind(id, decl, vis) :: rem ->
-      let decl =
+  | Sig_jkind(id, decl, vis) as sigelt :: rem ->
+      let sigelt =
         match decl.jkind_manifest with
-        | Some _ -> decl
+        | Some _ -> sigelt
         | None ->
           let manif =
-            Some (Jkind.Const.kconstr (Pdot(p, Ident.name id)))
+            Some (Jkind.Const.of_path (Pdot(p, Ident.name id)))
           in
-          { decl with jkind_manifest = manif }
+          let newdecl = { decl with jkind_manifest = manif } in
+          Sig_jkind (id, newdecl, vis)
       in
-      Sig_jkind(id, decl, vis) :: strengthen_lazy_sig' ~aliasable rem p
+      sigelt :: strengthen_lazy_sig' ~aliasable rem p
 
 and strengthen_lazy_sig ~aliasable sg p =
   let sg = Subst.Lazy.force_signature_once sg in
@@ -368,7 +369,7 @@ let rec sig_make_manifest sg =
       match decl.jkind_manifest with
       | Some _ -> sigelt
       | None ->
-        let manifest = Jkind.Const.kconstr (Pident id) in
+        let manifest = Jkind.Const.of_path (Pident id) in
         let newdecl = { decl with jkind_manifest = Some manifest } in
         Sig_jkind (Ident.rename id, newdecl, vis)
     in

@@ -239,12 +239,14 @@ let extension_constructor sub ec =
       Option.iter (sub.typ sub) cto
   | Text_rebind (_, lid) -> iter_loc sub lid
 
-let jkind_declaration sub (x : Typedtree.jkind_declaration) =
+let[@warning "+9"] jkind_declaration sub
+      ({jkind_id=_; jkind_name; jkind_jkind=_; jkind_annotation;
+        jkind_attributes; jkind_loc} as x) =
   sub.item_declaration sub (Jkind x);
-  sub.location sub x.jkind_loc;
-  sub.attributes sub x.jkind_attributes;
-  iter_loc sub x.jkind_name;
-  Option.iter (sub.jkind_annotation sub) x.jkind_annotation
+  sub.location sub jkind_loc;
+  sub.attributes sub jkind_attributes;
+  iter_loc sub jkind_name;
+  Option.iter (sub.jkind_annotation sub) jkind_annotation
 
 let pat_extra sub (e, loc, attrs) =
   sub.location sub loc;

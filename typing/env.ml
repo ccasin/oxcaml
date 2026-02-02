@@ -2740,20 +2740,20 @@ and store_cltype id desc shape env =
     cltypes = IdTbl.add id cltda env.cltypes;
     summary = Env_cltype(env.summary, id, desc) }
 
-let store_jkind ~check id info shape env =
-  let loc = info.jkind_loc in
+let store_jkind ~check id decl shape env =
+  let loc = decl.jkind_loc in
   if check then
-    check_usage loc id info.jkind_uid
+    check_usage loc id decl.jkind_uid
       (fun s -> Warnings.Unused_kind_declaration s)
       !jkind_declarations;
-  Builtin_attributes.mark_alerts_used info.jkind_attributes;
+  Builtin_attributes.mark_alerts_used decl.jkind_attributes;
   let jkda =
-    { jkda_declaration = info;
+    { jkda_declaration = decl;
       jkda_shape = shape }
   in
   { env with
     jkinds = IdTbl.add id jkda env.jkinds;
-    summary = Env_jkind(env.summary, id, info) }
+    summary = Env_jkind(env.summary, id, decl) }
 
 (* Compute the components of a functor application in a path. *)
 
@@ -2836,9 +2836,9 @@ and add_module_declaration_lazy
   in
   if arg then add_functor_arg id env else env
 
-let add_jkind ~check ?shape id info env =
-  let shape = shape_or_leaf info.jkind_uid shape in
-  store_jkind ~check id info shape env
+let add_jkind ~check ?shape id decl env =
+  let shape = shape_or_leaf decl.jkind_uid shape in
+  store_jkind ~check id decl shape env
 
 let add_module_declaration ?(arg=false) ?shape ~check id presence md
   ?mode ?locks env =

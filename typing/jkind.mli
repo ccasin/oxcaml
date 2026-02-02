@@ -258,7 +258,7 @@ module Const : sig
   val to_out_jkind_const : Env.t -> 'd t -> Outcometree.out_jkind_const
 
   (** Creates an abstract jkind, with max with-bounds, from the path. *)
-  val kconstr : Path.t -> (allowed * allowed) t
+  val of_path : Path.t -> (allowed * allowed) t
 
   val equal : Env.t -> (allowed * allowed) t -> (allowed * allowed) t -> bool
 
@@ -427,9 +427,6 @@ val of_type_decl_default :
   Env.t ->
   Parsetree.type_declaration ->
   Types.jkind_l
-
-(** Creates an abstract jkind, with max with-bounds, from the path. *)
-val of_path : why:History.creation_reason -> Path.t -> Types.jkind_lr
 
 (** Choose an appropriate jkind for a boxed record type *)
 val for_boxed_record : Types.label_declaration list -> Types.jkind_l
@@ -826,9 +823,14 @@ val map_type_expr :
     mutation. Is conservative and does not do any expansion. *)
 val is_obviously_max : ('l * allowed) Types.jkind -> bool
 
-(** Checks to see whether a right-jkind's mod-bounds are the maximum
-    mod-bounds. Never does any mutation. *)
-val mod_bounds_are_max : Env.t -> ('l * allowed) Types.jkind -> bool
+(** Checks to see whether a jkind's mod bounds are max. Never does any
+    mutation. Is conservative and does not do any expansion. *)
+val mod_bounds_are_obviously_max : 'd Types.jkind -> bool
+
+(** Fully expands the jkind's base - useful to avoid expanding twice for clients
+   that both want to inspect the mod bounds and apply other functions to the
+   jkind that would expand it. *)
+val fully_expand_aliases : Env.t -> 'd Types.jkind -> 'd Types.jkind
 
 (** Checks to see whether a jkind has layout any. Never does any mutation. *)
 val has_layout_any : Env.t -> ('l * allowed) Types.jkind -> bool
