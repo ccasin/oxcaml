@@ -1207,3 +1207,21 @@ Line 3, characters 11-24:
 Error: Modules do not match: sig end is not included in sig kind_ k end
      The kind "k" is required but not provided
 |}]
+
+(*************************************************)
+(* Test: substitutions happen on jkinds in tvars *)
+
+(* For the below to pass the module inclusion check, we must subst the abstract
+   kind in one of the signatures to be the same as the other. If we failed to do
+   that in tvars, the below will fail when the inclusion check compares the
+   parameters of the typedecls. *)
+module M : sig
+  kind_ k
+  type ('a : k) t
+end = struct
+  kind_ k
+  type ('a : k) t
+end
+[%%expect{|
+module M : sig kind_ k type ('a : k) t end
+|}]
