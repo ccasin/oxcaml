@@ -719,7 +719,7 @@ let report_type_mismatch first second decl env ppf err =
          report_unsafe_mode_crossing_mismatch first second ppf mismatch)
       (first, second, mismatch)
 
-let report_jkind_mismatch first second _env ppf err =
+let report_jkind_mismatch first second ppf err =
   let pr fmt = Format.fprintf ppf fmt in
   pr "@ ";
   match err with

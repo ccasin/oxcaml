@@ -321,8 +321,7 @@ and ('layout, 'd) base_and_axes =
 
 and 'd jkind_const_desc = (Jkind_types.Layout.Const.t, 'd) base_and_axes
   constraint 'd = 'l * 'r
-and jkind_const_desc_lr =
-  (Jkind_types.Layout.Const.t, allowed * allowed) base_and_axes
+and jkind_const_desc_lr = (allowed * allowed) jkind_const_desc
 
 and 'd jkind_desc = (Jkind_types.Sort.t Jkind_types.Layout.t, 'd) base_and_axes
   constraint 'd = 'l * 'r

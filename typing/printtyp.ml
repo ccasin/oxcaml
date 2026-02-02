@@ -2565,8 +2565,8 @@ let dummy =
 *)
 
 let ident_sigitem = function
-  | Types.Sig_type(ident,_,_,_)
-  | Types.Sig_jkind (ident,_,_)->  {hide=true;ident}
+  | Types.Sig_type(ident,_,_,_) ->  {hide=true;ident}
+  | Types.Sig_jkind (ident,_,_)
   | Types.Sig_class(ident,_,_,_)
   | Types.Sig_class_type (ident,_,_,_)
   | Types.Sig_module(ident,_, _,_,_)

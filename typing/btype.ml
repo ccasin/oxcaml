@@ -1187,7 +1187,7 @@ module Jkind0 = struct
       | Kconstr _ as k -> { t with base = k }
       | Layout l -> { t with base = Layout (f l) }
 
-    let map_option_layout f t =
+    let map_layout_option f t =
       match t.base with
       | Kconstr _ as k -> Some { t with base = k }
       | Layout l -> (
@@ -1826,7 +1826,7 @@ module Jkind0 = struct
       { base; mod_bounds; with_bounds }
 
     let get_const t =
-      Base_and_axes.map_option_layout Jkind_types.Layout.get_const t
+      Base_and_axes.map_layout_option Jkind_types.Layout.get_const t
   end
 
   module Violation = struct

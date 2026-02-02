@@ -292,14 +292,17 @@ let extension_constructor sub x =
   let ext_attributes = sub.attributes sub x.ext_attributes in
   {x with ext_loc; ext_name; ext_kind; ext_attributes}
 
-let jkind_declaration sub (x : Typedtree.jkind_declaration) =
-  let jkind_name = map_loc sub x.jkind_name in
+let[@warning "+9"] jkind_declaration sub
+     {jkind_id; jkind_name; jkind_jkind; jkind_annotation; jkind_attributes;
+      jkind_loc} =
+  let jkind_name = map_loc sub jkind_name in
   let jkind_annotation =
-    Option.map (sub.jkind_annotation sub) x.jkind_annotation
+    Option.map (sub.jkind_annotation sub) jkind_annotation
   in
-  let jkind_attributes = sub.attributes sub x.jkind_attributes in
-  let jkind_loc = sub.location sub x.jkind_loc in
-  {x with jkind_name; jkind_annotation; jkind_attributes; jkind_loc}
+  let jkind_attributes = sub.attributes sub jkind_attributes in
+  let jkind_loc = sub.location sub jkind_loc in
+  {jkind_id; jkind_name; jkind_jkind; jkind_annotation; jkind_attributes;
+   jkind_loc}
 
 let pat_extra sub = function
   | Tpat_unpack as d -> d

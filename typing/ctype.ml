@@ -2747,7 +2747,8 @@ let constrain_type_jkind ~fixed env ty jkind =
        substitutions into the with-bounds while in [estimate_type_jkind]. These
        substitutions can be expensive if there are many with-bounds, and this
        case gets hit a lot (the v1 safety check always hits this case). *)
-    let ignore_mod_bounds = Jkind.mod_bounds_are_max env jkind in
+    let jkind = Jkind.fully_expand_aliases env jkind in
+    let ignore_mod_bounds = Jkind.mod_bounds_are_obviously_max jkind in
     let ty's_jkind = estimate_type_jkind ~ignore_mod_bounds env ty in
     loop ~fuel ~expanded ty ty's_jkind jkind
   in

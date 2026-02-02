@@ -518,6 +518,7 @@ val nondep_cltype_declaration:
         (* Same for class type declarations. *)
 val nondep_jkind_declaration:
   Env.t -> Ident.t list -> jkind_declaration -> jkind_declaration
+        (* Same for jkind declarations. *)
 
 (*val correct_abbrev: Env.t -> Path.t -> type_expr list -> type_expr -> unit*)
 val is_contractive: Env.t -> Path.t -> bool

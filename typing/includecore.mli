@@ -217,6 +217,4 @@ val report_extension_constructor_mismatch :
   Format.formatter -> extension_constructor_mismatch -> unit
 
 val report_jkind_mismatch :
-  string -> string ->
-  Env.t ->
-  Format.formatter -> jkind_mismatch -> unit
+  string -> string -> Format.formatter -> jkind_mismatch -> unit
