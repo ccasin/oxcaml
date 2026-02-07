@@ -755,7 +755,7 @@ let signature_item sub x =
           (List.map (sub.class_type_declaration sub) list)
     | Tsig_open od -> Tsig_open (sub.open_description sub od)
     | Tsig_attribute attr -> Tsig_attribute (sub.attribute sub attr)
-    | Tsig_jkind jd -> Tsig_jkind (sub.jkind_declaration sub jd)
+    | Tsig_jkind kd -> Tsig_jkind (sub.jkind_declaration sub kd)
   in
   {sig_loc; sig_desc; sig_env}
 
@@ -798,6 +798,8 @@ let with_constraint sub = function
   | Twith_modtypesubst mty -> Twith_modtypesubst (sub.module_type sub mty)
   | Twith_module (path, lid) -> Twith_module (path, map_loc sub lid)
   | Twith_modsubst (path, lid) -> Twith_modsubst (path, map_loc sub lid)
+  | Twith_jkind kd -> Twith_jkind (sub.jkind_declaration sub kd)
+  | Twith_jkindsubst kd -> Twith_jkindsubst (sub.jkind_declaration sub kd)
 
 let open_description sub od =
   {od with open_loc = sub.location sub od.open_loc;

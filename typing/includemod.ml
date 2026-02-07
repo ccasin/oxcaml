@@ -146,6 +146,7 @@ module Error = struct
     | In_Module_type_substitution of
         Ident.t * (Types.module_type,module_type_declaration_symptom) diff
     | In_Type_declaration of Ident.t * core_sigitem_symptom
+    | In_Jkind_declaration of Ident.t * core_sigitem_symptom
     | In_Expansion of core_module_type_symptom
 
 end
@@ -1041,13 +1042,13 @@ and signature_components :
               Shape.Map.add_class_type_proj shape_map id1 orig_shape
             in
             id1, item, (info1.clty_uid, info2.clty_uid), shape_map, false
-        | Sig_jkind (id1, jd1, _), Sig_jkind (_id2, jd2, _) ->
+        | Sig_jkind (id1, kd1, _), Sig_jkind (_id2, kd2, _) ->
            let item =
-             jkind_declarations ~loc env ~direction subst id1 jd1 jd2
+             jkind_declarations ~loc env ~direction subst id1 kd1 kd2
            in
            let item = mark_error_as_unrecoverable item in
            let shape_map = Shape.Map.add_jkind_proj shape_map id1 orig_shape in
-           id1, item, (jd1.jkind_uid, jd2.jkind_uid), shape_map, false
+           id1, item, (kd1.jkind_uid, kd2.jkind_uid), shape_map, false
         | _ ->
             assert false
       in
@@ -1578,6 +1579,16 @@ let type_declarations ~loc env ~mark id decl1 decl2 =
   | Ok _ -> ()
   | Error (Error.Core reason) ->
       raise (Error(env,Error.(In_Type_declaration(id,reason))))
+  | Error _ -> assert false
+
+let jkind_declarations ~loc env ~mark id decl1 decl2 =
+  let direction = Directionality.unknown ~mark in
+  match
+    jkind_declarations ~loc env ~direction Subst.identity id decl1 decl2
+  with
+  | Ok _ -> ()
+  | Error (Error.Core reason) ->
+      raise (Error(env,Error.(In_Jkind_declaration(id,reason))))
   | Error _ -> assert false
 
 let strengthened_module_decl ~loc ~aliasable env ~mark ~mmodes md1 path1 md2 =

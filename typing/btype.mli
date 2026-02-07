@@ -373,6 +373,7 @@ module Jkind0 : sig
 
     val equal : t -> t -> bool
     val join : t -> t -> t
+    val meet : t -> t -> t
 
     val relevant_axes_of_modality :
       relevant_for_shallow:[ `Irrelevant | `Relevant ] ->
@@ -401,6 +402,10 @@ module Jkind0 : sig
       (type_expr -> type_expr) -> ('l * 'r) with_bounds -> ('l * 'r) with_bounds
 
     val is_empty : ('l * 'r) with_bounds -> bool
+  end
+
+  module Base : sig
+    val map_layout : ('a -> 'b) -> 'a jkind_base -> 'b jkind_base
   end
 
   module Base_and_axes : sig

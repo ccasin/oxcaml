@@ -293,13 +293,6 @@ let raise ~loc err = raise (Error.User_error (loc, err))
 module Mod_bounds = struct
   include Jkind0.Mod_bounds
 
-  let meet t1 t2 =
-    let crossing = Crossing.meet (crossing t1) (crossing t2) in
-    let externality = Externality.meet (externality t1) (externality t2) in
-    let nullability = Nullability.meet (nullability t1) (nullability t2) in
-    let separability = Separability.meet (separability t1) (separability t2) in
-    create crossing ~externality ~nullability ~separability
-
   let less_or_equal t1 t2 =
     let[@inline] modal_less_or_equal ax : Sub_result.t =
       let a = t1 |> crossing |> (Crossing.proj [@inlined hint]) ax in
@@ -515,6 +508,8 @@ type jkind_context =
   }
 
 module Base = struct
+  include Jkind0.Base
+
   let to_string layout_to_string = function
     | Layout l -> layout_to_string l
     | Kconstr p -> Path.name p
@@ -540,9 +535,6 @@ module Base = struct
     | Layout Layout.Any, Kconstr _ -> true
     | Kconstr _, Layout _ | Layout _, Kconstr _ -> false
 
-  let map_layout ~f b =
-    match b with Layout l -> Layout (f l) | Kconstr b -> Kconstr b
-
   let format format_layout ppf base =
     match base with
     | Layout l -> format_layout ppf l
@@ -558,7 +550,7 @@ module Base = struct
       | { jkind_manifest = Some { base; _ }; _ } -> Some base)
 
   let expand_pair env t1 t2 =
-    let of_const = map_layout ~f:Layout.of_const in
+    let of_const = map_layout Layout.of_const in
     match expand_once env t1, expand_once env t2 with
     | None, None -> None
     | Some t1, None -> Some (of_const t1, t2)
@@ -599,7 +591,7 @@ module Base_and_axes = struct
   include Jkind0.Base_and_axes
 
   let jkind_desc_of_const const =
-    { const with base = Base.map_layout ~f:Layout.of_const const.base }
+    { const with base = Base.map_layout Layout.of_const const.base }
 
   let debug_print format_layout ppf { base; mod_bounds; with_bounds } =
     Format.fprintf ppf "{ base = %a;@ mod_bounds = %a;@ with_bounds = %a }"

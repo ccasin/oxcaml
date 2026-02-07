@@ -1038,6 +1038,15 @@ module Jkind0 = struct
       in
       create crossing ~externality ~nullability ~separability
 
+    let meet t1 t2 =
+      let crossing = Crossing.meet (crossing t1) (crossing t2) in
+      let externality = Externality.meet (externality t1) (externality t2) in
+      let nullability = Nullability.meet (nullability t1) (nullability t2) in
+      let separability =
+        Separability.meet (separability t1) (separability t2)
+      in
+      create crossing ~externality ~nullability ~separability
+
     (* Returns the set of axes that is relevant under a given modality. For
        example, under the [global] modality, the areality axis is *not*
        relevant. *)
@@ -1161,6 +1170,13 @@ module Jkind0 = struct
     match t with
     | No_with_bounds -> true
     | With_bounds tys -> With_bounds_types.is_empty tys
+  end
+
+  module Base = struct
+    let map_layout f t =
+      match t with
+      | Kconstr _ as k -> k
+      | Layout l -> Layout (f l)
   end
 
   module Base_and_axes = struct

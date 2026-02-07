@@ -1094,9 +1094,9 @@ and signature_item i ppf x =
       list i class_type_declaration ppf l;
   | Tsig_attribute a ->
       attribute i ppf "Tsig_attribute" a
-  | Tsig_jkind jd ->
+  | Tsig_jkind kd ->
       line i ppf "Tsig_jkind";
-      jkind_declaration i ppf jd
+      jkind_declaration i ppf kd
 
 and module_declaration i ppf md =
   line i ppf "%a" fmt_modname md.md_id;
@@ -1128,6 +1128,12 @@ and with_constraint i ppf x =
   | Twith_modtypesubst mty ->
       line i ppf "Twith_modtype\n";
       module_type (i+1) ppf mty
+  | Twith_jkind kd ->
+      line i ppf "Twith_jkind\n";
+      jkind_declaration (i+1) ppf kd;
+  | Twith_jkindsubst kd ->
+      line i ppf "Twith_jkindsubst\n";
+      jkind_declaration (i+1) ppf kd;
 
 and module_expr i ppf x =
   line i ppf "module_expr %a\n" fmt_location x.mod_loc;
@@ -1215,9 +1221,9 @@ and structure_item i ppf x =
       module_expr i ppf incl.incl_mod;
   | Tstr_attribute a ->
       attribute i ppf "Tstr_attribute" a
-  | Tstr_jkind jd ->
+  | Tstr_jkind kd ->
       line i ppf "Tstr_jkind";
-      jkind_declaration i ppf jd
+      jkind_declaration i ppf kd
 
 and longident_x_with_constraint i ppf (li, _, wc) =
   line i ppf "%a\n" fmt_path li;
