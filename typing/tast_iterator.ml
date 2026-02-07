@@ -159,7 +159,7 @@ let structure_item sub {str_loc; str_desc; str_env; _} =
   | Tstr_include incl -> str_include_infos sub incl
   | Tstr_open od -> sub.open_declaration sub od
   | Tstr_attribute attr -> sub.attribute sub attr
-  | Tstr_jkind jd -> sub.jkind_declaration sub jd
+  | Tstr_jkind kd -> sub.jkind_declaration sub kd
 
 let value_description sub x =
   sub.item_declaration sub (Value x);
@@ -561,6 +561,8 @@ let with_constraint sub = function
   | Twith_modsubst  (_, lid) -> iter_loc sub lid
   | Twith_modtype      mty -> sub.module_type sub mty
   | Twith_modtypesubst mty -> sub.module_type sub mty
+  | Twith_jkind      kd -> sub.jkind_declaration sub kd
+  | Twith_jkindsubst kd -> sub.jkind_declaration sub kd
 
 
 let open_description sub {open_loc; open_expr; open_env; open_attributes; _} =

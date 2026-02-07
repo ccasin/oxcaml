@@ -471,7 +471,7 @@ and jkind_annotation ?(nested = false) ctxt f k = match k.pjka_desc with
         (core_type ctxt) ty
         optional_space_atat_modalities modalities;
     ) f (t, ty, modalities)
-  | Pjk_kind_of ty -> pp f "kind_of_ %a" (core_type ctxt) ty
+  | Pjk_kind_of ty -> pp f "(kind_of_ %a)" (core_type ctxt) ty
   | Pjk_product ts ->
     Misc.pp_parens_if nested (fun f ts ->
       pp f "@[%a@]" (list (jkind_annotation ~nested:true ctxt) ~sep:"@ & ") ts
@@ -1520,6 +1520,8 @@ and with_constraint ctxt f = function
       pp f "module %a =@ %a" longident_loc li longident_loc li2;
   | Pwith_modtype (li, mty) ->
       pp f "module type %a =@ %a" longident_loc li (module_type ctxt) mty;
+  | Pwith_jkind (li, jd) ->
+      pp f "jkind_ %a =@ %a" longident_loc li (jkind_declaration ctxt) jd;
   | Pwith_typesubst (li, ({ptype_params=ls;_} as td)) ->
       pp f "type@ %a %a :=@ %a"
         type_params ls
@@ -1529,6 +1531,8 @@ and with_constraint ctxt f = function
       pp f "module %a :=@ %a" longident_loc li longident_loc li2
   | Pwith_modtypesubst (li, mty) ->
       pp f "module type %a :=@ %a" longident_loc li (module_type ctxt) mty;
+  | Pwith_jkindsubst (li, jd) ->
+      pp f "jkind_ %a :=@ %a" longident_loc li (jkind_declaration ctxt) jd;
 
 
 and module_type1 ctxt f x =
