@@ -676,8 +676,8 @@ module Base_and_axes = struct
       jkind_desc_of_const const, missing_cmi
 
   type normalize_mode =
-    | Require_best : normalize_mode
-    | Ignore_best : normalize_mode
+    | Require_best
+    | Ignore_best
 
   module Fuel_status = struct
     type t =
@@ -701,7 +701,7 @@ module Base_and_axes = struct
      behavior of this function for these axes is undefined; do *not* look at the
      results for these axes. *)
   let normalize :
-      type l r1.
+      type l r.
       context:_ ->
       mode:normalize_mode ->
       skip_axes:_ ->
@@ -709,8 +709,8 @@ module Base_and_axes = struct
       ?map_type_info:
         (type_expr -> With_bounds_type_info.t -> With_bounds_type_info.t) ->
       Env.t ->
-      (_, l * r1) base_and_axes ->
-      (_, l * r1) base_and_axes * Fuel_status.t =
+      (_, l * r) base_and_axes ->
+      (_, l * r) base_and_axes * Fuel_status.t =
    fun ~context ~mode ~skip_axes ~previously_ran_out_of_fuel ?map_type_info env
        t ->
     (* DEBUGGING
@@ -1148,9 +1148,9 @@ module Base_and_axes = struct
           (loop Loop_control.starting mod_bounds
              (Axis_set.complement skip_axes)
              (With_bounds.to_list t.with_bounds)
-            : _ * (_ * r1) with_bounds * _)
+            : _ * (_ * r) with_bounds * _)
       in
-      let normalized_t : (_, l * r1) base_and_axes =
+      let normalized_t : (_, l * r) base_and_axes =
         match mode, ctl.fuel_status with
         | Require_best, Sufficient_fuel | Ignore_best, _ ->
           { t with mod_bounds; with_bounds }
@@ -1268,7 +1268,11 @@ module Jkind_desc = struct
     | With_bounds _ -> (
       (* Ignore_best normalization guarantees this only happens when the sub's
          base is abstract after expansion. We punt: only succeeding if the rhs
-         is fully max. It's possible to do a bit better, with help from
+         is fully max. It's not sufficient to check that the bases are
+         comparable, because if the rhs has an abstract base its with bounds may
+         have been normalized away.
+
+         It's possible to do a bit better in he future, with help from
          normalize. For example, we could allow [k mod contended with int < any
          mod contended]. *)
       match base2 with
@@ -2025,7 +2029,7 @@ let for_array_element_sort ~level =
 (******************************)
 (* elimination and defaulting *)
 
-type normalize_mode =
+type normalize_mode = Base_and_axes.normalize_mode =
   | Require_best
   | Ignore_best
 
