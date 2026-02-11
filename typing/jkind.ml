@@ -1407,12 +1407,6 @@ module Const = struct
     | Expanded t -> Some t
     | Missing_cmi _ | Not_expanded -> None
 
-  let of_path path =
-    { base = Kconstr path;
-      mod_bounds = Mod_bounds.max;
-      with_bounds = No_with_bounds
-    }
-
   let rec get_layout_result : 'l 'r. _ -> ('l * 'r) jkind_const_desc -> _ =
    fun env t ->
     match t.base with
@@ -1693,7 +1687,7 @@ module Const = struct
     match jkind.pjka_desc with
     | Pjk_abbreviation name ->
       let p, _ = Env.lookup_jkind ~use:use_abstract_jkinds ~loc name.txt env in
-      of_path p
+      of_path p |> allow_left |> allow_right
     | Pjk_mod (base, modifiers) ->
       let base =
         of_user_written_annotation_unchecked_level ~use_abstract_jkinds env

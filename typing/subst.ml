@@ -142,10 +142,24 @@ end = struct
         ~ran_out_of_fuel_during_normalize
     : (l * r) builtins
     =
-    Jkind.Const.Builtin.common_jkinds
-    |> List.map (fun (builtin : Jkind.Const.Builtin.t) ->
-      let const_jkind : (l * r) Jkind.Const.t =
-        builtin.jkind |> Jkind.Const.allow_left |> Jkind.Const.allow_right in
+    let const_builtins =
+      (* These are the versions with concrete kinds in the descs. *)
+      List.map
+        (fun (builtin : Jkind.Const.Builtin.t) ->
+           Longident.Lident builtin.name, builtin.jkind)
+        Jkind.Const.Builtin.common_jkinds
+    in
+    let const_predefs =
+      (* These are the versions with paths in the descs *)
+      List.map
+        (fun p -> Longident.Lident (Ident.name p),
+                  Jkind.Const.of_path (Pident p))
+        Predef.all_predef_jkinds
+    in
+    List.map (fun (name, const_jkind) ->
+      let const_jkind =
+        const_jkind |> Jkind.Const.allow_left |> Jkind.Const.allow_right
+      in
       const_jkind,
       Jkind.of_const
         const_jkind
@@ -154,8 +168,9 @@ end = struct
         ~annotation:
           (Some { pjka_loc = Location.none;
                   pjka_desc = Pjk_abbreviation { loc = Location.none;
-                                                 txt = Lident builtin.name } })
+                                                 txt = name } })
         ~why:Jkind_intf.History.Imported)
+      (const_builtins @ const_predefs)
 
   let best_builtins =
     let sufficient_fuel =

@@ -351,6 +351,8 @@ let predef_jkinds =
        ident_create builtin.name, builtin.jkind)
     Jkind.Const.Builtin.builtins
 
+let all_predef_jkinds = List.map fst predef_jkinds
+
 let add_predef_jkinds add_jkind env =
   List.fold_left
     (fun env (id, jkind) -> add_jkind id jkind env) env
