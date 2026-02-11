@@ -387,16 +387,6 @@ let newpersty desc =
 *)
 let location_for_jkind_check_errors = ref Location.none
 
-let norm desc ~prepare_jkind =
-  match desc with
-  | Tvar { name; jkind } ->
-      let loc = !location_for_jkind_check_errors in
-      Tvar { name; jkind = prepare_jkind loc jkind }
-  | Tunivar { name; jkind } ->
-      let loc = !location_for_jkind_check_errors in
-      Tunivar { name; jkind = prepare_jkind loc jkind }
-    | desc -> desc
-
 let apply_type_function params args body =
   For_copy.with_scope (fun copy_scope ->
     List.iter2
@@ -486,9 +476,7 @@ let rec typexp copy_scope s ty =
       if should_duplicate_vars || get_id ty < 0 || jkind_changed then
         let ty' =
           match s.additional_action with
-          | Duplicate_variables -> newpersty desc
-          | Prepare_for_saving { prepare_jkind; _ } ->
-              newpersty (norm desc ~prepare_jkind)
+          | Duplicate_variables | Prepare_for_saving _ -> newpersty desc
           | No_action -> newty2 ~level:(get_level ty) desc
         in
         For_copy.redirect_desc copy_scope ty (Tsubst (ty', None));
