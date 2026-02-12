@@ -1222,6 +1222,12 @@ module Jkind0 = struct
       type (_, _, 'd) sided = 'd t
     end)
 
+    let of_path path =
+      { base = Kconstr path;
+        mod_bounds = Mod_bounds.max;
+        with_bounds = No_with_bounds
+      }
+
     let max =
       { base = Layout Jkind_types.Layout.Const.max;
         mod_bounds = Mod_bounds.max;

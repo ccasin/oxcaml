@@ -426,6 +426,8 @@ module Jkind0 : sig
   module Const : sig
     type 'd t = 'd jkind_const_desc
 
+    val of_path : Path.t -> jkind_const_desc_lr
+
     (** This returns [true] iff both kinds have no with-bounds and they are
         shallowly equal. Normally, we want an equality check to happen only on
         values that are allowed on both the left and the right. But a type with
