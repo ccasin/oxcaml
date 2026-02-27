@@ -23,17 +23,7 @@
 
     @since 5.0 *)
 
-<<<<<<< oxcaml
 type !'a t : value mod portable contended with 'a
-||||||| upstream-base
-type !'a t
-=======
-[@@@alert unstable
-    "The Domain interface may change in incompatible ways in the future."
-]
-
-type !'a t
->>>>>>> upstream-incoming
 (** A domain of type ['a t] runs independently, eventually producing a
     result of type 'a, or an exception *)
 
@@ -64,31 +54,6 @@ val get_id : 'a t -> id @@ portable
 val self : unit -> id @@ portable
 (** [self ()] is the identifier of the currently running domain *)
 
-external cpu_relax : unit -> unit @@ portable = "%cpu_relax"
-(** If busy-waiting, calling cpu_relax () between iterations
-    will improve performance on some CPU architectures *)
-
-val is_main_domain : unit -> bool @@ portable
-(** [is_main_domain ()] returns true if called from the initial domain. *)
-
-val recommended_domain_count : unit -> int @@ portable
-(** The recommended maximum number of domains which should be running
-    simultaneously (including domains already running).
-
-    The value returned is at least [1]. *)
-
-val self_index : unit -> int @@ portable
-(** The index of the current domain. It is an integer unique among
-    currently-running domains, in the interval [0; N-1] where N is the
-    peak number of domains running simultaneously so far.
-
-    The index of a terminated domain may be reused for a new
-    domain. Use [(Domain.self () :> int)] instead for an identifier
-    unique among all domains ever created by the program.
-
-    @since 5.3
-*)
-
 val before_first_spawn : (unit -> unit) -> unit @@ nonportable
 (** [before_first_spawn f] registers [f] to be called before the first domain
     is spawned by the program. The functions registered with
@@ -116,37 +81,20 @@ let temp_file_key = Domain.DLS.new_key (fun _ ->
     to close it, thus guaranteeing the descriptor is not leaked in
     case the current domain exits. *)
 
-<<<<<<< oxcaml
-||||||| upstream-base
-val cpu_relax : unit -> unit
+external cpu_relax : unit -> unit @@ portable = "%cpu_relax"
 (** If busy-waiting, calling cpu_relax () between iterations
     will improve performance on some CPU architectures *)
 
-val is_main_domain : unit -> bool
+val is_main_domain : unit -> bool @@ portable
 (** [is_main_domain ()] returns true if called from the initial domain. *)
 
-val recommended_domain_count : unit -> int
+val recommended_domain_count : unit -> int @@ portable
 (** The recommended maximum number of domains which should be running
     simultaneously (including domains already running).
 
     The value returned is at least [1]. *)
 
-module DLS : sig
-=======
-val cpu_relax : unit -> unit
-(** If busy-waiting, calling cpu_relax () between iterations
-    will improve performance on some CPU architectures *)
-
-val is_main_domain : unit -> bool
-(** [is_main_domain ()] returns true if called from the initial domain. *)
-
-val recommended_domain_count : unit -> int
-(** The recommended maximum number of domains which should be running
-    simultaneously (including domains already running).
-
-    The value returned is at least [1]. *)
-
-val self_index : unit -> int
+val self_index : unit -> int @@ portable
 (** The index of the current domain. It is an integer unique among
     currently-running domains, in the interval [0; N-1] where N is the
     peak number of domains running simultaneously so far.
@@ -159,9 +107,7 @@ val self_index : unit -> int
 *)
 
 module DLS : sig
->>>>>>> upstream-incoming
 (** Domain-local Storage *)
-module DLS : sig
 
     type 'a key : value mod portable contended
     (** Type of a DLS key *)

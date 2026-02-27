@@ -151,7 +151,7 @@ val prepared_type_declaration: Ident.t -> type_declaration printer
 
 val tree_of_value_description: Ident.t -> value_description -> out_sig_item
 val tree_of_modtype_declaration:
-    Ident.t -> modtype_declaration -> out_sig_item
+    ?abbrev:bool -> Ident.t -> modtype_declaration -> out_sig_item
 val tree_of_class_declaration:
     Ident.t -> class_declaration -> rec_status -> out_sig_item
 val tree_of_cltype_declaration:
@@ -160,12 +160,33 @@ val tree_of_cltype_declaration:
 (** {1 Module types }*)
 
 val tree_of_module:
-    Ident.t -> ?ellipsis:bool -> module_type -> rec_status -> out_sig_item
-val tree_of_modtype: module_type -> out_module_type
+    Ident.t -> ?ellipsis:bool -> module_declaration -> rec_status ->
+    out_sig_item
+val tree_of_modtype: ?abbrev:bool -> module_type -> out_module_type
 val tree_of_signature: Types.signature -> out_sig_item list
 
 val tree_of_class_type: type_or_scheme -> class_type -> out_class_type
 val prepare_class_type: class_type -> unit
+
+val expand_module_type: (Env.t -> module_type -> module_type) ref
+(* Forward declaration to be filled in Mtype. We want to be able to print types
+     in Mtype for debugging purposes and hence don't want to depend on Mtype
+     here.
+*)
+
+(** {1 For [Translquote] *)
+type typobject_repr = { fields : (string * type_expr) list; open_row : bool }
+type typvariant_repr = {
+  fields : (string * bool * type_expr list) list;
+  name : (Path.t * type_expr list) option;
+  closed : bool;
+  present : (string * row_field) list;
+  all_present : bool;
+  tags : string list option
+}
+
+val tree_of_typobject_repr : type_expr -> typobject_repr
+val tree_of_typvariant_repr : row_desc -> typvariant_repr
 
 (** {1 Toplevel printing}  *)
 val print_items: (Env.t -> signature_item -> 'a option) ->
@@ -197,6 +218,8 @@ module Ident_names: sig
   (** [with_fuzzy id f] locally disable ident disambiguation for [id] within
       [f] *)
   val with_fuzzy: Ident.t -> (unit -> 'a) -> 'a
+
+  val reset: unit -> unit
 end
 
 (** The [Ident_conflicts] module keeps track of conflicts arising when
