@@ -22,15 +22,11 @@ open Misc
 open Asttypes
 open Parsetree
 open Types
-<<<<<<< oxcaml
-open Mode
-||||||| upstream-base
-=======
 open Data_types
->>>>>>> upstream-incoming
 open Typedtree
 open Btype
 open Ctype
+open Mode
 
 type comprehension_type =
   | List_comprehension
@@ -126,7 +122,11 @@ type existential_restriction =
   | In_class_def  (** or in [class c = let ... in ...] *)
   | In_self_pattern (** or in self pattern *)
 
-<<<<<<< oxcaml
+type existential_binding =
+  | Bind_already_bound
+  | Bind_not_in_scope
+  | Bind_non_locally_abstract
+
 type submode_reason =
   | Application of type_expr
   | Constructor of Longident.t
@@ -149,20 +149,9 @@ let print_unsupported_stack_allocation ppf = function
 type mutable_restriction =
   | In_group
   | In_rec
-||||||| upstream-base
-=======
-type existential_binding =
-  | Bind_already_bound
-  | Bind_not_in_scope
-  | Bind_non_locally_abstract
->>>>>>> upstream-incoming
 
 type error =
   | Constructor_arity_mismatch of Longident.t * int * int
-  | Constructor_labeled_arg
-  | Partial_tuple_pattern_bad_type
-  | Extra_tuple_label of string option * type_expr
-  | Missing_tuple_label of string option * type_expr
   | Label_mismatch of
       record_form_packed * Longident.t * Errortrace.unification_error
   | Pattern_type_clash :
@@ -252,22 +241,15 @@ type error =
   | Unrefuted_pattern of pattern
   | Invalid_extension_constructor_payload
   | Not_an_extension_constructor
-<<<<<<< oxcaml
+  | Invalid_atomic_loc_payload
+  | Label_not_atomic of Longident.t
+  | Atomic_in_pattern of Longident.t
   | Probe_format
   | Probe_name_format of string
   | Probe_name_undefined of string
   | Probe_is_enabled_format
   | Extension_not_enabled : _ Language_extension.t -> error
-  | Atomic_in_pattern of Longident.t
-  | Invalid_atomic_loc_payload
-  | Label_not_atomic of Longident.t
   | Modalities_on_atomic_field of Longident.t
-||||||| upstream-base
-=======
-  | Invalid_atomic_loc_payload
-  | Label_not_atomic of Longident.t
-  | Atomic_in_pattern of Longident.t
->>>>>>> upstream-incoming
   | Literal_overflow of string
   | Unknown_literal of string * char
   | Float32_literal of string
@@ -285,11 +267,15 @@ type error =
   | Bind_existential of existential_binding * Ident.t * type_expr
   | Missing_type_constraint
   | Wrong_expected_kind of wrong_kind_sort * wrong_kind_context * type_expr
-<<<<<<< oxcaml
+  | Expr_record_type_has_wrong_boxing of record_form_packed * type_expr
+  | Constructor_labeled_arg
+  | Partial_tuple_pattern_bad_type
+  | Extra_tuple_label of string option * type_expr
+  | Missing_tuple_label of string option * type_expr
+  | Repeated_tuple_exp_label of string
+  | Repeated_tuple_pat_label of string
   | Wrong_expected_record_boxing of
       wrong_kind_context * record_form_packed * type_expr
-  | Expr_not_a_record_type of record_form_packed * type_expr
-  | Expr_record_type_has_wrong_boxing of record_form_packed * type_expr
   | Invalid_unboxed_access of
       { prev_el_type : type_expr; ua : Parsetree.unboxed_access }
   | Block_access_record_unboxed
@@ -323,17 +309,6 @@ type error =
   | Overwrite_of_invalid_term
   | Unexpected_hole
   | Eval_format
-||||||| upstream-base
-  | Expr_not_a_record_type of type_expr
-=======
-  | Expr_not_a_record_type of type_expr
-  | Constructor_labeled_arg
-  | Partial_tuple_pattern_bad_type
-  | Extra_tuple_label of string option * type_expr
-  | Missing_tuple_label of string option * type_expr
-  | Repeated_tuple_exp_label of string
-  | Repeated_tuple_pat_label of string
->>>>>>> upstream-incoming
 
 
 let not_principal fmt =
@@ -875,7 +850,6 @@ let type_constant: Typedtree.constant -> type_expr = function
   | Const_unboxed_int64 _ -> instance Predef.type_unboxed_int64
   | Const_unboxed_nativeint _ -> instance Predef.type_unboxed_nativeint
 
-<<<<<<< oxcaml
 type constant_integer_result =
   | Int8 of int
   | Int16 of int
@@ -934,13 +908,8 @@ let constant_integer i ~suffix :
     end
   | Some suffix -> Error (Unknown_constant_literal suffix)
 
-let constant : Parsetree.constant -> (Typedtree.constant, error) result =
-||||||| upstream-base
-let constant : Parsetree.constant -> (Asttypes.constant, error) result =
-=======
 let constant_desc
-  : Parsetree.constant_desc -> (Asttypes.constant, error) result =
->>>>>>> upstream-incoming
+  : Parsetree.constant_desc -> (Typedtree.constant, error) result =
   function
   | Pconst_integer (i, suffix) ->
     begin match constant_integer i ~suffix with
@@ -1255,8 +1224,11 @@ let type_continuation_pat env expected_ty sp =
   | Ppat_var name ->
       let id = Ident.create_local name.txt in
       let desc =
-        { val_type = expected_ty; val_kind = Val_reg;
+        { val_type = expected_ty;
+          val_kind = Val_reg (Jkind.Sort.(of_const Const.for_continuation));
           Types.val_loc = loc; val_attributes = [];
+          val_modalities = Modality.undefined;
+          val_zero_alloc = Zero_alloc.default;
           val_uid = Uid.mk ~current_unit:(Env.get_current_unit ()); }
       in
         Some (id, desc)
@@ -1413,19 +1385,14 @@ type pattern_variable_kind =
 type pattern_variable =
   {
     pv_id: Ident.t;
-    pv_uid: Uid.t;
     pv_mode: Value.l;
-    pv_kind : value_kind;
+    pv_value_kind : value_kind;
     pv_type: type_expr;
     pv_loc: Location.t;
     pv_kind: pattern_variable_kind;
     pv_attributes: attributes;
-<<<<<<< oxcaml
     pv_sort: Jkind_types.Sort.t;
-||||||| upstream-base
-=======
     pv_uid : Uid.t;
->>>>>>> upstream-incoming
   }
 
 type module_variable =
@@ -1476,11 +1443,15 @@ type type_pat_state =
 let continuation_variable = function
   | None -> []
   | Some (id, (desc:Types.value_description)) ->
+    let sort = Jkind.Sort.(of_const Const.for_continuation) in
     [{pv_id = id;
+     pv_mode = Value.disallow_right Value.legacy;
+     pv_value_kind = Val_reg sort;
      pv_type = desc.val_type;
      pv_loc = desc.val_loc;
      pv_kind = Continuation_var;
      pv_attributes = desc.val_attributes;
+     pv_sort = sort;
      pv_uid= desc.val_uid}]
 
 let create_type_pat_state ?cont allow_modules =
@@ -1529,8 +1500,8 @@ let iter_pattern_variables_type f : pattern_variable list -> unit =
   List.iter (fun {pv_type; _} -> f pv_type)
 
 let iter_pattern_variables_type_mut ~f_immut ~f_mut pvs =
-  List.iter (fun {pv_type; pv_kind; _ } ->
-    match pv_kind with
+  List.iter (fun {pv_type; pv_value_kind; _ } ->
+    match pv_value_kind with
     | Val_mut _ -> f_mut pv_type
     | _ -> f_immut pv_type) pvs
 
@@ -1604,31 +1575,6 @@ let enter_variable ?(is_module=false) ?(is_as_variable=false) tps loc name mode
       | Modvars_rejected ->
           raise (Error (loc, Env.empty, Modules_not_allowed));
       | Modvars_allowed { scope; module_variables } ->
-<<<<<<< oxcaml
-          let id = Ident.create_scoped name.txt ~scope in
-          let module_variables =
-            { mv_id = id;
-              mv_name = name;
-              mv_loc = loc;
-              mv_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-            } :: module_variables
-          in
-          tps.tps_module_variables <-
-            Modvars_allowed { scope; module_variables; };
-          id
-||||||| upstream-base
-        let id = Ident.create_scoped name.txt ~scope in
-        let module_variables =
-          { mv_id = id;
-            mv_name = name;
-            mv_loc = loc;
-            mv_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-          } :: module_variables
-        in
-        tps.tps_module_variables <-
-          Modvars_allowed { scope; module_variables; };
-        id
-=======
         let id = Ident.create_scoped name.txt ~scope in
         let module_variables =
           { mv_id = id;
@@ -1640,36 +1586,20 @@ let enter_variable ?(is_module=false) ?(is_as_variable=false) tps loc name mode
         tps.tps_module_variables <-
           Modvars_allowed { scope; module_variables; };
         id
->>>>>>> upstream-incoming
     end else
       Ident.create_local name.txt
   in
-<<<<<<< oxcaml
-  let pv_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
-||||||| upstream-base
-=======
   let pv_uid = Uid.mk ~current_unit:(Env.get_current_unit ()) in
->>>>>>> upstream-incoming
   tps.tps_pattern_variables <-
     {pv_id = id;
      pv_mode = mode;
-     pv_kind = kind;
+     pv_value_kind = kind;
      pv_type = ty;
      pv_loc = loc;
-<<<<<<< oxcaml
-     pv_as_var = is_as_variable;
+     pv_kind = if is_as_variable then As_var else Std_var;
      pv_attributes = attrs;
      pv_uid;
      pv_sort = sort} :: tps.tps_pattern_variables;
-||||||| upstream-base
-     pv_as_var = is_as_variable;
-     pv_attributes = attrs} :: tps.tps_pattern_variables;
-  id
-=======
-     pv_kind = if is_as_variable then As_var else Std_var;
-     pv_attributes = attrs;
-     pv_uid} :: tps.tps_pattern_variables;
->>>>>>> upstream-incoming
   id, pv_uid
 
 let sort_pattern_variables vs =
@@ -1728,13 +1658,7 @@ and build_as_type_and_mode_extra env p ~mode : _ -> _ * _ = function
   | (Tpat_constraint ({ctyp_type = ty; _}, _), _, _) :: rest ->
       (* If the type constraint is ground, then this is the best type
          we can return, so just return an instance (cf. #12313) *)
-<<<<<<< oxcaml
       if closed_type_expr ty then instance ty, mode else
-||||||| upstream-base
-      if free_variables ty = [] then instance ty else
-=======
-      if closed_type_expr ty then instance ty else
->>>>>>> upstream-incoming
       (* Otherwise we combine the inferred type for the pattern with
          then non-ground constraint in a non-ambivalent way *)
       let as_ty, as_mode = build_as_type_and_mode_extra env p rest ~mode in
@@ -1782,28 +1706,15 @@ and build_as_type_aux (env : Env.t) p ~mode =
     ty, mode
   in
   match p.pat_desc with
-<<<<<<< oxcaml
     Tpat_alias(p1,_, _, _, _, _, _) -> build_as_type_and_mode env p1 ~mode
-||||||| upstream-base
-    Tpat_alias(p1,_, _) -> build_as_type env p1
-=======
-    Tpat_alias(p1,_, _, _, _) -> build_as_type env p1
->>>>>>> upstream-incoming
   | Tpat_tuple pl ->
       let labeled_tyl =
         List.map (fun (label, p) -> label, build_as_type env p) pl in
-<<<<<<< oxcaml
       newty (Ttuple labeled_tyl), mode
   | Tpat_unboxed_tuple pl ->
       let labeled_tyl =
         List.map (fun (label, p, _) -> label, build_as_type env p) pl in
       newty (Tunboxed_tuple labeled_tyl), mode
-||||||| upstream-base
-      let tyl = List.map (build_as_type env) pl in
-      newty (Ttuple tyl)
-=======
-      newty (Ttuple labeled_tyl)
->>>>>>> upstream-incoming
   | Tpat_construct(_, cstr, pl, vto) ->
       let priv = (cstr.cstr_private = Private) in
       let mode =
@@ -1930,7 +1841,7 @@ let reorder_pat loc penv patl closed labeled_tl expected_ty =
   | _, (extra_label, _) :: _ ->
     raise
       (Error (loc, !!penv, Extra_tuple_label(extra_label, expected_ty)))
-
+(*
 (* This assumes the [args] have already been reordered according to the
    [expected_ty], if needed.  *)
 let solve_Ppat_tuple ~refine ~alloc_mode loc env args expected_ty =
@@ -3349,9 +3260,6 @@ let as_comp_pattern
   | Computation -> pat
 
 <<<<<<< oxcaml
-let components_have_label (labeled_components : (string option * 'a) list) =
-  List.exists (function Some _, _ -> true | _ -> false) labeled_components
-
 let forbid_atomic_field_patterns loc penv (label_lid, label, pat) =
   (* Pattern-matching under atomic record fields is not allowed. We
      still allow wildcard patterns, so that it is valid to list all
@@ -6861,18 +6769,6 @@ let may_contain_gadts p =
 (* One of the things we do in the presence of GADT constructors (see above
    definition) is treat `let p = e in ...` as a match `match e with p -> ...`.
    This changes the way type inference works to check the expression first, and
-<<<<<<< oxcaml
-   using its type in the checking of the pattern.  We want that behavior for
-   labeled tuple patterns as well.  *)
-let turn_let_into_match p =
-  exists_ppat (fun p ->
-    match p.ppat_desc with
-    | Ppat_construct _ -> true
-    | Ppat_tuple (_, Open) -> true
-    | Ppat_tuple (ps, _) when components_have_label ps -> true
-    | _ -> false) p
-||||||| upstream-base
-=======
    use its type in the checking of the pattern.  We want that behavior for
    labeled tuple patterns as well.  *)
 let turn_let_into_match p =
@@ -6885,7 +6781,6 @@ let turn_let_into_match p =
          List.exists (fun (l, _) -> Option.is_some l) spl
        | _ -> false)
     p
->>>>>>> upstream-incoming
 
 (* There are various things that we need to do in presence of module patterns
    that aren't required if there are none. Most notably, we need to ensure the
@@ -15955,3 +15850,4 @@ let type_argument env e t1 t2 =
 let type_option_some env e t1 t2 =
   let exp = type_option_some env mode_legacy e t1 t2 in
   maybe_check_uniqueness_exp exp; exp
+         *)
