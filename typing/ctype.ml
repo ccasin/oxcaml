@@ -195,13 +195,13 @@ let wrap_end_def f = Misc.try_finally f ~always:end_def
 
 (* [with_local_level_gen] handles both the scoping structure of levels
    and automatic generalization through pools (cf. btype.ml) *)
-let with_local_level_gen ~begin_def ~structure ~before_generalize f =
+let with_local_level_gen ~begin_def ~structure ?before_generalize f =
   begin_def ();
   let level = !current_level in
   let result, pool =
     with_new_pool ~level:!current_level begin fun () ->
       let result = wrap_end_def f in
-      before_generalize result;
+      Option.iter (fun g -> g result) before_generalize;
       result
     end
   in
@@ -249,20 +249,16 @@ let with_local_level_gen ~begin_def ~structure ~before_generalize f =
   end pool;
   result
 
-let with_local_level_generalize_structure ~before_generalize f =
-  with_local_level_gen ~begin_def ~structure:true ~before_generalize f
+let with_local_level_generalize_structure f =
+  with_local_level_gen ~begin_def ~structure:true f
 let with_local_level_generalize ~before_generalize f =
   with_local_level_gen ~begin_def ~structure:false ~before_generalize f
 let with_local_level_generalize_if cond ~before_generalize f =
   if cond then with_local_level_generalize ~before_generalize f else f ()
-let with_local_level_generalize_structure_if ~before_generalize cond f =
-  if cond
-  then with_local_level_generalize_structure ~before_generalize f
-  else f ()
-let with_local_level_generalize_structure_if_principal ~before_generalize f =
-  if !Clflags.principal
-  then with_local_level_generalize_structure ~before_generalize f
-  else f ()
+let with_local_level_generalize_structure_if cond f =
+  if cond then with_local_level_generalize_structure f else f ()
+let with_local_level_generalize_structure_if_principal f =
+  if !Clflags.principal then with_local_level_generalize_structure f else f ()
 let with_local_level_generalize_for_class ~before_generalize f =
   with_local_level_gen
     ~begin_def:begin_class_def ~structure:false ~before_generalize f
@@ -943,7 +939,7 @@ let rec copy_spine copy_scope ty =
       | Ttuple tyl ->
           Ttuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
       | Tunboxed_tuple tyl ->
-          Ttuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
+          Tunboxed_tuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
       | Tpackage {pack_path; pack_cstrs} ->
           let fl = List.map (fun (n, ty) -> n, copy_rec ty) pack_cstrs in
           Tpackage {pack_path; pack_cstrs = fl}
@@ -3155,7 +3151,8 @@ let unify_univar t1 t2 jkind1 jkind2 pairs =
       | _ ->
           raise Cannot_unify_universal_variables
       end
-  | [] -> raise Out_of_scope_universal_variable
+  | [] ->
+      raise Out_of_scope_universal_variable
   in
   inner t1 t2 pairs
 
@@ -4268,7 +4265,7 @@ and unify3 uenv t1 t1' t2 t2' =
           eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
           unify_alloc_mode_for Unify a1 a2;
           unify_alloc_mode_for Unify r1 r2;
-          unify  uenv t1 t2; unify uenv  u1 u2;
+          unify uenv t1 t2; unify uenv  u1 u2;
           begin match is_commu_ok c1, is_commu_ok c2 with
           | false, true -> set_commu_ok c1
           | true, false -> set_commu_ok c2
