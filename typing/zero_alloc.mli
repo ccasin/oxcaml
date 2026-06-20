@@ -30,7 +30,7 @@ type check_context =
   | Type_constraint
   (* zero_alloc requirements compared against a type constraint *)
   | Default
-  (* all other contexts *)
+(* all other contexts *)
 
 (* This type represents whether or not a function will be checked for
    zero-alloc-ness, and with what configuration (strict, opt, etc). It can be a
@@ -74,6 +74,7 @@ val undo_change : change -> unit
 type error
 
 val error_is_arity_mismatch : error -> bool
+
 val print_error : Format_doc.formatter -> error -> unit
 
 (* An [error] indicating that two zero_alloc views should agree but don't:
@@ -95,7 +96,9 @@ val check_payload_to_string : ?apparent_arity:int -> check -> string
    values are identical. Returns an error if one is present and the other is
    absent, or if both are present but differ. *)
 val check_option_equal :
-  context:check_context -> check option -> check option ->
+  context:check_context ->
+  check option ->
+  check option ->
   (unit, error) Result.t
 
 val debug_printer : Format.formatter -> t -> unit
