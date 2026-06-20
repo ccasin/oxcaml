@@ -142,7 +142,7 @@ and raw_type_desc ppf ty =
   | Tunivar { name; jkind } ->
       fprintf ppf "Tunivar (@,%a,@,%a)"
         print_name name (Format_doc.compat (Jkind.format env)) jkind
-  | Tpoly (t, tl) ->
+  | Tpoly (t, tl, _za) -> (* XXX fix me *)
       fprintf ppf "@[<hov1>Tpoly(@,%a,@,%a)@]"
         raw_type t
         raw_type_list tl

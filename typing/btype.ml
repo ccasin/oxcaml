@@ -183,7 +183,8 @@ let is_Tunivar ty = match get_desc ty with Tunivar _ -> true | _ -> false
 let is_Tconstr ty = match get_desc ty with Tconstr _ -> true | _ -> false
 let is_Tpoly ty = match get_desc ty with Tpoly _ -> true | _ -> false
 let is_poly_Tpoly ty =
-  match get_desc ty with Tpoly (_, _ :: _) -> true | _ -> false
+  match get_desc ty with Tpoly (_, _ :: _, _) -> true | _ -> false
+  (* XXX use of this needs to change *)
 let type_kind_is_abstract decl =
   match decl.type_kind with Type_abstract _ -> true | _ -> false
 let type_origin decl =
@@ -368,7 +369,7 @@ let fold_type_expr f init ty =
   | Tlink _             -> assert false
   | Tsubst (ty, _)      -> f init ty
   | Tunivar _           -> init
-  | Tpoly (ty, tyl)     ->
+  | Tpoly (ty, tyl, _)     ->
     let result = f init ty in
     List.fold_left f result tyl
   | Trepr (ty, _sort_vars) ->
@@ -608,9 +609,9 @@ let rec copy_type_desc ?(keep_names=false) f = function
   | Tlink ty            -> copy_type_desc f (get_desc ty)
   | Tsubst _            -> assert false
   | Tunivar _ as ty     -> ty (* always keep the name *)
-  | Tpoly (ty, tyl)     ->
+  | Tpoly (ty, tyl, za) ->
       let tyl = List.map f tyl in
-      Tpoly (f ty, tyl)
+      Tpoly (f ty, tyl, za)
   | Trepr (ty, sort_vars) ->
       Trepr (f ty, sort_vars)
   | Tpackage pack       ->
@@ -879,19 +880,38 @@ let instance_variable_type label sign =
 
 let tpoly_is_mono ty =
   match get_desc ty with
-  | Tpoly(_, []) -> true
-  | Tpoly(_, _ :: _) -> false
+  | Tpoly(_, [], None) -> true
+  | Tpoly(_, [], Some _) -> false
+  | Tpoly(_, _ :: _, _) -> false
   | _ -> assert false
 
 let tpoly_get_poly ty =
   match get_desc ty with
-  | Tpoly(ty, vars) -> (ty, vars)
+  | Tpoly(ty, vars, za) -> (ty, vars, za)
   | _ -> assert false
 
 let tpoly_get_mono ty =
   match get_desc ty with
-  | Tpoly(ty, []) -> ty
+  | Tpoly(ty, [], None) -> ty
   | _ -> assert false
+
+(* Like [tpoly_get_mono] but also works for [Tpoly(ty, [], Some _)] types. *)
+let tpoly_get_inner ty =
+  match get_desc ty with
+  | Tpoly(ty, [], _) -> ty
+  | _ -> assert false
+
+                  (****************)
+                  (*  zero_alloc  *)
+                  (****************)
+
+type explicit_poly =
+  | Mono
+  | Poly of Zero_alloc.check option
+
+let is_explicitly_poly = function
+  | Mono -> false
+  | Poly _ -> true
 
                   (************)
                   (*  Jkinds  *)

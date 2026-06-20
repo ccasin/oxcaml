@@ -729,7 +729,7 @@ module Digraph = struct
         end
     | Types.Tunivar { name; _ } ->
         mk "%a<SUP>∀</SUP>" Pp.pretty_var name
-    | Types.Tpoly (t, tl) ->
+    | Types.Tpoly (t, tl, _) ->
         let dg = mk "∀" |> std_edge t in
         List.fold_left (poly_edge ~color params id) dg tl
     | Types.Trepr (t, _sort_vars) ->

@@ -118,7 +118,7 @@ let print_tags ppf tags  =
   Fmt.(pp_print_list ~pp_sep:comma) print_tag ppf tags
 
 let is_unit_arg env ty =
-  let ty, vars = Btype.tpoly_get_poly ty in
+  let ty, vars, _ = Btype.tpoly_get_poly ty in
   if vars <> [] then false
   else begin
     (* CR metaprogramming jbachurski: Remove [contains_toplevel_splice] and
@@ -415,6 +415,8 @@ let explanation (type variety) intro prev env
     Some (doc_printf "@ because their kinds are different.\
                       @ @[<v>%t@;%t@]"
             (fmt_history "the first" k1) (fmt_history "the second" k2))
+  | Errortrace.Incompatible_zero_alloc e ->
+      Some(doc_printf "@,@[%a@]" Zero_alloc.print_error e)
 
 let mismatch intro env trace =
   Errortrace.explain trace (fun ~prev h -> explanation intro prev env h)

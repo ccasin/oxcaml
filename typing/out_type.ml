@@ -1206,7 +1206,7 @@ module Aliases = struct
               visited_objects := px :: !visited_objects;
             printer_iter_type_expr (mark_loops_rec visited) ty
           end
-      | Tpoly(ty, tyl) ->
+      | Tpoly(ty, tyl, _) ->
           List.iter add tyl;
           mark_loops_rec visited ty
       | _ ->
@@ -1384,7 +1384,7 @@ type modal =
     treated as NOT an arrow type, to align with the currying logic in
     [typetexp.ml].
 
-    If [r] is [Tpoly (Tarrow_, [])], it will be treated as NOT an arrow type.
+    If [r] is [Tpoly (Tarrow_, [], _)], it will be treated as NOT an arrow type.
     This gives tedious (but still correct) printing. *)
 
   | Other of Mode.Alloc.Const.t
@@ -1518,9 +1518,11 @@ let rec tree_of_modal_typexp mode modal ty =
         Otyp_stuff "<Tsubst>"
     | Tlink _ ->
         fatal_error "Out_type.tree_of_typexp"
-    | Tpoly (ty, []) | Trepr (ty, []) ->
+    | Tpoly (ty, [], None) | Trepr (ty, []) ->
         tree_of_typexp mode alloc_mode ty
-    | Tpoly (ty, tyl) ->
+    | Tpoly (ty, [], za) ->
+      Otyp_poly ([], tree_of_typexp mode alloc_mode ty, za)
+    | Tpoly (ty, tyl, za) ->
         (*let print_names () =
           List.iter (fun (_, name) -> prerr_string (name ^ " ")) !names;
           prerr_string "; " in *)
@@ -1530,7 +1532,7 @@ let rec tree_of_modal_typexp mode modal ty =
            printed once when used as proxy *)
         List.iter Aliases.add_delayed tyl;
         let tl = tree_of_qtvs tyl in
-        let tr = Otyp_poly (tl, tree_of_typexp mode alloc_mode ty) in
+        let tr = Otyp_poly (tl, tree_of_typexp mode alloc_mode ty, za) in
         (* Forget names when we leave scope *)
         Variable_names.remove_names tyl;
         Aliases.delayed := old_delayed; tr
@@ -1538,7 +1540,7 @@ let rec tree_of_modal_typexp mode modal ty =
         (* Trepr wraps a Tpoly that contains the type variables
            corresponding to the sort variables. Extract them and print. *)
         (match get_desc ty with
-         | Tpoly (inner_ty, (_ :: _ as tyl))  ->
+         | Tpoly (inner_ty, (_ :: _ as tyl), _za)  -> (* XXX wrong *)
              (* Check that the sort_vars match the jkinds of tyl *)
              let sorts_match =
                match
@@ -1890,7 +1892,32 @@ let tree_of_single_constructor cd =
       ocstr_name = name;
       ocstr_args = args;
       ocstr_return_type = ret;
-  }
+    }
+
+(* Print zero alloc information, if any *)
+let tree_of_zero_alloc zero_alloc apparent_arity =
+  let open Zero_alloc in
+  match zero_alloc with
+  | Default_zero_alloc | Ignore_assert_all -> None
+  | Check ({ custom_error_msg; _ } as check) ->
+    Some { oattr_name =
+         String.concat ""
+           ["zero_alloc";
+            Zero_alloc.check_payload_to_string ~apparent_arity check;
+            match custom_error_msg with
+            | None -> ""
+            | Some msg -> Printf.sprintf " custom_error_message %S" msg
+           ] }
+  | Assume { strict; never_returns_normally; arity; _ } ->
+    Some { oattr_name =
+         String.concat ""
+           ["zero_alloc assume";
+            if strict then " strict" else "";
+            if never_returns_normally then " never_returns_normally" else "";
+            if arity = apparent_arity then "" else
+              Printf.sprintf " arity %d" arity;
+           ]
+     }
 
 (* When printing GADT constructor, we need to forget the naming decision we took
   for the type parameters and constraints. Indeed, in
@@ -2245,34 +2272,12 @@ let tree_of_value_description id decl =
     count 0 decl.val_type
   in
   let attrs =
-    match Zero_alloc.get decl.val_zero_alloc with
-    | Default_zero_alloc | Ignore_assert_all -> []
-    | Check { strict; opt; arity; custom_error_msg; loc = _; } ->
-      [{ oattr_name =
-           String.concat ""
-             ["zero_alloc";
-              if strict then " strict" else "";
-              if opt then " opt" else "";
-              if arity = apparent_arity then "" else
-                Printf.sprintf " arity %d" arity;
-              match custom_error_msg with
-              | None -> ""
-              | Some msg -> Printf.sprintf " custom_error_message %S" msg
-             ] }]
-    | Assume { strict; never_returns_normally; arity; _ } ->
-      [{ oattr_name =
-           String.concat ""
-             ["zero_alloc assume";
-              if strict then " strict" else "";
-              if never_returns_normally then " never_returns_normally" else "";
-              if arity = apparent_arity then "" else
-                Printf.sprintf " arity %d" arity;
-             ]
-       }]
+    Option.to_list
+      (tree_of_zero_alloc (Zero_alloc.get decl.val_zero_alloc) apparent_arity)
   in
   let vd =
     { oval_name = id;
-      oval_type = Otyp_newlayout(qsvs, Otyp_poly(qtvs, ty));
+      oval_type = Otyp_newlayout(qsvs, Otyp_poly(qtvs, ty, None));
       oval_modalities = tree_of_modalities Immutable moda;
       oval_prims = [];
       oval_attributes = attrs
@@ -2289,7 +2294,7 @@ let tree_of_value_description id decl =
 
 let method_type priv ty =
   match priv, get_desc ty with
-  | Mpublic, Tpoly(ty, tyl) -> (ty, tyl)
+  | Mpublic, Tpoly(ty, tyl, _) -> (ty, tyl) (* XXX test if reachable *)
   | _ , _ -> (ty, [])
 
 let prepare_method _lab (priv, _virt, ty) =
@@ -2305,7 +2310,7 @@ let tree_of_method mode (lab, priv, virt, ty) =
   Variable_names.remove_names tyl;
   let priv = priv <> Mpublic in
   let virt = virt = Virtual in
-  Ocsg_method (lab, priv, virt, Otyp_poly(qtvs, tty))
+  Ocsg_method (lab, priv, virt, Otyp_poly(qtvs, tty, None))
 
 let rec prepare_class_type params = function
   | Cty_constr (_p, tyl, cty) ->

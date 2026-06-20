@@ -136,6 +136,7 @@ type t =
   | Degraded_to_partial_match               (* 74 *)
   | Unnecessarily_partial_tuple_pattern     (* 75 *)
   (* Oxcaml specific warnings: numbers should go down from 199 *)
+  | Zero_alloc_on_nonfunction               (* 181 *)
   | Untagged_external_small_int_return      (* 182 *)
   | Redundant_kind_modifier of string       (* 183 *)
   | Ignored_kind_modifier of string * string list (* 184 *)
@@ -240,6 +241,7 @@ let number = function
   | Unused_tmc_attribute -> 71
   | Tmc_breaks_tailcall -> 72
   | Generative_application_expects_unit -> 73
+  | Zero_alloc_on_nonfunction -> 181
   | Untagged_external_small_int_return -> 182
   | Redundant_kind_modifier _ -> 183
   | Ignored_kind_modifier _ -> 184
@@ -615,6 +617,11 @@ let descriptions = [
     description = "A tuple pattern ends in .. but fully matches its expected \
                    type.";
     since = since 5 4 };
+  { number = 181;
+    names = ["zero-alloc-on-nonfunction"];
+    description = "A @zero_alloc attribute is placed on a let-binding \
+                   that does not define a function.";
+    since = since 5 2 };
   { number = 182;
     names = ["untagged-external-small-int-return"];
     description = "An external declaration returns an (int8[@untagged]) or \
@@ -1398,6 +1405,11 @@ let message = function
            should be applied@ to@ %a;@ using@ %a@ is deprecated."
         Style.inline_code "()"
         Style.inline_code "(struct end)"
+  | Zero_alloc_on_nonfunction ->
+      msg "The %a attribute has no effect on a non-function binding;@ \
+           rewrite the binding with explicit parameters or remove the \
+           attribute."
+        Style.inline_code "[@zero_alloc]"
   | Untagged_external_small_int_return ->
       msg "Using %a or %a on C stub returns is not@ \
            recommended since %a does not perform a sign-extension.@ Use@ \
