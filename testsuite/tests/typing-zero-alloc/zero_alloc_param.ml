@@ -306,8 +306,8 @@ let _ =
 Line 3, characters 2-29:
 3 |   let[@zero_alloc] f' = f 123 in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 181 [zero-alloc-on-nonfunction]: The [@zero_alloc] attribute has no effect on a non-function binding;
-rewrite the binding with explicit parameters or remove the attribute.
+Warning 181 [zero-alloc-on-nonfunction]: The "[@zero_alloc]" attribute has no effect on a non-function binding;
+  rewrite the binding with explicit parameters or remove the attribute.
 
 Line 4, characters 21-23:
 4 |   require_za_arity_1 f';; (* should fail *)
@@ -327,8 +327,8 @@ end;;
 Line 3, characters 2-29:
 3 |   let[@zero_alloc] f' = f 123
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 181 [zero-alloc-on-nonfunction]: The [@zero_alloc] attribute has no effect on a non-function binding;
-rewrite the binding with explicit parameters or remove the attribute.
+Warning 181 [zero-alloc-on-nonfunction]: The "[@zero_alloc]" attribute has no effect on a non-function binding;
+  rewrite the binding with explicit parameters or remove the attribute.
 
 Line 4, characters 29-31:
 4 |   let _ = require_za_arity_1 f'
@@ -392,8 +392,8 @@ let _ =
 Line 3, characters 2-30:
 3 |   let[@zero_alloc] id' = id id in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 181 [zero-alloc-on-nonfunction]: The [@zero_alloc] attribute has no effect on a non-function binding;
-rewrite the binding with explicit parameters or remove the attribute.
+Warning 181 [zero-alloc-on-nonfunction]: The "[@zero_alloc]" attribute has no effect on a non-function binding;
+  rewrite the binding with explicit parameters or remove the attribute.
 
 Line 4, characters 21-24:
 4 |   require_za_arity_1 id';; (* should fail; id' is not "syntactically" a function in the let-binding; there is a warning emitted *)
@@ -413,8 +413,8 @@ end;;
 Line 3, characters 2-30:
 3 |   let[@zero_alloc] id' = id id
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 181 [zero-alloc-on-nonfunction]: The [@zero_alloc] attribute has no effect on a non-function binding;
-rewrite the binding with explicit parameters or remove the attribute.
+Warning 181 [zero-alloc-on-nonfunction]: The "[@zero_alloc]" attribute has no effect on a non-function binding;
+  rewrite the binding with explicit parameters or remove the attribute.
 
 Line 4, characters 29-32:
 4 |   let _ = require_za_arity_1 id'
@@ -732,9 +732,7 @@ Error: Signature mismatch:
 let w2 : ('a. (('a -> int) [@zero_alloc])) -> int =
   fun (f [@zero_alloc arity 1]) -> f 123;;
 [%%expect {|
-val w2 :
-  ((('a. (('a -> int) [@zero_alloc arity 1]))) [@zero_alloc arity 1]) -> int =
-  <fun>
+val w2 : ('a. (('a -> int) [@zero_alloc arity 1])) -> int = <fun>
 |}];;
 
 (* zero_alloc on the Ptyp_poly node; arity inferred. *)
@@ -752,9 +750,7 @@ Error: "zero_alloc" attributes on function arguments require the argument
 let w4 : ('a. (('a -> int) [@zero_alloc arity 1])) -> int =
   fun (f [@zero_alloc arity 1]) -> f 123;;
 [%%expect {|
-val w4 :
-  ((('a. (('a -> int) [@zero_alloc arity 1]))) [@zero_alloc arity 1]) -> int =
-  <fun>
+val w4 : ('a. (('a -> int) [@zero_alloc arity 1])) -> int = <fun>
 |}];;
 
 (* Wrong explicit arity should fail. *)
@@ -799,7 +795,7 @@ Line 2, characters 7-41:
 2 |   fun (f : 'a. (('a -> 'a) [@zero_alloc])) -> f 123;;
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This pattern matches values of type
-         "('a. (('a -> 'a) [@zero_alloc arity 1]))"
+         "'a. (('a -> 'a) [@zero_alloc arity 1])"
        but a pattern was expected which matches values of type "'a. 'a -> 'a"
        The two types must agree on "zero_alloc":
        either both carry the annotation or neither does.
@@ -1016,7 +1012,7 @@ Line 6, characters 17-50:
 Error: Annotation check for zero_alloc failed on function TOP95.F.g.(fun) (camlTOP95__fn[:6,17--50]_108_111_code).
 my specific error
 
-File "format.ml", lines 1498-1500, characters 2-18:
+File "format.ml", lines 1549-1551, characters 2-18:
 Error: called function may allocate (direct call camlCamlinternalFormat__make_printf_120_401_code) (:6,27--46)
 |}];;
 
@@ -1428,7 +1424,8 @@ val with_id : ((('a -> 'a) [@zero_alloc arity 1]) -> 'b) -> 'b = <fun>
 Line 7, characters 7-21:
 7 |   else f (fun x -> x);;
            ^^^^^^^^^^^^^^
-Warning 18 [not-principal]: applying a function with zero_alloc requirements here is not principal.
+Warning 18 [not-principal]: applying a function with zero_alloc requirements here
+  is not principal.
 
 val non_principal : bool -> ((('a -> 'a) [@zero_alloc arity 1]) -> 'b) -> 'b =
   <fun>
@@ -1552,7 +1549,8 @@ let _ =
 Line 2, characters 2-48:
 2 |   let[@zero_alloc] foo = fun[@zero_alloc] x -> x in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 54 [duplicated-attribute]: the "assert_zero_alloc" attribute is used more than once on this expression
+Warning 54 [duplicated-attribute]: the "assert_zero_alloc" attribute is used more than once
+  on this expression
 
 - : int = 42
 |}];;
@@ -1571,7 +1569,8 @@ let _ =
 Line 2, characters 2-59:
 2 |   let[@zero_alloc opt] foo = fun[@zero_alloc strict] x -> x in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 54 [duplicated-attribute]: the "assert_zero_alloc" attribute is used more than once on this expression
+Warning 54 [duplicated-attribute]: the "assert_zero_alloc" attribute is used more than once
+  on this expression
 
 Line 3, characters 21-24:
 3 |   require_za_arity_1 foo;;
@@ -1589,7 +1588,8 @@ let _ =
 Line 2, characters 2-62:
 2 |   let[@zero_alloc assume] foo = fun[@zero_alloc strict] x -> x in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 54 [duplicated-attribute]: the "assume_zero_alloc" attribute is used more than once on this expression
+Warning 54 [duplicated-attribute]: the "assume_zero_alloc" attribute is used more than once
+  on this expression
 
 Line 3, characters 16-19:
 3 |   test_f_strict foo;;
@@ -1607,7 +1607,8 @@ let _ =
 Line 2, characters 2-62:
 2 |   let[@zero_alloc strict] foo = fun[@zero_alloc assume] x -> x in
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Warning 54 [duplicated-attribute]: the "assert_zero_alloc strict" attribute is used more than once on this expression
+Warning 54 [duplicated-attribute]: the "assert_zero_alloc strict" attribute is used more than once
+  on this expression
 
 - : int = 123
 |}];;
@@ -1630,6 +1631,6 @@ Line 3, characters 4-38:
 3 |     Format.printf "allocates str %d" n;
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: called function may allocate (indirect call)
-File "format.ml", lines 1498-1500, characters 2-18:
+File "format.ml", lines 1549-1551, characters 2-18:
 Error: called function may allocate (direct call camlCamlinternalFormat__make_printf_120_401_code) (:3,4--38)
 |}];;

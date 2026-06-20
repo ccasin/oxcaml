@@ -389,13 +389,13 @@ and print_poly_body ppf = function
   | Otyp_poly ([], ty, None) ->
       print_out_type_0 ppf ty
   | Otyp_poly ([], ty, (Some _ as za)) ->
-      fprintf ppf "(%a%a)" print_simple_out_type ty pp_arg_zero_alloc za
+      fprintf ppf "%a%a" print_simple_out_type ty pp_arg_zero_alloc za
   | Otyp_poly (sl, ty, None) ->
       fprintf ppf "@[<hov 2>%a.@ %a@]"
         pr_var_jkinds sl
         print_out_type_0 ty
   | Otyp_poly (sl, ty, (Some _ as za)) ->
-      fprintf ppf "@[<hov 2>(%a.@ (%a%a))@]"
+      fprintf ppf "@[<hov 2>%a.@ (%a%a)@]"
         pr_var_jkinds sl
         print_simple_out_type ty
         pp_arg_zero_alloc za

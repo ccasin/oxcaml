@@ -811,7 +811,7 @@ Warning 53 [misplaced-attribute]: the zero_alloc attribute cannot appear in this
 File "w53.ml", line 363, characters 29-39:
 363 |   external y : int -> (int [@zero_alloc]) = "x" (* rejected *)
                                    ^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "zero_alloc" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the zero_alloc attribute cannot appear in this context
 
 File "w53.ml", line 364, characters 39-49:
 364 |   external z : int -> int = "x" "y" [@@zero_alloc] (* rejected *)
@@ -1056,37 +1056,37 @@ Warning 53 [misplaced-attribute]: the immediate attribute cannot appear in this 
 File "w53.ml", line 504, characters 6-15:
 504 |   [@@@immediate] (* rejected *)
             ^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate attribute cannot appear in this context
 
 File "w53.ml", line 505, characters 6-17:
 505 |   [@@@immediate64] (* rejected *)
             ^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate64" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate64 attribute cannot appear in this context
 
 File "w53.ml", line 509, characters 15-24:
 509 |   let x = (4 [@immediate], 42 [@immediate64]) (* rejected *)
                      ^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate attribute cannot appear in this context
 
 File "w53.ml", line 509, characters 32-43:
 509 |   let x = (4 [@immediate], 42 [@immediate64]) (* rejected *)
                                       ^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate64" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate64 attribute cannot appear in this context
 
 File "w53.ml", line 510, characters 21-30:
 510 |   let y = (4, 42) [@@immediate] (* rejected *)
                            ^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate attribute cannot appear in this context
 
 File "w53.ml", line 511, characters 21-32:
 511 |   let z = (4, 42) [@@immediate64] (* rejected *)
                            ^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate64" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate64 attribute cannot appear in this context
 
 File "w53.ml", line 513, characters 18-27:
 513 |   type t1 = int [@immediate] (* rejected *)
                         ^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "immediate" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the immediate attribute cannot appear in this context
 
 File "w53.ml", line 517, characters 6-15:
 517 |   [@@@immediate] (* rejected *)
@@ -1726,37 +1726,37 @@ Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in t
 File "w53.ml", line 868, characters 24-37:
 868 |   external y : (int64 [@tail_mod_cons]) -> (int64 [@tail_mod_cons]) =
                               ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 868, characters 52-65:
 868 |   external y : (int64 [@tail_mod_cons]) -> (int64 [@tail_mod_cons]) =
                                                           ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 871, characters 39-52:
 871 |   external z : int64 -> int64 = "x" [@@tail_mod_cons] (* rejected *)
                                              ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 875, characters 21-34:
 875 |   type 'a t1 = 'a [@@tail_mod_cons] (* rejected *)
                            ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 876, characters 19-32:
 876 |   type s1 = Foo1 [@tail_mod_cons] (* rejected *)
                          ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 877, characters 25-38:
 877 |   let x : int64 = 42L [@@tail_mod_cons] (* rejected *)
                                ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 879, characters 16-29:
 879 |   let g x = (f[@tail_mod_cons]) x (* rejected *)
                       ^^^^^^^^^^^^^
-Warning 53 [misplaced-attribute]: the "tail_mod_cons" attribute cannot appear in this context
+Warning 53 [misplaced-attribute]: the tail_mod_cons attribute cannot appear in this context
 
 File "w53.ml", line 881, characters 24-37:
 881 |   external y : (int64 [@tail_mod_cons]) -> (int64 [@tail_mod_cons]) =
