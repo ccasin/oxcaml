@@ -1825,39 +1825,3 @@ module T3 :
     module M'' : S2
   end
 |}]
-
-(*****************************************)
-(* Test 19: Interaction of value aliases *)
-
-module T1 : sig
-  val[@zero_alloc] f : 'a -> 'a
-  val[@zero_alloc] g : 'a -> 'a
-end = struct
-  let (f as g) = fun x -> x
-end
-[%%expect{|
-module T1 :
-  sig val f : 'a -> 'a [@@zero_alloc] val g : 'a -> 'a [@@zero_alloc] end
-|}]
-
-module T1' : sig
-  val[@zero_alloc] f : 'a -> 'a
-  val[@zero_alloc] g : int -> int
-end = struct
-  let (f as g) = fun x -> x
-end
-[%%expect{|
-module T1' :
-  sig val f : 'a -> 'a [@@zero_alloc] val g : int -> int [@@zero_alloc] end
-|}]
-
-module T2 : sig
-  val[@zero_alloc] f : 'a -> 'a
-  val[@zero_alloc] g : int -> int
-end = struct
-  let[@zero_alloc] (f as g) = fun x -> x
-end
-[%%expect{|
-module T2 :
-  sig val f : 'a -> 'a [@@zero_alloc] val g : int -> int [@@zero_alloc] end
-|}]

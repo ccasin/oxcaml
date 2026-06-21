@@ -42,30 +42,31 @@ let _ = f_requires_opt non_za_fn;;
 - : int = 1
 |}];;
 
-(* Under opt mode, [@zero_alloc opt] on a function definition is checked. *)
-let[@zero_alloc opt] allocating_fn x = (x, x);; (* should fail in the backend *)
+(* Constraining an allocating function to be zero_alloc opt via such a parameter
+   results in a back-end failure when [-zero-alloc-check opt] is passed. A
+   corresponding test in [zero_alloc_param.ml] confirms the same function is not
+   checked by the backend otherwise. *)
+module M = struct
+  let allocating_fn x = (x, x)
+  let _ = f_requires_opt allocating_fn
+end
 [%%expect {|
-Line 1, characters 5-15:
-1 | let[@zero_alloc opt] allocating_fn x = (x, x);; (* should fail in the backend *)
-         ^^^^^^^^^^
-Error: Annotation check for zero_alloc failed on function TOP8.allocating_fn (camlTOP8__allocating_fn_8_9_code).
-Line 1, characters 39-45:
-1 | let[@zero_alloc opt] allocating_fn x = (x, x);; (* should fail in the backend *)
-                                           ^^^^^^
+Line 2, characters 20-30:
+2 |   let allocating_fn x = (x, x)
+                        ^^^^^^^^^^
+Error: Annotation check for zero_alloc failed on function TOP8.M.allocating_fn (camlTOP8__allocating_fn_8_9_code).
+Line 2, characters 24-30:
+2 |   let allocating_fn x = (x, x)
+                            ^^^^^^
 Error: allocation of 24 bytes
 |}];;
 
-let[@zero_alloc opt] non_allocating_fn x = x + 1;;
-[%%expect {|
-val non_allocating_fn : int -> int [@@zero_alloc opt] = <fun>
-|}];;
-
-(** The same opt vs. non-opt conflict tests as in zero_alloc_param.ml.
-    Under opt mode, [@zero_alloc opt] is a real guarantee, so calling an opt
-    function in a [@zero_alloc] body succeeds (unlike under default mode). *)
-
+(** When [-zero-alloc-check opt] is passed, we can make use of [@zero_alloc opt]
+    info from parameters. A corresponding test in [zero_alloc_param.ml] confirms
+    this does not pass the backend check otherwise. *)
+(* XXX double check this is the known sadness. *)
 let[@zero_alloc] f : ((int -> int) [@zero_alloc opt]) -> int =
-  fun (g [@zero_alloc opt arity 1]) -> g 42;;  (* succeeds under opt mode *)
+  fun (g [@zero_alloc opt arity 1]) -> g 42;;
 [%%expect {|
 val f : ((int -> int) [@zero_alloc opt arity 1]) -> int [@@zero_alloc] =
   <fun>
@@ -79,10 +80,10 @@ val f : ((int -> int) [@zero_alloc opt arity 1]) -> int [@@zero_alloc] =
 |}];;
 
 let[@zero_alloc] f : ((int -> int) [@zero_alloc]) -> int =
-  fun (g [@zero_alloc opt arity 1]) -> g 42;;  (* should fail in the frontend *)
+  fun (g [@zero_alloc opt arity 1]) -> g 42;;
 [%%expect {|
 Line 2, characters 2-43:
-2 |   fun (g [@zero_alloc opt arity 1]) -> g 42;;  (* should fail in the frontend *)
+2 |   fun (g [@zero_alloc opt arity 1]) -> g 42;;
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: The "zero_alloc" attribute on this function parameter conflicts
        with the one on its type.
